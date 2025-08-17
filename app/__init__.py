@@ -21,7 +21,7 @@ def create_app(config_name="development"):
     migrate.init_app(app, db)
     jwt.init_app(app)
     # Enable CORS for all routes (development only)
-    CORS(app, resources={r"/*": {"origins": "*"}})
+   # CORS(app, resources={r"/*": {"origins": "*"}})
 
     # Register models to ensure they are created in the database
     from . import models 
@@ -29,6 +29,9 @@ def create_app(config_name="development"):
     # Register Blueprints...
     from .routes import main_bp
     app.register_blueprint(main_bp)
+    
+    from .routes.cors.cors_setup import init_cors
+    init_cors(app)
     
     from .routes.auth.auth import auth_bp
     app.register_blueprint(auth_bp)
@@ -40,7 +43,25 @@ def create_app(config_name="development"):
     app.register_blueprint(tables_bp)
     
     from .routes.menu_items.menu_items import menu_items_bp
-    app.register_blueprint(menu_items_bp)  
+    app.register_blueprint(menu_items_bp) 
 
+    from .routes.stations.stations import stations_bp
+    app.register_blueprint(stations_bp) 
+
+    from .routes.orders.order import orders_bp
+    app.register_blueprint(orders_bp)
+
+    from .routes.stations.auth import stations_auth_bp
+    app.register_blueprint(stations_auth_bp)
+
+    from .routes.stations.kds import stations_kds_bp
+    app.register_blueprint(stations_kds_bp) 
+
+    from .routes.categories.categories import categories_bp
+    app.register_blueprint(categories_bp)  
+    
+    from .routes.categories.subcategories import subcategories_bp
+    app.register_blueprint(subcategories_bp)     
+    
 
     return app

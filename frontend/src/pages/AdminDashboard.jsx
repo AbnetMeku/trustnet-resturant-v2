@@ -1,26 +1,51 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
+import {
+  FaUserPlus,
+  FaTable,
+  FaStore,
+  FaUtensils,
+  FaBars,
+  FaChartBar,
+} from "react-icons/fa";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { useAuth } from "../context/AuthContext";
-import { FaTable, FaUserPlus, FaUtensils, FaBars, FaTimes } from "react-icons/fa";
-import "../styles/AdminDashboard.css";
-import UsersList from "../components/admin/UsersList"; // <-- import User List compononet
-import TablesList from "../components/admin/TablesList"; // <-- import Table List component
+
+import UserManagement from "@/components/admin/UserManagement";
+import TableManagement from "@/components/admin/TableManagement";
+import StationManagement from "@/components/admin/StationManagement";
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
-  const [active, setActive] = useState("addUser");
+  const [active, setActive] = useState("overview");
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 900);
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [darkMode, setDarkMode] = useState(
+    localStorage.getItem("darkMode") === "true" || false
+  );
 
+  // ---------------- Handle resize ----------------
   useEffect(() => {
     const onResize = () => {
       const mobile = window.innerWidth <= 900;
       setIsMobile(mobile);
-      setSidebarOpen(!mobile);
+      if (mobile && !sidebarOpen) {
+        setSidebarOpen(false);
+      }
     };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, []);
+  }, [sidebarOpen]);
 
+  // ---------------- Toggle Dark Mode ----------------
+  const toggleDarkMode = () => {
+    setDarkMode((prev) => {
+      localStorage.setItem("darkMode", !prev);
+      return !prev;
+    });
+  };
+
+  // ---------------- Sidebar Toggle ----------------
   const toggleSidebar = () => setSidebarOpen((prev) => !prev);
 
   const handleSelect = (id) => {
@@ -28,74 +53,137 @@ export default function AdminDashboard() {
     if (isMobile) setSidebarOpen(false);
   };
 
+  // ---------------- Sidebar Items ----------------
+  const menuItems = [
+    { id: "overview", icon: FaChartBar, label: "Overview" },
+    { id: "users", icon: FaUserPlus, label: "Users" },
+    { id: "tables", icon: FaTable, label: "Tables" },
+    { id: "stations", icon: FaStore, label: "Stations" },
+    { id: "menu", icon: FaUtensils, label: "Menu" },
+    { id: "reports", icon: FaBars, label: "Reports" },
+  ];
+
   return (
-    <div className="admin-dashboard">
-      {/* Sidebar */}
-      <aside
-        className={
-          "sidebar " +
-          (isMobile ? (sidebarOpen ? "open" : "") : sidebarOpen ? "" : "collapsed")
-        }
-      >
-        <div className="logo">
-          <img src="/logo.png" alt="Logo" />
-          {!(!isMobile && !sidebarOpen) && <h2>Admin Panel</h2>}
-        </div>
-        <nav>
-          <ul>
-            <li
-              className={active === "addUser" ? "active" : ""}
-              onClick={() => handleSelect("addUser")}
-            >
-              <FaUserPlus />
-              {!(!isMobile && !sidebarOpen) && <span>Users</span>}
-            </li>
-            <li
-              className={active === "addTable" ? "active" : ""}
-              onClick={() => handleSelect("addTable")}
-            >
-              <FaTable />
-              {!(!isMobile && !sidebarOpen) && <span>Tables</span>}
-            </li>
-            <li
-              className={active === "addMenu" ? "active" : ""}
-              onClick={() => handleSelect("addMenu")}
-            >
-              <FaUtensils />
-              {!(!isMobile && !sidebarOpen) && <span>Menu</span>}
-            </li>
-          </ul>
-        </nav>
-      </aside>
+    <div className={darkMode ? "dark" : ""}>
+      <div className="flex h-screen w-screen overflow-hidden bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
 
-      {isMobile && sidebarOpen && <div className="overlay" onClick={() => setSidebarOpen(false)} />}
-
-      {/* Main */}
-      <div className="main-content">
-        <header className="topbar">
-          <div className="left">
-            <button className="icon-btn" onClick={toggleSidebar} aria-label="Toggle menu">
-              {isMobile && sidebarOpen ? <FaTimes /> : <FaBars />}
-            </button>
-            <span className="welcome">
-              Welcome, <strong>{user?.username || "Admin"}</strong>
-            </span>
+        {/* ---------------- Sidebar ---------------- */}
+        <aside
+          className={`
+            fixed md:relative z-30 top-0 left-0 h-full md:h-auto
+            bg-white dark:bg-gray-800 shadow-lg transition-all duration-300
+            flex flex-col
+            ${isMobile ? (sidebarOpen ? "w-64" : "w-0") : sidebarOpen ? "w-64" : "w-16"}
+          `}
+        >
+          {/* Sidebar Header */}
+          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center space-x-2">
+              <img src="/logo.png" alt="Logo" className="w-8 h-8" />
+              {!isMobile && sidebarOpen && (
+                <span className="font-bold text-lg">Admin Panel</span>
+              )}
+            </div>
           </div>
-          <button onClick={logout} className="logout-btn">Logout</button>
-        </header>
 
-        <div className="content-area">
-          {active === "addUser" && <UsersList />} {/* <-- render UsersList here */}
-          {active === "addTable" && <TablesList />}
+          {/* Sidebar Menu */}
+          <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar">
+            {menuItems.map((item) => (
+              <div
+                key={item.id}
+                className={`flex items-center cursor-pointer px-4 py-3 rounded-md mx-2 mb-2
+                  hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors
+                  ${active === item.id ? "bg-gray-300 dark:bg-gray-700 font-semibold" : ""}
+                `}
+                onClick={() => handleSelect(item.id)}
+              >
+                <item.icon className="text-lg" />
+                {sidebarOpen && <span className="ml-3">{item.label}</span>}
+              </div>
+            ))}
+          </nav>
+        </aside>
 
+        {/* Backdrop for mobile */}
+        {isMobile && sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-20 md:hidden"
+            onClick={toggleSidebar}
+          />
+        )}
 
-          {active === "addMenu" && (
-            <section className="card">
-              <h2>Menu Items</h2>
-              <p className="muted">Menu item (name, price, category, availability).</p>
-              <div className="placeholder">List Menu Form goes here</div>
-            </section>
-          )}
+        {/* ---------------- Main Content ---------------- */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Topbar */}
+          <header className="flex justify-between items-center bg-white dark:bg-gray-800 shadow px-4 py-3">
+            <div className="flex items-center space-x-4">
+              {/* Single toggle button for all screen sizes */}
+              <button
+                onClick={toggleSidebar}
+                className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+              >
+                <FaBars />
+              </button>
+
+              <span>
+                Welcome, <strong>{user?.username || "Admin"}</strong>
+              </span>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Button variant="outline" size="sm" onClick={toggleDarkMode}>
+                {darkMode ? "Light Mode" : "Dark Mode"}
+              </Button>
+              <Button variant="destructive" size="sm" onClick={logout}>
+                Logout
+              </Button>
+            </div>
+          </header>
+
+          {/* Content Area */}
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4">
+            {active === "overview" && (
+              <Card className="p-6 w-full">
+                <h2 className="text-xl font-bold mb-4">Overview</h2>
+                <p>Quick stats and KPIs will go here.</p>
+              </Card>
+            )}
+
+            {active === "users" && (
+              <Card className="p-6 w-full">
+                <h2 className="text-xl font-bold mb-4">Users Management</h2>
+                <UserManagement />
+              </Card>
+            )}
+
+            {active === "tables" && (
+              <Card className="p-6 w-full">
+                <h2 className="text-xl font-bold mb-4">Tables Management</h2>
+                <TableManagement />
+              </Card>
+            )}
+
+            {active === "stations" && (
+              <Card className="p-6 w-full">
+                <h2 className="text-xl font-bold mb-4">Stations Management</h2>
+                <StationManagement />
+              </Card>
+            )}
+
+            {active === "menu" && (
+              <Card className="p-6 w-full">
+                <h2 className="text-xl font-bold mb-4">Menu Items</h2>
+                <p>Manage menu items, categories, and subcategories.</p>
+              </Card>
+            )}
+
+            {active === "reports" && (
+              <Card className="p-6 w-full">
+                <h2 className="text-xl font-bold mb-4">Reports</h2>
+                <p>Sales, orders, and performance reports will appear here.</p>
+              </Card>
+            )}
+          </main>
         </div>
       </div>
     </div>

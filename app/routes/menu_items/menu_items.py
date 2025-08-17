@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, abort
 from flask_jwt_extended import jwt_required
 from app.extensions import db
-from app.models.models import MenuItem
+from app.models.models import MenuItem, Station
 from app.utils.decorators import roles_required
 
 menu_items_bp = Blueprint("menu_items_bp", __name__, url_prefix="/menu-items")
@@ -13,7 +13,7 @@ def menu_item_to_dict(item: MenuItem):
         "name": item.name,
         "description": item.description,
         "price": float(item.price) if item.price is not None else None,
-        "category": item.category,
+        "station": item.station_rel.name if item.station_rel else None,
         "is_available": item.is_available,
         "image_url": item.image_url,
     }
@@ -24,11 +24,11 @@ def menu_item_to_dict(item: MenuItem):
 @jwt_required()
 @roles_required("admin", "manager", "waiter", "kitchen", "butcher", "bar", "cashier")
 def get_menu_items():
-    """Get all menu items (optionally filter by ?category=food|raw_meat|drinks)."""
-    category = request.args.get("category")
+    """Get all menu items (optionally filter by ?station_id=)."""
+    station_id = request.args.get("station_id", type=int)
     query = MenuItem.query
-    if category:
-        query = query.filter_by(category=category)
+    if station_id:
+        query = query.filter_by(station_id=station_id)
     items = query.all()
     return jsonify([menu_item_to_dict(i) for i in items]), 200
 
@@ -54,12 +54,16 @@ def create_menu_item():
     name = data.get("name")
     description = data.get("description")
     price = data.get("price")
-    category = data.get("category")  # "raw_meat" | "food" | "drinks"
+    station_id = data.get("station_id")
     is_available = data.get("is_available", True)
     image_url = data.get("image_url")
 
-    if not name or price is None or not category:
-        abort(400, "Name, price, and category are required.")
+    if not name or price is None or not station_id:
+        abort(400, "Name, price, and station_id are required.")
+
+    station = Station.query.get(station_id)
+    if not station:
+        abort(400, "Station not found.")
 
     if MenuItem.query.filter_by(name=name).first():
         abort(400, "Menu item with this name already exists.")
@@ -68,7 +72,7 @@ def create_menu_item():
         name=name,
         description=description,
         price=price,
-        category=category,
+        station_id=station_id,
         is_available=is_available,
         image_url=image_url,
     )
@@ -89,10 +93,15 @@ def update_menu_item(item_id):
 
     data = request.get_json() or {}
 
+    if "station_id" in data:
+        station = Station.query.get(data["station_id"])
+        if not station:
+            abort(400, "Station not found.")
+        item.station_id = station.id
+
     item.name = data.get("name", item.name)
     item.description = data.get("description", item.description)
     item.price = data.get("price", item.price)
-    item.category = data.get("category", item.category)
     item.is_available = data.get("is_available", item.is_available)
     item.image_url = data.get("image_url", item.image_url)
 

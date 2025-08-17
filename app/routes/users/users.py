@@ -3,110 +3,154 @@ from flask import Blueprint, request, jsonify, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.extensions import db
 from app.models.models import User
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 from app.utils.decorators import roles_required
 
 users_bp = Blueprint("users_bp", __name__, url_prefix="/users")
 
+
 def user_to_dict(user):
-    """Helper to convert User model to JSON-safe dict."""
     return {
         "id": user.id,
-        "name": user.name,
         "username": user.username,
         "role": user.role,
     }
 
-# ---- GET ALL USERS ----
+
+# -------------------- GET ALL USERS -------------------- #
 @users_bp.route("/", methods=["GET"])
+@users_bp.route("", methods=["GET"])
 @jwt_required()
-@roles_required("admin", "manager")  # <-- pass roles as separate arguments
+@roles_required("admin", "manager")
 def get_users():
-    """Return list of all users. Restricted to admin and manager."""
-    users = User.query.all()
-    return jsonify([user_to_dict(u) for u in users])
+    role = request.args.get("role", type=str)
+    query = User.query
+    if role:
+        query = query.filter_by(role=role.lower())
+    users = query.all()
+    return jsonify([user_to_dict(u) for u in users]), 200
 
-# ---- CREATE USER ----
+
+# -------------------- CREATE USER -------------------- #
 @users_bp.route("/", methods=["POST"])
+@users_bp.route("", methods=["POST"])
 @jwt_required()
-@roles_required("admin", "manager")  # <-- pass roles as separate arguments
+@roles_required("admin", "manager")
 def create_user():
-    """Create a new user. Admin and manager only."""
     data = request.get_json()
+    username = data.get("username")
+    password = data.get("password")
+    pin = data.get("pin")
+    role = data.get("role", "").lower()
 
-    name = data.get('name')
-    username = data.get('username')
-    password = data.get('password')
-    role = data.get('role')
+    if not role:
+        abort(400, "Role is required")
 
-    if not all([name, username, password, role]):
-        abort(400, "Missing user info")
+    if role != "waiter" and not password:
+        abort(400, "Password is required for this role")
+    if role == "waiter" and not pin:
+        abort(400, "PIN is required for waiter")
 
-    if User.query.filter_by(username=username).first():
+    # Username uniqueness
+    if username and User.query.filter_by(username=username).first():
         abort(400, "Username already exists")
 
+    # PIN uniqueness for waiters
+    if role == "waiter":
+        existing_waiters = User.query.filter_by(role="waiter").all()
+        for w in existing_waiters:
+            if check_password_hash(w.pin_hash, pin):
+                abort(400, "This PIN is already taken")
+
     user = User(
-        name=name,
-        username=username,
-        password_hash=generate_password_hash(password),
+        username=username if username else None,
         role=role,
+        password_hash=generate_password_hash(password) if password else None,
+        pin_hash=generate_password_hash(pin) if pin else None,
     )
+
     db.session.add(user)
     db.session.commit()
-
     return jsonify(user_to_dict(user)), 201
 
-# ---- GET SINGLE USER ----
+
+# -------------------- GET SINGLE USER -------------------- #
 @users_bp.route("/<int:user_id>", methods=["GET"])
 @jwt_required()
-@roles_required("admin", "manager", "waiter", "kitchen", "butcher", "bar", "cashier")
+@roles_required("admin", "manager", "waiter", "cashier")
 def get_user(user_id):
-    """
-    Get user details by ID.
-    Allowed roles: admin, manager, and all staff roles.
-    Users can only see their own info unless admin/manager.
-    """
-    current_user_id = get_jwt_identity()
-    current_user = db.session.get(User, current_user_id)
-
+    current_user = db.session.get(User, int(get_jwt_identity()))
     user = db.session.get(User, user_id)
-    if user is None:
-        abort(404, description="User not found")
+    if not user:
+        abort(404, "User not found")
 
-    # If not admin or manager, user can only access their own data
     if current_user.role not in ["admin", "manager"] and current_user.id != user_id:
         abort(403, "Forbidden")
 
-    return jsonify(user_to_dict(user))
+    return jsonify(user_to_dict(user)), 200
 
-# ---- UPDATE USER ----
+
+# -------------------- UPDATE USER -------------------- #
 @users_bp.route("/<int:user_id>", methods=["PUT"])
 @jwt_required()
-@roles_required("admin", "manager")
+@roles_required("admin", "manager", "waiter", "cashier")
 def update_user(user_id):
-    """Update user info (name and role). Only admin and manager can update."""
+    current_user = db.session.get(User, int(get_jwt_identity()))
     user = db.session.get(User, user_id)
-    if user is None:
-        abort(404, description="User not found")
+    if not user:
+        abort(404, "User not found")
+
     data = request.get_json()
+    new_password = data.get("password")
+    new_pin = data.get("pin")
+    new_role = data.get("role", user.role)
 
-    user.name = data.get("name", user.name)
-    user.role = data.get("role", user.role)
+    # Admin/Manager can update anyone except role restrictions
+    if current_user.role in ["admin", "manager"]:
+        if user.role == "admin" and current_user.role != "admin":
+            abort(403, "Manager cannot update Admin")
+        if new_password:
+            user.password_hash = generate_password_hash(new_password)
+        if new_pin and user.role == "waiter":
+            # Check PIN uniqueness
+            existing_waiters = User.query.filter(User.id != user.id, User.role=="waiter").all()
+            for w in existing_waiters:
+                if check_password_hash(w.pin_hash, new_pin):
+                    abort(400, "This PIN is already taken")
+            user.pin_hash = generate_password_hash(new_pin)
 
-    # We won't allow username or password update here for now
+        # Update role for admin/manager only
+        user.role = new_role
+
+    # Waiter can only update own PIN
+    elif current_user.role == "waiter" and current_user.id == user.id:
+        if new_pin:
+            existing_waiters = User.query.filter(User.id != user.id, User.role=="waiter").all()
+            for w in existing_waiters:
+                if check_password_hash(w.pin_hash, new_pin):
+                    abort(400, "This PIN is already taken")
+            user.pin_hash = generate_password_hash(new_pin)
+        if new_password:
+            abort(403, "Waiter cannot update password")
 
     db.session.commit()
-    return jsonify(user_to_dict(user))
+    return jsonify(user_to_dict(user)), 200
 
-# ---- DELETE USER ----
+
+# -------------------- DELETE USER -------------------- #
 @users_bp.route("/<int:user_id>", methods=["DELETE"])
 @jwt_required()
 @roles_required("admin", "manager")
 def delete_user(user_id):
-    """Delete a user. Only admin and manager allowed."""
     user = db.session.get(User, user_id)
-    if user is None:
-        abort(404, description="User not found")
+    if not user:
+        abort(404, "User not found")
+
+    # Manager cannot delete admin
+    current_user = db.session.get(User, int(get_jwt_identity()))
+    if user.role == "admin" and current_user.role != "admin":
+        abort(403, "Manager cannot delete Admin")
+
     db.session.delete(user)
     db.session.commit()
-    return jsonify({"message": "User deleted"})
+    return jsonify({"message": "User deleted"}), 200

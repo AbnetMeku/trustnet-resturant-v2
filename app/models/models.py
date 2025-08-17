@@ -1,44 +1,57 @@
 from datetime import datetime
-from ..extensions import db  # use shared db
+from ..extensions import db
 
 class User(db.Model):
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    username = db.Column(db.String(50), unique=True, nullable=False)
-    password_hash = db.Column(db.Text, nullable=False)  # no limit
+    username = db.Column(db.String(50), unique=True, nullable=True)  # still nullable for waiters
+    password_hash = db.Column(db.Text, nullable=True)
+    pin_hash = db.Column(db.Text, nullable=True)
     role = db.Column(db.String(50), nullable=False)
+# ---------------------- Tables ---------------------- #
+# Many-to-many Waiter ↔ Table
+waiter_table_assoc = db.Table(
+    "waiter_table_assoc",
+    db.Column("waiter_id", db.Integer, db.ForeignKey("users.id"), primary_key=True),
+    db.Column("table_id", db.Integer, db.ForeignKey("tables.id"), primary_key=True),
+)
 
 class Table(db.Model):
     __tablename__ = "tables"
     id = db.Column(db.Integer, primary_key=True)
     number = db.Column(db.String(10), unique=True, nullable=False)
-    status = db.Column(db.String(20), default="available")
+    status = db.Column(db.String(30), default="available")
     is_vip = db.Column(db.Boolean, default=False, nullable=False)
     orders = db.relationship("Order", back_populates="table")
+    waiters = db.relationship("User", secondary=waiter_table_assoc, backref="tables")
 
-# Table to waiter relationship
+# ---------------------- Stations ---------------------- #
+class Station(db.Model):
+    __tablename__ = "stations"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    password_hash = db.Column(db.Text, nullable=False)  # used as PIN
+    printer_identifier = db.Column(db.String(50), nullable=True)
+    menu_items = db.relationship("MenuItem", back_populates="station_rel")
 
-# class Table(db.Model):
-#     id = db.Column(db.Integer, primary_key=True)
-#     number = db.Column(db.String(10), nullable=False)
-#     seats = db.Column(db.Integer, nullable=False)
-#     is_vip = db.Column(db.Boolean, default=False)
-    
-#     waiter_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-#     waiter = db.relationship('User', backref='tables')
-
-
+# ---------------------- Menu Items ---------------------- #
 class MenuItem(db.Model):
     __tablename__ = "menu_items"
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    image_url = db.Column(db.String(255))
-    category = db.Column(db.String(50), nullable=False)
+    name = db.Column(db.String(120), nullable=False, unique=True)
+    description = db.Column(db.Text, nullable=True)
     price = db.Column(db.Numeric(10, 2), nullable=False)
-    description = db.Column(db.Text)
     is_available = db.Column(db.Boolean, default=True)
+    image_url = db.Column(db.String(255), nullable=True)
 
+    station_id = db.Column(db.Integer, db.ForeignKey("stations.id"), nullable=False)
+    station_rel = db.relationship("Station", back_populates="menu_items")
+
+    subcategory_id = db.Column(db.Integer, db.ForeignKey("subcategories.id"), nullable=False)
+    subcategory = db.relationship("SubCategory", back_populates="menu_items")
+
+
+# ---------------------- Orders and Order Items ---------------------- #
 class Order(db.Model):
     __tablename__ = "orders"
     id = db.Column(db.Integer, primary_key=True)
@@ -70,8 +83,32 @@ class OrderItem(db.Model):
     order = db.relationship("Order", back_populates="items")
     menu_item = db.relationship("MenuItem")
 
+# ---------------------- Kitchen Tag Counter ---------------------- #
+# This table tracks the last used tag number for each day    
+
 class KitchenTagCounter(db.Model):
     __tablename__ = "kitchen_tag_counter"
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False, unique=True)
     last_number = db.Column(db.Integer, default=0)
+
+# ---------------------- Categories and Subcategories ---------------------- #
+# This table structure allows for a flexible menu organization
+# Categories can have multiple subcategories, and each subcategory can have multiple menu items    
+
+class Category(db.Model):
+    __tablename__ = "categories"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    subcategories = db.relationship("SubCategory", back_populates="category", cascade="all, delete-orphan")
+
+class SubCategory(db.Model):
+    __tablename__ = "subcategories"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=False)
+    category = db.relationship("Category", back_populates="subcategories")
+    menu_items = db.relationship("MenuItem", back_populates="subcategory", cascade="all, delete-orphan")
+
+    __table_args__ = (db.UniqueConstraint('category_id', 'name', name='uq_subcategory_name_per_category'),)
+
