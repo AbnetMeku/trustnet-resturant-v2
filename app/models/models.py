@@ -41,6 +41,7 @@ class MenuItem(db.Model):
     name = db.Column(db.String(120), nullable=False, unique=True)
     description = db.Column(db.Text, nullable=True)
     price = db.Column(db.Numeric(10, 2), nullable=False)
+    vip_price = db.Column(db.Float, nullable=True)   # NEW
     is_available = db.Column(db.Boolean, default=True)
     image_url = db.Column(db.String(255), nullable=True)
 
@@ -49,7 +50,6 @@ class MenuItem(db.Model):
 
     subcategory_id = db.Column(db.Integer, db.ForeignKey("subcategories.id"), nullable=False)
     subcategory = db.relationship("SubCategory", back_populates="menu_items")
-
 
 # ---------------------- Orders and Order Items ---------------------- #
 class Order(db.Model):
