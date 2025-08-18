@@ -1,76 +1,44 @@
 import axios from "axios";
 
-/**
- * Fetch all subcategories
- */
-export const fetchSubcategories = async (token) => {
-  try {
-    const res = await axios.get("/subcategories/", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return res.data;
-  } catch (err) {
-    console.error("Error fetching subcategories:", err);
-    throw new Error(err.response?.data?.message || "Failed to fetch subcategories");
-  }
+const BASE_URL = "http://localhost:5000";
+
+const getAuthHeader = (token) => ({
+  Authorization: `Bearer ${token || localStorage.getItem("auth_token")}`,
+});
+
+// ------------------ CRUD ------------------
+
+export const getSubcategories = async (token = null) => {
+  const res = await axios.get(`${BASE_URL}/subcategories`, {
+    headers: getAuthHeader(token),
+  });
+  return res.data;
 };
 
-/**
- * Fetch single subcategory by ID
- */
-export const fetchSubcategoryById = async (id, token) => {
-  try {
-    const res = await axios.get(`/subcategories/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return res.data;
-  } catch (err) {
-    console.error("Error fetching subcategory:", err);
-    throw new Error(err.response?.data?.message || "Failed to fetch subcategory");
-  }
+export const getSubcategory = async (id, token = null) => {
+  const res = await axios.get(`${BASE_URL}/subcategories/${id}`, {
+    headers: getAuthHeader(token),
+  });
+  return res.data;
 };
 
-/**
- * Create a new subcategory
- */
-export const createSubcategory = async (data, token) => {
-  try {
-    const res = await axios.post("/subcategories/", data, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return res.data;
-  } catch (err) {
-    console.error("Error creating subcategory:", err);
-    throw new Error(err.response?.data?.message || "Failed to create subcategory");
-  }
+export const createSubcategory = async (data, token = null) => {
+  const res = await axios.post(`${BASE_URL}/subcategories`, data, {
+    headers: getAuthHeader(token),
+  });
+  return res.data;
 };
 
-/**
- * Update subcategory by ID
- */
-export const updateSubcategory = async (id, data, token) => {
-  try {
-    const res = await axios.put(`/subcategories/${id}`, data, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return res.data;
-  } catch (err) {
-    console.error("Error updating subcategory:", err);
-    throw new Error(err.response?.data?.message || "Failed to update subcategory");
-  }
+export const updateSubcategory = async (id, data, token = null) => {
+  const res = await axios.put(`${BASE_URL}/subcategories/${id}`, data, {
+    headers: getAuthHeader(token),
+  });
+  return res.data;
 };
 
-/**
- * Delete subcategory by ID
- */
-export const deleteSubcategory = async (id, token) => {
-  try {
-    const res = await axios.delete(`/subcategories/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return res.data;
-  } catch (err) {
-    console.error("Error deleting subcategory:", err);
-    throw new Error(err.response?.data?.message || "Failed to delete subcategory");
-  }
+export const deleteSubcategory = async (id, token = null) => {
+  const res = await axios.delete(`${BASE_URL}/subcategories/${id}`, {
+    headers: getAuthHeader(token),
+  });
+  return res.data;
 };

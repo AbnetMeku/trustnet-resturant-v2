@@ -1,76 +1,42 @@
 import axios from "axios";
+const BASE_URL = "http://localhost:5000";
 
-/**
- * Fetch all categories
- */
-export const fetchCategories = async (token) => {
-  try {
-    const res = await axios.get("/categories/", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return res.data;
-  } catch (err) {
-    console.error("Error fetching categories:", err);
-    throw new Error(err.response?.data?.message || "Failed to fetch categories");
-  }
+const getAuthHeader = (token) => ({
+  Authorization: `Bearer ${token || localStorage.getItem("auth_token")}`,
+});
+
+// ------------------- Categories ------------------- //
+export const getCategories = async (token = null) => {
+  const res = await axios.get(`${BASE_URL}/categories`, {
+    headers: getAuthHeader(token),
+  });
+  return res.data;
 };
 
-/**
- * Fetch single category by ID
- */
-export const fetchCategoryById = async (id, token) => {
-  try {
-    const res = await axios.get(`/categories/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return res.data;
-  } catch (err) {
-    console.error("Error fetching category:", err);
-    throw new Error(err.response?.data?.message || "Failed to fetch category");
-  }
+export const getCategoryById = async (id, token = null) => {
+  const res = await axios.get(`${BASE_URL}/categories/${id}`, {
+    headers: getAuthHeader(token),
+  });
+  return res.data;
 };
 
-/**
- * Create a new category
- */
-export const createCategory = async (data, token) => {
-  try {
-    const res = await axios.post("/categories/", data, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return res.data;
-  } catch (err) {
-    console.error("Error creating category:", err);
-    throw new Error(err.response?.data?.message || "Failed to create category");
-  }
+export const createCategory = async (categoryData, token = null) => {
+  const res = await axios.post(`${BASE_URL}/categories`, categoryData, {
+    headers: getAuthHeader(token),
+  });
+  return res.data;
 };
 
-/**
- * Update category by ID
- */
-export const updateCategory = async (id, data, token) => {
-  try {
-    const res = await axios.put(`/categories/${id}`, data, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return res.data;
-  } catch (err) {
-    console.error("Error updating category:", err);
-    throw new Error(err.response?.data?.message || "Failed to update category");
-  }
+export const updateCategory = async (id, categoryData, token = null) => {
+  const res = await axios.put(`${BASE_URL}/categories/${id}`, categoryData, {
+    headers: getAuthHeader(token),
+  });
+  return res.data;
 };
 
-/**
- * Delete category by ID
- */
-export const deleteCategory = async (id, token) => {
-  try {
-    const res = await axios.delete(`/categories/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return res.data;
-  } catch (err) {
-    console.error("Error deleting category:", err);
-    throw new Error(err.response?.data?.message || "Failed to delete category");
-  }
+export const deleteCategory = async (id, token = null) => {
+  const res = await axios.delete(`${BASE_URL}/categories/${id}`, {
+    headers: getAuthHeader(token),
+  });
+  return res.data;
 };

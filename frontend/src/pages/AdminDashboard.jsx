@@ -14,6 +14,7 @@ import { useAuth } from "../context/AuthContext";
 import UserManagement from "@/components/admin/UserManagement";
 import TableManagement from "@/components/admin/TableManagement";
 import StationManagement from "@/components/admin/StationManagement";
+import MenuManagement from "@/components/admin/MenuManagement";
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
@@ -173,7 +174,7 @@ export default function AdminDashboard() {
             {active === "menu" && (
               <Card className="p-6 w-full">
                 <h2 className="text-xl font-bold mb-4">Menu Items</h2>
-                <p>Manage menu items, categories, and subcategories.</p>
+                <MenuManagement />
               </Card>
             )}
 

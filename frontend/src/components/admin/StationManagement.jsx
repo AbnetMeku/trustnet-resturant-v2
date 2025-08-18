@@ -99,7 +99,7 @@ export default function StationManagement() {
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Stations</h1>
+        {/* <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Stations</h1> */}
         <Button onClick={() => setModalOpen(true)} className="flex items-center gap-2">
           <FaPlus /> Add Station
         </Button>
