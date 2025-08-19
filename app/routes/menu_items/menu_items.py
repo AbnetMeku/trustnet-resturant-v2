@@ -13,6 +13,7 @@ def menu_item_to_dict(item: MenuItem):
         "name": item.name,
         "description": item.description,
         "price": float(item.price) if item.price is not None else None,
+        "vip_price": float(item.vip_price) if item.vip_price is not None else None,  # NEW
         "is_available": item.is_available,
         "image_url": item.image_url,
         "station_id": item.station_id,
@@ -66,6 +67,7 @@ def create_menu_item():
     name = data.get("name")
     description = data.get("description")
     price = data.get("price")
+    vip_price = data.get("vip_price")  # NEW
     station_id = data.get("station_id")
     subcategory_id = data.get("subcategory_id")
     is_available = data.get("is_available", True)
@@ -93,6 +95,7 @@ def create_menu_item():
         name=name,
         description=description,
         price=price,
+        vip_price=vip_price,  # NEW
         station_id=station_id,
         subcategory_id=subcategory_id,
         is_available=is_available,
@@ -130,9 +133,11 @@ def update_menu_item(item_id):
             return jsonify({"error": "Menu item with this name already exists in this subcategory."}), 400
         item.subcategory_id = subcategory.id
 
+    # Normal fields
     item.name = data.get("name", item.name)
     item.description = data.get("description", item.description)
     item.price = data.get("price", item.price)
+    item.vip_price = data.get("vip_price", item.vip_price)  # NEW
     item.is_available = data.get("is_available", item.is_available)
     item.image_url = data.get("image_url", item.image_url)
 

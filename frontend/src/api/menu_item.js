@@ -17,29 +17,36 @@ export const getMenuItems = async (filters = {}, token = null) => {
     headers: getAuthHeader(token),
     params,
   });
-  return res.data;
+  return res.data; // Each menu item should now include vip_price
 };
 
 export const getMenuItemById = async (id, token = null) => {
   const res = await axios.get(`${BASE_URL}/menu-items/${id}`, {
     headers: getAuthHeader(token),
   });
-  return res.data;
+  return res.data; // includes vip_price too
 };
 
 // ------------------ CREATE ------------------
 export const createMenuItem = async (menuItemData, token = null) => {
-  // menuItemData = { name, description, price, station_id, subcategory_id, is_available, image_url }
+  // menuItemData = { name, description, price, vip_price, station_id, subcategory_id, is_available, image_url }
   const res = await axios.post(`${BASE_URL}/menu-items/`, menuItemData, {
-    headers: getAuthHeader(token),
+    headers: {
+      ...getAuthHeader(token),
+      "Content-Type": "application/json",
+    },
   });
   return res.data;
 };
 
 // ------------------ UPDATE ------------------
 export const updateMenuItem = async (id, menuItemData, token = null) => {
+  // menuItemData = { name, description, price, vip_price, station_id, subcategory_id, is_available, image_url }
   const res = await axios.put(`${BASE_URL}/menu-items/${id}`, menuItemData, {
-    headers: getAuthHeader(token),
+    headers: {
+      ...getAuthHeader(token),
+      "Content-Type": "application/json",
+    },
   });
   return res.data;
 };
