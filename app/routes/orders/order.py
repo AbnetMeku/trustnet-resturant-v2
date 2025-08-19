@@ -1,31 +1,36 @@
 # app/routes/orders/order.py
 from decimal import Decimal
+from datetime import datetime, date
 from flask import Blueprint, request, jsonify, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from sqlalchemy import distinct
 from app.extensions import db
-from app.models.models import Order, OrderItem, MenuItem, Table
-from app.routes.orders.kitchen_tag import generate_kitchen_tag
+from app.models.models import Order, OrderItem, MenuItem, Table, KitchenTagCounter
 from app.utils.decorators import roles_required
 
 orders_bp = Blueprint("orders_bp", __name__, url_prefix="/orders")
 
 # ---------------- Utilities ----------------
-KITCHEN_STATION_KEYS = {"tibs_kitchen", "kitfo_kitchen"}
-
-def normalize_station_key(name: str) -> str:
-    """Convert display name like 'Kitfo Kitchen' -> 'kitfo_kitchen'."""
-    return name.lower().replace(" ", "_")
-
-def is_kitchen_station(display_name: str) -> bool:
-    return normalize_station_key(display_name) in KITCHEN_STATION_KEYS
-
 def safe_int_identity() -> int:
     ident = get_jwt_identity()
     try:
         return int(ident)
     except (TypeError, ValueError):
         abort(401, "Invalid token identity.")
+
+# ---------------- Kitchen Tag Generator ----------------
+def generate_kitchen_tag_for_today():
+    today = date.today()
+    counter = KitchenTagCounter.query.filter_by(date=today).first()
+    if not counter:
+        counter = KitchenTagCounter(date=today, last_number=0)
+        db.session.add(counter)
+        db.session.flush()
+    counter.last_number += 1
+    if counter.last_number > 9999:
+        counter.last_number = 0
+    tag = f"{counter.last_number:04d}"
+    db.session.commit()
+    return tag
 
 # ---------------- Serializers ----------------
 def order_item_to_dict(item: OrderItem):
@@ -35,10 +40,11 @@ def order_item_to_dict(item: OrderItem):
         "name": item.menu_item.name if item.menu_item else None,
         "quantity": item.quantity,
         "price": float(item.price),
+        "vip_price": float(item.vip_price) if item.vip_price else None,
         "notes": item.notes,
-        "station": item.station,     # display name (e.g., "Kitfo Kitchen")
-        "status": item.status,       # "pending" | "ready"
-        "prep_tag": item.prep_tag,   # e.g., "0001" (kitchen only)
+        "station": item.station,
+        "status": item.status,
+        "prep_tag": item.prep_tag,
     }
 
 def order_to_dict(order: Order):
@@ -46,7 +52,7 @@ def order_to_dict(order: Order):
         "id": order.id,
         "table_id": order.table_id,
         "user_id": order.user_id,
-        "status": order.status,  # "open" | "closed" | "paid"
+        "status": order.status,
         "total_amount": float(order.total_amount) if order.total_amount else 0.0,
         "created_at": order.created_at.isoformat(),
         "updated_at": order.updated_at.isoformat(),
@@ -56,7 +62,6 @@ def order_to_dict(order: Order):
 def recalc_order_total(order: Order) -> None:
     total = Decimal("0.00")
     for i in order.items:
-        # i.price may already be Decimal depending on dialect
         total += Decimal(str(i.price)) * int(i.quantity)
     order.total_amount = total
 
@@ -77,10 +82,9 @@ def create_order():
         abort(404, f"Table {table_id} not found.")
 
     user_id = safe_int_identity()
-
     order = Order(table_id=table_id, user_id=user_id, status="open", total_amount=Decimal("0.00"))
     db.session.add(order)
-    db.session.flush()  # obtain order.id
+    db.session.flush()  # get order.id
 
     for payload in items_data:
         menu_item_id = payload.get("menu_item_id")
@@ -91,52 +95,48 @@ def create_order():
         if not menu_item:
             abort(404, f"MenuItem {menu_item_id} not found.")
 
-        display_station = menu_item.station_rel.name if menu_item.station_rel else "Unknown"
-        prep_tag = generate_kitchen_tag() if is_kitchen_station(display_station) else None
+        # Use VIP price if table is VIP
+        price_to_use = menu_item.vip_price if table.is_vip else menu_item.price
 
+        # Generate prep_tag if category is "food" (case-insensitive)
+        category_name = menu_item.category_rel.name if menu_item.category_rel else ""
+        prep_tag = generate_kitchen_tag_for_today() if category_name.lower() == "food" else None
+
+        status = "ready" if payload.get("printed") else "pending"
         quantity = int(payload.get("quantity", 1))
         notes = payload.get("notes")
+        station = menu_item.station_rel.name if menu_item.station_rel else "Unknown"
 
         order_item = OrderItem(
             order_id=order.id,
             menu_item_id=menu_item.id,
             quantity=quantity,
-            price=menu_item.price,  # Numeric/Decimal in DB
+            price=price_to_use,
+            vip_price=menu_item.vip_price,
             notes=notes,
-            station=display_station,  # store display name for FE
+            station=station,
             prep_tag=prep_tag,
-            status="pending",
+            status=status,
         )
         db.session.add(order_item)
 
-    # compute total after all items added
     recalc_order_total(order)
     db.session.commit()
-
     return jsonify(order_to_dict(order)), 201
 
 # ---------------- Orders: List ----------------
 @orders_bp.route("/", methods=["GET"])
 @jwt_required()
-@roles_required("admin", "manager", "waiter", "cashier", "kitchen", "bar", "butcher")
+@roles_required("admin", "manager", "waiter", "cashier")
 def list_orders():
     query = Order.query
     table_id = request.args.get("table_id")
     status = request.args.get("status")
-    station = request.args.get("station")  # can be "Kitfo Kitchen" or "kitfo_kitchen"
 
     if table_id:
         query = query.filter_by(table_id=table_id)
     if status:
         query = query.filter_by(status=status)
-    if station:
-        # Accept both display ("Kitfo Kitchen") and snake ("kitfo_kitchen")
-        station_display = station.replace("_", " ").strip()
-        query = (
-            query.join(OrderItem)
-                 .filter(OrderItem.station.ilike(station_display))
-                 .distinct(Order.id)
-        )
 
     orders = query.order_by(Order.created_at.desc()).all()
     return jsonify([order_to_dict(o) for o in orders]), 200
@@ -144,14 +144,14 @@ def list_orders():
 # ---------------- Orders: Get Single ----------------
 @orders_bp.route("/<int:order_id>", methods=["GET"])
 @jwt_required()
-@roles_required("admin", "manager", "waiter", "cashier", "kitchen", "bar", "butcher")
+@roles_required("admin", "manager", "waiter", "cashier")
 def get_order(order_id):
     order = db.session.get(Order, order_id)
     if not order:
         abort(404, "Order not found")
     return jsonify(order_to_dict(order)), 200
 
-# ---------------- Orders: Update (status) ----------------
+# ---------------- Orders: Update status ----------------
 @orders_bp.route("/<int:order_id>", methods=["PUT"])
 @jwt_required()
 @roles_required("admin", "manager", "waiter", "cashier")
@@ -189,6 +189,7 @@ def add_order_item(order_id):
     if not order:
         abort(404, "Order not found")
 
+    table = db.session.get(Table, order.table_id)
     data = request.get_json() or {}
     items_data = data.get("items", [])
     if not items_data:
@@ -203,23 +204,30 @@ def add_order_item(order_id):
         if not menu_item:
             abort(404, f"MenuItem {menu_item_id} not found")
 
-        display_station = menu_item.station_rel.name if menu_item.station_rel else "Unknown"
-        prep_tag = generate_kitchen_tag() if is_kitchen_station(display_station) else None
+        # VIP pricing
+        price_to_use = menu_item.vip_price if table.is_vip else menu_item.price
 
+        # Prep tag for food category
+        category_name = menu_item.category_rel.name if menu_item.category_rel else ""
+        prep_tag = generate_kitchen_tag_for_today() if category_name.lower() == "food" else None
+
+        status = "ready" if payload.get("printed") else "pending"
         quantity = int(payload.get("quantity", 1))
         notes = payload.get("notes")
+        station = menu_item.station_rel.name if menu_item.station_rel else "Unknown"
 
-        oi = OrderItem(
+        order_item = OrderItem(
             order_id=order.id,
             menu_item_id=menu_item.id,
             quantity=quantity,
-            price=menu_item.price,
+            price=price_to_use,
+            vip_price=menu_item.vip_price,
             notes=notes,
-            station=display_station,
+            station=station,
             prep_tag=prep_tag,
-            status="pending",
+            status=status,
         )
-        db.session.add(oi)
+        db.session.add(order_item)
 
     recalc_order_total(order)
     db.session.commit()
@@ -228,15 +236,13 @@ def add_order_item(order_id):
 # ---------------- OrderItems: Update one item ----------------
 @orders_bp.route("/<int:order_id>/items/<int:item_id>", methods=["PUT"])
 @jwt_required()
-@roles_required("admin", "manager", "waiter", "kitchen", "bar", "butcher")
+@roles_required("admin", "manager", "waiter")
 def update_order_item(order_id, item_id):
     order_item = db.session.get(OrderItem, item_id)
     if not order_item or order_item.order_id != order_id:
         abort(404, "Order item not found")
 
     data = request.get_json() or {}
-
-    # Update fields
     if "quantity" in data:
         order_item.quantity = int(data["quantity"])
     if "notes" in data:
@@ -246,12 +252,9 @@ def update_order_item(order_id, item_id):
             abort(400, "Invalid item status. Allowed: pending, ready.")
         order_item.status = data["status"]
 
-    # Recalc parent order total if quantity changed
-    order = db.session.get(Order, order_id)
-    recalc_order_total(order)
-
+    recalc_order_total(db.session.get(Order, order_id))
     db.session.commit()
-    return jsonify(order_to_dict(order)), 200
+    return jsonify(order_to_dict(order_item.order)), 200
 
 # ---------------- OrderItems: Delete one item ----------------
 @orders_bp.route("/<int:order_id>/items/<int:item_id>", methods=["DELETE"])
@@ -265,7 +268,6 @@ def delete_order_item(order_id, item_id):
     order = db.session.get(Order, order_id)
     db.session.delete(order_item)
     db.session.flush()
-
     recalc_order_total(order)
     db.session.commit()
     return jsonify(order_to_dict(order)), 200

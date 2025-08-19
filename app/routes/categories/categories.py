@@ -82,6 +82,10 @@ def delete_category(cat_id):
     if not category:
         return jsonify({"error": "Category not found"}), 404
 
+    # ✅ Block delete if subcategories exist
+    if category.subcategories and len(category.subcategories) > 0:
+        return jsonify({"error": "Cannot delete category because it has subcategories."}), 400
+
     db.session.delete(category)
     db.session.commit()
-    return jsonify({"message": "Category deleted"}), 200
+    return jsonify({"message": "Category deleted successfully"}), 200

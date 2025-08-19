@@ -48,9 +48,8 @@ class MenuItem(db.Model):
     station_id = db.Column(db.Integer, db.ForeignKey("stations.id"), nullable=False)
     station_rel = db.relationship("Station", back_populates="menu_items")
 
-    subcategory_id = db.Column(db.Integer, db.ForeignKey("subcategories.id"), nullable=False)
+    subcategory_id = db.Column(db.Integer, db.ForeignKey("subcategories.id", ondelete="SET NULL"), nullable=True)
     subcategory = db.relationship("SubCategory", back_populates="menu_items")
-
 # ---------------------- Orders and Order Items ---------------------- #
 class Order(db.Model):
     __tablename__ = "orders"
@@ -73,6 +72,7 @@ class OrderItem(db.Model):
     menu_item_id = db.Column(db.Integer, db.ForeignKey("menu_items.id"), nullable=False)
     quantity = db.Column(db.Integer, default=1)
     price = db.Column(db.Numeric(10, 2), nullable=False)
+    vip_price = db.Column(db.Numeric(10, 2))  # VIP price support
     notes = db.Column(db.Text)
     prep_tag = db.Column(db.String(20))
     status = db.Column(db.String(20), default="pending")
@@ -82,7 +82,6 @@ class OrderItem(db.Model):
 
     order = db.relationship("Order", back_populates="items")
     menu_item = db.relationship("MenuItem")
-
 # ---------------------- Kitchen Tag Counter ---------------------- #
 # This table tracks the last used tag number for each day    
 
@@ -94,21 +93,33 @@ class KitchenTagCounter(db.Model):
 
 # ---------------------- Categories and Subcategories ---------------------- #
 # This table structure allows for a flexible menu organization
-# Categories can have multiple subcategories, and each subcategory can have multiple menu items    
+# Categories can have multiple subcategories, and each subcategory can have multiple menu items       
 
 class Category(db.Model):
     __tablename__ = "categories"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
-    subcategories = db.relationship("SubCategory", back_populates="category", cascade="all, delete-orphan")
+    subcategories = db.relationship(
+        "SubCategory",
+        back_populates="category",
+        cascade="save-update",  # don't delete subcategories automatically
+        passive_deletes=True
+    )
 
 class SubCategory(db.Model):
     __tablename__ = "subcategories"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
     category = db.relationship("Category", back_populates="subcategories")
-    menu_items = db.relationship("MenuItem", back_populates="subcategory", cascade="all, delete-orphan")
+    
+    menu_items = db.relationship(
+        "MenuItem",
+        back_populates="subcategory",
+        cascade="save-update",  # don't delete menu items automatically
+        passive_deletes=True
+    )
 
-    __table_args__ = (db.UniqueConstraint('category_id', 'name', name='uq_subcategory_name_per_category'),)
-
+    __table_args__ = (
+        db.UniqueConstraint('category_id', 'name', name='uq_subcategory_name_per_category'),
+    )

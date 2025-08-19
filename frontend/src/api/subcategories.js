@@ -6,8 +6,7 @@ const getAuthHeader = (token) => ({
   Authorization: `Bearer ${token || localStorage.getItem("auth_token")}`,
 });
 
-// ------------------ CRUD ------------------
-
+// ------------------ Subcategories ------------------
 export const getSubcategories = async (token = null) => {
   const res = await axios.get(`${BASE_URL}/subcategories`, {
     headers: getAuthHeader(token),
@@ -37,8 +36,15 @@ export const updateSubcategory = async (id, data, token = null) => {
 };
 
 export const deleteSubcategory = async (id, token = null) => {
-  const res = await axios.delete(`${BASE_URL}/subcategories/${id}`, {
-    headers: getAuthHeader(token),
-  });
-  return res.data;
+  try {
+    const res = await axios.delete(`${BASE_URL}/subcategories/${id}`, {
+      headers: getAuthHeader(token),
+    });
+    return res.data;
+  } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || "Failed to delete subcategory");
+    }
+    throw error;
+  }
 };

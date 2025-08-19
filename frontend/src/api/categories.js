@@ -1,4 +1,5 @@
 import axios from "axios";
+
 const BASE_URL = "http://localhost:5000";
 
 const getAuthHeader = (token) => ({
@@ -35,8 +36,15 @@ export const updateCategory = async (id, categoryData, token = null) => {
 };
 
 export const deleteCategory = async (id, token = null) => {
-  const res = await axios.delete(`${BASE_URL}/categories/${id}`, {
-    headers: getAuthHeader(token),
-  });
-  return res.data;
+  try {
+    const res = await axios.delete(`${BASE_URL}/categories/${id}`, {
+      headers: getAuthHeader(token),
+    });
+    return res.data;
+  } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || "Failed to delete category");
+    }
+    throw error;
+  }
 };

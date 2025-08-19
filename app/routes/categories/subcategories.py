@@ -85,14 +85,20 @@ def update_subcategory(sc_id):
     db.session.commit()
     return jsonify(subcategory_to_dict(sc)), 200
 
-# DELETE
+# ------------------ DELETE ------------------
 @subcategories_bp.route("/<int:sc_id>", methods=["DELETE", "OPTIONS"])
 @jwt_required()
 @roles_required("admin", "manager")
 def delete_subcategory(sc_id):
-    sc = db.session.get(SubCategory, sc_id)
-    if not sc:
+    subcategory = db.session.get(SubCategory, sc_id)
+    if not subcategory:
         return jsonify({"error": "Subcategory not found"}), 404
-    db.session.delete(sc)
+
+    # ✅ Block delete if menu items exist
+    if subcategory.menu_items and len(subcategory.menu_items) > 0:
+        return jsonify({"error": "Cannot delete subcategory because it has menu items."}), 400
+
+    db.session.delete(subcategory)
     db.session.commit()
-    return jsonify({"message": "Subcategory deleted"}), 200
+    return jsonify({"message": "Subcategory deleted successfully"}), 200
+
