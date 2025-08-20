@@ -1,11 +1,11 @@
-# app/routes/orders/order.py
 from decimal import Decimal
 from datetime import datetime, date
 from flask import Blueprint, request, jsonify, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.extensions import db
-from app.models.models import Order, OrderItem, MenuItem, Table, KitchenTagCounter
+from app.models.models import Order, OrderItem, MenuItem, Table
 from app.utils.decorators import roles_required
+from app.routes.orders.kitchen_tag import generate_kitchen_tag  # Imported kitchen tag generator
 
 orders_bp = Blueprint("orders_bp", __name__, url_prefix="/orders")
 
@@ -17,28 +17,13 @@ def safe_int_identity() -> int:
     except (TypeError, ValueError):
         abort(401, "Invalid token identity.")
 
-# ---------------- Kitchen Tag Generator ----------------
-def generate_kitchen_tag_for_today():
-    today = date.today()
-    counter = KitchenTagCounter.query.filter_by(date=today).first()
-    if not counter:
-        counter = KitchenTagCounter(date=today, last_number=0)
-        db.session.add(counter)
-        db.session.flush()
-    counter.last_number += 1
-    if counter.last_number > 9999:
-        counter.last_number = 0
-    tag = f"{counter.last_number:04d}"
-    db.session.commit()
-    return tag
-
 # ---------------- Serializers ----------------
 def order_item_to_dict(item: OrderItem):
     return {
         "id": item.id,
         "menu_item_id": item.menu_item_id,
         "name": item.menu_item.name if item.menu_item else None,
-        "quantity": item.quantity,
+        "quantity": float(item.quantity),
         "price": float(item.price),
         "vip_price": float(item.vip_price) if item.vip_price else None,
         "notes": item.notes,
@@ -62,7 +47,7 @@ def order_to_dict(order: Order):
 def recalc_order_total(order: Order) -> None:
     total = Decimal("0.00")
     for i in order.items:
-        total += Decimal(str(i.price)) * int(i.quantity)
+        total += Decimal(str(i.price)) * i.quantity
     order.total_amount = total
 
 # ---------------- Orders: Create ----------------
@@ -84,7 +69,7 @@ def create_order():
     user_id = safe_int_identity()
     order = Order(table_id=table_id, user_id=user_id, status="open", total_amount=Decimal("0.00"))
     db.session.add(order)
-    db.session.flush()  # get order.id
+    db.session.flush()
 
     for payload in items_data:
         menu_item_id = payload.get("menu_item_id")
@@ -95,15 +80,12 @@ def create_order():
         if not menu_item:
             abort(404, f"MenuItem {menu_item_id} not found.")
 
-        # Use VIP price if table is VIP
         price_to_use = menu_item.vip_price if table.is_vip else menu_item.price
-
-        # Generate prep_tag if category is "food" (case-insensitive)
         category_name = menu_item.category_rel.name if menu_item.category_rel else ""
-        prep_tag = generate_kitchen_tag_for_today() if category_name.lower() == "food" else None
+        prep_tag = generate_kitchen_tag() if category_name.lower() == "food" else None  # Use imported function
 
         status = "ready" if payload.get("printed") else "pending"
-        quantity = int(payload.get("quantity", 1))
+        quantity = Decimal(str(payload.get("quantity", "1")))
         notes = payload.get("notes")
         station = menu_item.station_rel.name if menu_item.station_rel else "Unknown"
 
@@ -204,15 +186,12 @@ def add_order_item(order_id):
         if not menu_item:
             abort(404, f"MenuItem {menu_item_id} not found")
 
-        # VIP pricing
         price_to_use = menu_item.vip_price if table.is_vip else menu_item.price
-
-        # Prep tag for food category
         category_name = menu_item.category_rel.name if menu_item.category_rel else ""
-        prep_tag = generate_kitchen_tag_for_today() if category_name.lower() == "food" else None
+        prep_tag = generate_kitchen_tag() if category_name.lower() == "food" else None
 
         status = "ready" if payload.get("printed") else "pending"
-        quantity = int(payload.get("quantity", 1))
+        quantity = Decimal(str(payload.get("quantity", "1")))
         notes = payload.get("notes")
         station = menu_item.station_rel.name if menu_item.station_rel else "Unknown"
 
@@ -244,7 +223,7 @@ def update_order_item(order_id, item_id):
 
     data = request.get_json() or {}
     if "quantity" in data:
-        order_item.quantity = int(data["quantity"])
+        order_item.quantity = Decimal(str(data["quantity"]))
     if "notes" in data:
         order_item.notes = data["notes"]
     if "status" in data:

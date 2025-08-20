@@ -7,21 +7,40 @@ import {
   getCategories,
   createCategory,
   updateCategory,
-  deleteCategory
+  deleteCategory,
 } from "@/api/categories";
 import {
   getSubcategories,
   createSubcategory,
   updateSubcategory,
-  deleteSubcategory
+  deleteSubcategory,
 } from "@/api/subcategories";
 import {
   getMenuItems,
   createMenuItem,
   updateMenuItem,
-  deleteMenuItem
+  deleteMenuItem,
 } from "@/api/menu_item";
 import { getStations } from "@/api/stations";
+
+function ConfirmDialog({ open, message, onConfirm, onCancel }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60 p-4">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-sm w-full shadow-lg">
+        <p className="text-lg mb-4">{message}</p>
+        <div className="flex justify-end gap-4">
+          <Button variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={onConfirm}>
+            Delete
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function MenuManagement() {
   const [tab, setTab] = useState("categories");
@@ -34,8 +53,12 @@ export default function MenuManagement() {
   const [subcategoryForm, setSubcategoryForm] = useState({
     id: null,
     name: "",
-    category_id: ""
+    category_id: "",
   });
+
+  // Delete confirmation modal state
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null); // { id, type, deleteFunc, name }
 
   // Simple filter for Subcategories tab
   const [subcategoryCatFilter, setSubcategoryCatFilter] = useState("");
@@ -48,11 +71,11 @@ export default function MenuManagement() {
     name: "",
     description: "",
     price: "",
-    price_vip: "", // NEW
+    vip_price: "", // NEW
     station_id: "",
     subcategory_id: "",
     is_available: true,
-    image_url: ""
+    image_url: "",
   });
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -62,7 +85,7 @@ export default function MenuManagement() {
   const [filters, setFilters] = useState({
     categoryId: "",
     subcategoryId: "",
-    availability: ""
+    availability: "",
   });
 
   useEffect(() => {
@@ -75,7 +98,7 @@ export default function MenuManagement() {
         getCategories(),
         getSubcategories(),
         getStations(),
-        getMenuItems()
+        getMenuItems(),
       ]);
       setCategories(cats);
       setSubcategories(subs);
@@ -83,7 +106,9 @@ export default function MenuManagement() {
       setMenuItems(items);
     } catch (e) {
       console.error(e);
-      toast.error("Failed to load data");
+      toast.error("Failed to load data", {
+        style: { background: "#ffeded", color: "#d32f2f" },
+      });
     }
   };
 
@@ -99,13 +124,17 @@ export default function MenuManagement() {
       if (categoryForm.id)
         await updateCategory(categoryForm.id, { name: categoryForm.name });
       else await createCategory({ name: categoryForm.name });
-
-      toast.success(categoryForm.id ? "Category updated" : "Category created");
+      toast.success(categoryForm.id ? "Category updated" : "Category created", {
+        style: { background: "#e0f7fa", color: "#006064" },
+      });
       setCategoryForm({ id: null, name: "" });
       setModalOpen(false);
       fetchAll();
     } catch (err) {
-      toast.error("Failed to save category");
+      toast.error(
+        err?.response?.data?.error || "Failed to save category",
+        { style: { background: "#ffeded", color: "#d32f2f" } }
+      );
       console.error(err);
     }
   };
@@ -114,20 +143,23 @@ export default function MenuManagement() {
     try {
       const payload = {
         name: subcategoryForm.name,
-        category_id: parseInt(subcategoryForm.category_id)
+        category_id: parseInt(subcategoryForm.category_id),
       };
       if (subcategoryForm.id)
         await updateSubcategory(subcategoryForm.id, payload);
       else await createSubcategory(payload);
-
       toast.success(
-        subcategoryForm.id ? "Subcategory updated" : "Subcategory created"
+        subcategoryForm.id ? "Subcategory updated" : "Subcategory created",
+        { style: { background: "#e0f7fa", color: "#006064" } }
       );
       setSubcategoryForm({ id: null, name: "", category_id: "" });
       setModalOpen(false);
       fetchAll();
     } catch (err) {
-      toast.error("Failed to save subcategory");
+      toast.error(
+        err?.response?.data?.error || "Failed to save subcategory",
+        { style: { background: "#ffeded", color: "#d32f2f" } }
+      );
       console.error(err);
     }
   };
@@ -138,37 +170,41 @@ export default function MenuManagement() {
         name: menuForm.name,
         description: menuForm.description,
         price: parseFloat(menuForm.price),
-        // Only include price_vip if provided
-        ...(menuForm.price_vip !== "" && {
-          price_vip: parseFloat(menuForm.price_vip)
+        ...(menuForm.vip_price !== "" && {
+          vip_price: parseFloat(menuForm.vip_price),
         }),
         station_id: parseInt(menuForm.station_id),
         subcategory_id: parseInt(menuForm.subcategory_id),
         is_available: menuForm.is_available,
-        image_url: menuForm.image_url || ""
+        image_url: menuForm.image_url || "",
       };
 
       if (menuForm.id) await updateMenuItem(menuForm.id, payload);
       else await createMenuItem(payload);
 
-      toast.success(menuForm.id ? "Menu item updated" : "Menu item created");
+      toast.success(menuForm.id ? "Menu item updated" : "Menu item created", {
+        style: { background: "#e0f7fa", color: "#006064" },
+      });
 
       setMenuForm({
         id: null,
         name: "",
         description: "",
         price: "",
-        price_vip: "",
+        vip_price: "",
         station_id: "",
         subcategory_id: "",
         is_available: true,
-        image_url: ""
+        image_url: "",
       });
       setModalOpen(false);
       setCurrentItem(null);
       fetchAll();
     } catch (err) {
-      toast.error("Failed to save menu item");
+      toast.error(
+        err?.response?.data?.error || "Failed to save menu item",
+        { style: { background: "#ffeded", color: "#d32f2f" } }
+      );
       console.error(err);
     }
   };
@@ -176,38 +212,57 @@ export default function MenuManagement() {
   // ---------------- EDIT ----------------
   const handleEdit = (item, setForm, type) => {
     if (type === "category") setForm({ id: item.id, name: item.name });
-
     if (type === "subcategory")
       setForm({ id: item.id, name: item.name, category_id: item.category_id });
-
     if (type === "menu")
       setForm({
         id: item.id,
         name: item.name,
         description: item.description,
         price: item.price,
-        price_vip: item.price_vip ?? "", // NEW
+        vip_price: item.vip_price ?? "", // NEW
         station_id: item.station_id,
         subcategory_id: item.subcategory_id,
         is_available: item.is_available,
-        image_url: item.image_url || ""
+        image_url: item.image_url || "",
       });
-
     setCurrentItem(item);
     setModalOpen(true);
   };
 
   // ---------------- DELETE ----------------
-  const handleDelete = async (id, deleteFunc) => {
-    if (!window.confirm("Are you sure?")) return;
-    try {
-      await deleteFunc(id);
-      toast.success("Deleted successfully");
-      fetchAll();
-    } catch (err) {
-      toast.error("Failed to delete");
-      console.error(err);
-    }
+  const confirmDelete = (id, deleteFunc, name, type) => {
+    setDeleteTarget({ id, deleteFunc, name, type });
+    setConfirmOpen(true);
+  };
+
+  const handleDeleteConfirmed = async () => {
+  if (!deleteTarget) return;
+  try {
+    await deleteTarget.deleteFunc(deleteTarget.id);
+    toast.success(`${deleteTarget.type} "${deleteTarget.name}" deleted`, {
+      style: { background: "#e0f7fa", color: "#006064" },
+    });
+    setConfirmOpen(false);
+    setDeleteTarget(null);
+    fetchAll();
+  } catch (err) {
+  const message =
+    err?.response?.data?.error ||
+    err?.response?.data?.message ||
+    `Failed to delete ${deleteTarget.type.toLowerCase()}`;
+  toast.error(message, { style: { background: "#ffeded", color: "#d32f2f" } });
+  setConfirmOpen(false);
+  setDeleteTarget(null);
+  console.error(err);
+}
+
+};
+
+
+  const cancelDelete = () => {
+    setConfirmOpen(false);
+    setDeleteTarget(null);
   };
 
   // ---------------- FILTERS ----------------
@@ -246,11 +301,11 @@ export default function MenuManagement() {
         name: "",
         description: "",
         price: "",
-        price_vip: "",
+        vip_price: "",
         station_id: "",
         subcategory_id: "",
         is_available: true,
-        image_url: ""
+        image_url: "",
       });
     setModalOpen(true);
   };
@@ -284,7 +339,7 @@ export default function MenuManagement() {
               setFilters({
                 ...filters,
                 categoryId: e.target.value,
-                subcategoryId: ""
+                subcategoryId: "",
               })
             }
             className="border px-2 py-1 rounded dark:bg-gray-800 dark:text-gray-100"
@@ -357,7 +412,9 @@ export default function MenuManagement() {
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => handleDelete(cat.id, deleteCategory)}
+                    onClick={() =>
+                      confirmDelete(cat.id, deleteCategory, cat.name, "Category")
+                    }
                   >
                     <FaTrash />
                   </Button>
@@ -413,7 +470,12 @@ export default function MenuManagement() {
                       variant="destructive"
                       size="sm"
                       onClick={() =>
-                        handleDelete(sc.id, deleteSubcategory)
+                        confirmDelete(
+                          sc.id,
+                          deleteSubcategory,
+                          sc.name,
+                          "Subcategory"
+                        )
                       }
                     >
                       <FaTrash />
@@ -434,9 +496,16 @@ export default function MenuManagement() {
               key={item.id}
               className="hover:scale-105 transform transition-all duration-300 relative group"
             >
-              {/* Base price in upper-left */}
-              <div className="absolute top-2 left-2 bg-white dark:bg-gray-800 px-2 py-1 font-bold rounded shadow">
-                ${item.price}
+              {/* VIP Price Ribbon */}
+              {item.vip_price != null && (
+                <div className="absolute top-11 left-0 bg-gradient-to-b from-teal-400 via-cyan-500 to-blue-500 px-1 py-1 text-sm font-bold rounded-br-md z-10 animate-none">
+                  ${item.vip_price.toFixed(2)}
+                </div>
+              )}
+
+              {/* Base price in upper-left (shifted down to avoid overlap) */}
+              <div className="absolute top-0 left-0 bg-white dark:bg-gray-800 px-1 py-1 font-bold rounded shadow text-lg">
+                ${item.price.toFixed(2)}
               </div>
 
               {/* Availability LED in upper-right */}
@@ -467,13 +536,6 @@ export default function MenuManagement() {
                   {item.description}
                 </p>
 
-                {/* VIP price (if any) */}
-                {item.price_vip != null && (
-                  <p className="text-xs mt-1 text-gray-500 dark:text-gray-400">
-                    VIP: ${item.price_vip}
-                  </p>
-                )}
-
                 {/* Hover actions */}
                 <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button
@@ -486,7 +548,7 @@ export default function MenuManagement() {
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => handleDelete(item.id, deleteMenuItem)}
+                    onClick={() => confirmDelete(item.id, deleteMenuItem, item.name, "Menu item")}
                   >
                     <FaTrash />
                   </Button>
@@ -583,8 +645,8 @@ export default function MenuManagement() {
                     <input
                       type="number"
                       step="0.01"
-                      name="price_vip"
-                      value={menuForm.price_vip || ""}
+                      name="vip_price"
+                      value={menuForm.vip_price || ""}
                       onChange={handleChange(menuForm, setMenuForm)}
                       placeholder="VIP Price (optional)"
                       className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
@@ -669,6 +731,18 @@ export default function MenuManagement() {
           </div>
         </div>
       )}
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        open={confirmOpen}
+        message={
+          deleteTarget
+            ? `Are you sure you want to delete ${deleteTarget.type} "${deleteTarget.name}"?`
+            : ""
+        }
+        onConfirm={handleDeleteConfirmed}
+        onCancel={cancelDelete}
+      />
     </div>
   );
 }

@@ -1,7 +1,5 @@
-// src/components/waiter/OrdersHub.jsx
 import React, { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import NewOrder from "@/components/waiter/NewOrder";
 import ActiveOrders from "@/components/waiter/ActiveOrders";
 
@@ -10,39 +8,38 @@ export default function OrdersHub() {
 
   const handleBack = () => setView("hub");
 
-  // Conditional views
   if (view === "new") {
     return <NewOrder goBack={handleBack} />;
-  }
-
-  if (view === "active") {
+  } else if (view === "active") {
     return <ActiveOrders goBack={handleBack} />;
-  }
-
-  // Hub landing view
-  return (
-    <div className="flex flex-col items-center justify-center h-full space-y-6">
-      <Card className="p-10 w-80 text-center shadow-xl rounded-2xl">
-        <h2 className="text-2xl font-bold mb-8">Orders</h2>
-
-        <div className="flex flex-col space-y-4">
-          <Button
-            size="lg"
-            className="py-4 text-lg font-semibold"
+  } else {
+    // hub view
+    return (
+      <main className="flex items-center justify-center h-full px-6 bg-gray-50 dark:bg-gray-900">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 w-full max-w-5xl">
+          <Card
             onClick={() => setView("new")}
+            className="cursor-pointer h-48 sm:h-64 flex items-center justify-center text-3xl font-extrabold text-gray-800 bg-slate-200 rounded-2xl shadow-xl transition-transform transform hover:scale-105 hover:bg-slate-300 hover:shadow-2xl focus:outline-none focus:ring-4 focus:ring-slate-300"
+            tabIndex={0}
+            role="button"
+            aria-label="New Order"
+            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setView("new")}
           >
-            ➕ New Order
-          </Button>
+            New Order
+          </Card>
 
-          <Button
-            size="lg"
-            className="py-4 text-lg font-semibold"
+          <Card
             onClick={() => setView("active")}
+            className="cursor-pointer h-48 sm:h-64 flex items-center justify-center text-3xl font-extrabold text-gray-800 bg-slate-200 rounded-2xl shadow-xl transition-transform transform hover:scale-105 hover:bg-slate-300 hover:shadow-2xl focus:outline-none focus:ring-4 focus:ring-slate-300"
+            tabIndex={0}
+            role="button"
+            aria-label="Active Orders"
+            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setView("active")}
           >
-            📂 Active Orders
-          </Button>
+            Active Orders
+          </Card>
         </div>
-      </Card>
-    </div>
-  );
+      </main>
+    );
+  }
 }

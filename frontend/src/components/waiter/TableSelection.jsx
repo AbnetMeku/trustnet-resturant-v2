@@ -1,7 +1,6 @@
-// src/components/waiter/TableSelection.jsx
 import React, { useState, useEffect } from "react";
 import { getTables } from "@/api/tables";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "../../context/AuthContext";
 
@@ -14,11 +13,13 @@ export default function TableSelection({ setSelectedTable, onNext, onBack }) {
   useEffect(() => {
     const fetchTables = async () => {
       try {
+        setLoading(true);
         const allTables = await getTables();
         const waiterTables = allTables.filter((t) =>
           t.waiters.some((w) => w.id === user.id)
         );
         setTables(waiterTables);
+        setError(null);
       } catch (err) {
         console.error("Failed to fetch tables:", err);
         setError("Failed to load tables. Please try again.");
@@ -30,45 +31,76 @@ export default function TableSelection({ setSelectedTable, onNext, onBack }) {
   }, [user]);
 
   const handleSelect = (table) => {
-    // Set table in NewOrder state
     setSelectedTable(table);
-
-    // Move to next step (MenuSelection)
     onNext();
   };
 
-  if (loading) return <p>Loading tables...</p>;
-  if (error) return <p className="text-red-500">{error}</p>;
-  if (!tables || tables.length === 0)
-    return <p>No tables assigned to you yet.</p>;
+  if (loading) return <p className="text-center py-10">Loading tables...</p>;
+
+  if (error)
+    return (
+      <div className="p-4 text-center text-red-600">
+        <p>{error}</p>
+        <Button onClick={() => window.location.reload()} className="mt-4">
+          Retry
+        </Button>
+      </div>
+    );
+
+  if (!tables.length)
+    return <p className="p-4 text-center">No tables assigned to you yet.</p>;
 
   return (
-    <div className="p-4">
-      {/* Back Button */}
-      <Button variant="outline" className="mb-4" onClick={onBack}>
+    <div className="p-2 flex flex-col h-full bg-gray-50 dark:bg-gray-900 rounded-lg">
+      <Button variant="outline" className="mb-4 w-max" onClick={onBack}>
         &larr; Back
       </Button>
 
-      {/* Table Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 overflow-auto flex-grow">
         {tables.map((table) => (
           <Card
             key={table.id}
-            className="p-4 flex flex-col items-center justify-center cursor-pointer hover:shadow-lg transition"
+            onClick={() => handleSelect(table)}
+            tabIndex={0}
+            role="button"
+            aria-label={`Select Table ${table.number}${
+              table.is_vip ? ", VIP" : ""
+            }`}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                handleSelect(table);
+              }
+            }}
+            className="cursor-pointer relative rounded-lg border border-gray-300 shadow-sm hover:shadow-lg transition p-4 flex items-center justify-center select-none"
+            style={{ minHeight: "110px", aspectRatio: "1 / 1" }}
           >
-            <h3 className="text-xl font-bold mb-2">Table {table.number}</h3>
-            <p>Status: {table.status}</p>
+            {/* VIP Ribbon */}
             {table.is_vip && (
-              <p className="text-yellow-500 font-semibold">VIP</p>
+              <div className="absolute top-0 left-0 bg-gradient-to-r from-yellow-400 via-pink-500 to-red-500 text-white px-2 py-0.5 text-xs font-bold rounded-br-lg animate-pulse z-10">
+                VIP
+              </div>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-2"
-              onClick={() => handleSelect(table)}
+
+            {/* Status Badge at top-right */}
+            <div
+              className={`absolute top-0 right-0 mt-2 mr-2 px-2 py-1 text-xs font-semibold rounded ${
+                table.status === "available"
+                  ? "bg-green-500 animate-pulse"
+                  : table.status === "occupied"
+                  ? "bg-red-600"
+                  : "bg-yellow-500"
+              } text-white z-10`}
             >
-              Select Table
-            </Button>
+              {table.status}
+            </div>
+
+            {/* Centered table number */}
+            <div className="flex flex-col items-center">
+              <h3 className="text-lg font-bold text-center truncate">
+                Table {table.number}
+              </h3>
+            </div>
           </Card>
         ))}
       </div>

@@ -1,9 +1,9 @@
-// src/pages/WaiterDashboard.jsx
 import React, { useState, useEffect } from "react";
 import { FaBars, FaUtensils, FaHistory, FaTable } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 // Import your components
 import OrdersHub from "@/components/waiter/OrdersHub";
@@ -12,6 +12,8 @@ import MyTables from "@/components/waiter/MyTables";
 
 export default function WaiterDashboard() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
   const [active, setActive] = useState("orders"); // default to Orders
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 900);
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
@@ -43,6 +45,11 @@ export default function WaiterDashboard() {
     if (isMobile) setSidebarOpen(false);
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate("/waiter-login"); // Redirect to waiter login page after logout
+  };
+
   const menuSections = [
     { id: "orders", icon: FaUtensils, label: "Orders" },
     { id: "history", icon: FaHistory, label: "History" },
@@ -52,7 +59,6 @@ export default function WaiterDashboard() {
   return (
     <div className={darkMode ? "dark" : ""}>
       <div className="flex h-screen w-screen overflow-hidden bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-
         {/* Sidebar */}
         <aside
           className={`fixed md:relative z-30 top-0 left-0 h-full md:h-auto
@@ -112,7 +118,7 @@ export default function WaiterDashboard() {
               <Button variant="outline" size="sm" onClick={toggleDarkMode}>
                 {darkMode ? "Light Mode" : "Dark Mode"}
               </Button>
-              <Button variant="destructive" size="sm" onClick={logout}>
+              <Button variant="destructive" size="sm" onClick={handleLogout}>
                 Logout
               </Button>
             </div>

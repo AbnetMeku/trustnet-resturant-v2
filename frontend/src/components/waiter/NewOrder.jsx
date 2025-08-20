@@ -1,4 +1,3 @@
-// src/components/waiter/NewOrder.jsx
 import React, { useState } from "react";
 import TableSelection from "./TableSelection";
 import MenuSelection from "./MenuSelection";
@@ -9,18 +8,42 @@ export default function NewOrder({ goBack }) {
   const [selectedTable, setSelectedTable] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
 
-  // Add item to order
+  // Add item with quantity rule
   const addItem = (item) => {
-    setOrderItems((prev) => [...prev, item]);
+    let increment = 1;
+    if (
+      item.category_name?.toLowerCase() === "alcohols" &&
+      item.subcategory_name?.toLowerCase() === "butchery"
+    ) {
+      increment = 0.5;
+    }
+
+    setOrderItems((prev) => {
+      const existingIndex = prev.findIndex((i) => i.id === item.id);
+      if (existingIndex !== -1) {
+        const updated = [...prev];
+        updated[existingIndex].quantity += increment;
+        return updated;
+      }
+      return [...prev, { ...item, quantity: increment }];
+    });
   };
 
-  // Remove item
   const removeItem = (index) => {
     setOrderItems((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Go to next step
+  const updateQuantity = (itemId, newQuantity) => {
+    setOrderItems((prev) =>
+      prev.map((item) =>
+        item.id === itemId ? { ...item, quantity: newQuantity } : item
+      )
+    );
+  };
+
   const nextStep = () => {
+    if (step === "table" && !selectedTable) return;
+    if (step === "menu" && orderItems.length === 0) return;
     if (step === "table") setStep("menu");
     else if (step === "menu") setStep("review");
   };
@@ -38,7 +61,7 @@ export default function NewOrder({ goBack }) {
   };
 
   return (
-    <div className="p-4">
+    <div className="flex flex-col h-full p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
       {step === "table" && (
         <TableSelection
           selectedTable={selectedTable}
@@ -47,17 +70,17 @@ export default function NewOrder({ goBack }) {
           onBack={prevStep}
         />
       )}
-
       {step === "menu" && (
         <MenuSelection
+          selectedTable={selectedTable}
           orderItems={orderItems}
-          addItem={addItem}
+          addItem={addItem} // increment handled here
           removeItem={removeItem}
+          updateQuantity={updateQuantity}
           onNext={nextStep}
           onBack={prevStep}
         />
       )}
-
       {step === "review" && (
         <OrderSummary
           selectedTable={selectedTable}
