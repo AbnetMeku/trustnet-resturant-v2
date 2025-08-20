@@ -1,6 +1,9 @@
-# routes/orders/kitchen_tag.py
 from app.models.models import KitchenTagCounter, db
 from datetime import date
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def generate_kitchen_tag() -> str:
     """
@@ -9,17 +12,31 @@ def generate_kitchen_tag() -> str:
     """
     today = date.today()
 
-    # Get today's counter
-    counter = KitchenTagCounter.query.filter_by(date=today).first()
+    try:
+        # Lock the counter record to prevent race conditions
+        counter = (
+            db.session.query(KitchenTagCounter)
+            .filter_by(date=today)
+            .with_for_update()
+            .first()
+        )
 
-    if not counter:
-        counter = KitchenTagCounter(date=today, last_number=1)
-        db.session.add(counter)
-    else:
-        counter.last_number += 1
-        if counter.last_number > 9999:
-            counter.last_number = 1  # reset after 9999
+        if not counter:
+            counter = KitchenTagCounter(date=today, last_number=1)
+            db.session.add(counter)
+            logger.info(f"Created new KitchenTagCounter for {today}")
+        else:
+            counter.last_number += 1
+            if counter.last_number > 9999:
+                logger.warning(
+                    f"Kitchen tag limit reached for {today}. Resetting to 1."
+                )
+                counter.last_number = 1  # Reset after 9999
 
-    db.session.commit()
+        tag = f"{counter.last_number:04d}"
+        logger.debug(f"Generated kitchen tag {tag} for {today}")
+        return tag
 
-    return f"{counter.last_number:04d}"
+    except Exception as e:
+        logger.error(f"Failed to generate kitchen tag for {today}: {str(e)}")
+        raise

@@ -1,13 +1,18 @@
 from decimal import Decimal
 from datetime import datetime, date
-from flask import Blueprint, request, jsonify, abort
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app.extensions import db
-from app.models.models import Order, OrderItem, MenuItem, Table
+from app.models.models import Order, OrderItem, MenuItem, Table, User
 from app.utils.decorators import roles_required
-from app.routes.orders.kitchen_tag import generate_kitchen_tag  # Imported kitchen tag generator
+from app.routes.orders.kitchen_tag import generate_kitchen_tag
+import logging
 
 orders_bp = Blueprint("orders_bp", __name__, url_prefix="/orders")
+
+# ---------------- Logging Setup ----------------
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # ---------------- Utilities ----------------
 def safe_int_identity() -> int:
@@ -15,7 +20,19 @@ def safe_int_identity() -> int:
     try:
         return int(ident)
     except (TypeError, ValueError):
-        abort(401, "Invalid token identity.")
+        return error_response("Invalid token identity.", 401)
+
+def error_response(message: str, status_code: int):
+    return jsonify({"error": message}), status_code
+
+# ---------------- Preflight ----------------
+@orders_bp.route("", methods=["OPTIONS"])
+@orders_bp.route("/", methods=["OPTIONS"])
+@orders_bp.route("/<int:order_id>", methods=["OPTIONS"])
+@orders_bp.route("/<int:order_id>/items", methods=["OPTIONS"])
+@orders_bp.route("/<int:order_id>/items/<int:item_id>", methods=["OPTIONS"])
+def orders_options(order_id=None, item_id=None):
+    return jsonify({"status": "ok"}), 200
 
 # ---------------- Serializers ----------------
 def order_item_to_dict(item: OrderItem):
@@ -24,8 +41,8 @@ def order_item_to_dict(item: OrderItem):
         "menu_item_id": item.menu_item_id,
         "name": item.menu_item.name if item.menu_item else None,
         "quantity": float(item.quantity),
-        "price": float(item.price),
-        "vip_price": float(item.vip_price) if item.vip_price else None,
+        "price": float(item.price) if item.price is not None else 0.0,
+        "vip_price": float(item.vip_price) if item.vip_price is not None else None,
         "notes": item.notes,
         "station": item.station,
         "status": item.status,
@@ -46,8 +63,12 @@ def order_to_dict(order: Order):
 
 def recalc_order_total(order: Order) -> None:
     total = Decimal("0.00")
+    table = db.session.get(Table, order.table_id)
     for i in order.items:
-        total += Decimal(str(i.price)) * i.quantity
+        price = i.vip_price if table.is_vip and i.vip_price is not None else i.price
+        if price is None:
+            continue
+        total += price * i.quantity
     order.total_amount = total
 
 # ---------------- Orders: Create ----------------
@@ -59,52 +80,193 @@ def create_order():
     table_id = data.get("table_id")
     items_data = data.get("items", [])
 
-    if not table_id or not items_data:
-        abort(400, "Table ID and items are required.")
+    if not table_id or not isinstance(items_data, list):
+        return error_response("Table ID and items (as a list) are required.", 400)
 
     table = db.session.get(Table, table_id)
     if not table:
-        abort(404, f"Table {table_id} not found.")
+        return error_response(f"Table {table_id} not found.", 404)
 
     user_id = safe_int_identity()
+    if "waiter" in get_jwt().get("roles", []):
+        user = db.session.get(User, user_id)
+        if table not in user.tables:
+            return error_response("You are not assigned to this table.", 403)
+
     order = Order(table_id=table_id, user_id=user_id, status="open", total_amount=Decimal("0.00"))
     db.session.add(order)
     db.session.flush()
 
+    menu_item_ids = [payload.get("menu_item_id") for payload in items_data]
+    menu_items = {mi.id: mi for mi in db.session.query(MenuItem).filter(MenuItem.id.in_(menu_item_ids)).all()}
+
     for payload in items_data:
         menu_item_id = payload.get("menu_item_id")
-        if not menu_item_id:
-            abort(400, "menu_item_id is required for each item.")
+        if not isinstance(payload, dict) or not menu_item_id:
+            return error_response("Each item must be a dictionary with a menu_item_id.", 400)
 
-        menu_item = db.session.get(MenuItem, menu_item_id)
+        menu_item = menu_items.get(menu_item_id)
         if not menu_item:
-            abort(404, f"MenuItem {menu_item_id} not found.")
+            return error_response(f"MenuItem {menu_item_id} not found.", 404)
+        if not menu_item.station_rel:
+            return error_response(f"Menu item {menu_item_id} is not assigned to a station.", 400)
 
-        price_to_use = menu_item.vip_price if table.is_vip else menu_item.price
-        category_name = menu_item.category_rel.name if menu_item.category_rel else ""
-        prep_tag = generate_kitchen_tag() if category_name.lower() == "food" else None  # Use imported function
+        price_to_use = Decimal(str(menu_item.vip_price)) if table.is_vip and menu_item.vip_price is not None else menu_item.price
+        category_name = menu_item.subcategory.category.name if menu_item.subcategory and menu_item.subcategory.category else ""
+        subcategory_name = menu_item.subcategory.name if menu_item.subcategory else ""
+        station = menu_item.station_rel.name
+        if len(station) > 20:
+            return error_response(f"Station name '{station}' exceeds 20 characters.", 400)
 
-        status = "ready" if payload.get("printed") else "pending"
-        quantity = Decimal(str(payload.get("quantity", "1")))
-        notes = payload.get("notes")
-        station = menu_item.station_rel.name if menu_item.station_rel else "Unknown"
+        increment = Decimal("0.5") if category_name.lower() == "alcohol" or subcategory_name.lower() == "butchery" else Decimal("1.0")
+        existing_item = db.session.query(OrderItem).filter_by(order_id=order.id, menu_item_id=menu_item.id).first()
+        quantity_to_add = increment
 
-        order_item = OrderItem(
-            order_id=order.id,
-            menu_item_id=menu_item.id,
-            quantity=quantity,
-            price=price_to_use,
-            vip_price=menu_item.vip_price,
-            notes=notes,
-            station=station,
-            prep_tag=prep_tag,
-            status=status,
-        )
-        db.session.add(order_item)
+        if existing_item:
+            existing_item.quantity += quantity_to_add
+        else:
+            try:
+                prep_tag = generate_kitchen_tag() if category_name.lower() == "food" else None
+            except Exception as e:
+                return error_response(f"Failed to generate kitchen tag: {str(e)}", 500)
+            status = "ready" if payload.get("printed") else "pending"
+            order_item = OrderItem(
+                order_id=order.id,
+                menu_item_id=menu_item.id,
+                quantity=quantity_to_add,
+                price=price_to_use,
+                vip_price=Decimal(str(menu_item.vip_price)) if menu_item.vip_price is not None else None,
+                notes=payload.get("notes"),
+                station=station,
+                prep_tag=prep_tag,
+                status=status,
+            )
+            db.session.add(order_item)
 
     recalc_order_total(order)
-    db.session.commit()
+    try:
+        db.session.commit()
+        logger.info(f"Created order {order.id} for table {table_id} by user {user_id}")
+    except Exception as e:
+        db.session.rollback()
+        return error_response(f"Database error: {str(e)}", 500)
     return jsonify(order_to_dict(order)), 201
+
+# ---------------- OrderItems: Add to existing order ----------------
+@orders_bp.route("/<int:order_id>/items", methods=["POST"])
+@jwt_required()
+@roles_required("admin", "manager", "waiter")
+def add_order_item(order_id):
+    order = db.session.get(Order, order_id)
+    if not order:
+        return error_response("Order not found.", 404)
+
+    table = db.session.get(Table, order.table_id)
+    user_id = safe_int_identity()
+    if "waiter" in get_jwt().get("roles", []):
+        user = db.session.get(User, user_id)
+        if table not in user.tables:
+            return error_response("You are not assigned to this table.", 403)
+
+    data = request.get_json() or {}
+    items_data = data.get("items", [])
+    if not isinstance(items_data, list):
+        return error_response("Items must be a list.", 400)
+
+    menu_item_ids = [payload.get("menu_item_id") for payload in items_data]
+    menu_items = {mi.id: mi for mi in db.session.query(MenuItem).filter(MenuItem.id.in_(menu_item_ids)).all()}
+
+    for payload in items_data:
+        menu_item_id = payload.get("menu_item_id")
+        if not isinstance(payload, dict) or not menu_item_id:
+            return error_response("Each item must be a dictionary with a menu_item_id.", 400)
+
+        menu_item = menu_items.get(menu_item_id)
+        if not menu_item:
+            return error_response(f"MenuItem {menu_item_id} not found.", 404)
+        if not menu_item.station_rel:
+            return error_response(f"Menu item {menu_item_id} is not assigned to a station.", 400)
+
+        price_to_use = Decimal(str(menu_item.vip_price)) if table.is_vip and menu_item.vip_price is not None else menu_item.price
+        category_name = menu_item.subcategory.category.name if menu_item.subcategory and menu_item.subcategory.category else ""
+        subcategory_name = menu_item.subcategory.name if menu_item.subcategory else ""
+        station = menu_item.station_rel.name
+        if len(station) > 20:
+            return error_response(f"Station name '{station}' exceeds 20 characters.", 400)
+
+        increment = Decimal("0.5") if category_name.lower() == "alcohol" or subcategory_name.lower() == "butchery" else Decimal("1.0")
+        existing_item = db.session.query(OrderItem).filter_by(order_id=order.id, menu_item_id=menu_item.id).first()
+        if existing_item:
+            existing_item.quantity += increment
+        else:
+            try:
+                prep_tag = generate_kitchen_tag() if category_name.lower() == "food" else None
+            except Exception as e:
+                return error_response(f"Failed to generate kitchen tag: {str(e)}", 500)
+            status = "ready" if payload.get("printed") else "pending"
+            order_item = OrderItem(
+                order_id=order.id,
+                menu_item_id=menu_item.id,
+                quantity=increment,
+                price=price_to_use,
+                vip_price=Decimal(str(menu_item.vip_price)) if menu_item.vip_price is not None else None,
+                notes=payload.get("notes"),
+                station=station,
+                prep_tag=prep_tag,
+                status=status,
+            )
+            db.session.add(order_item)
+
+    recalc_order_total(order)
+    try:
+        db.session.commit()
+        logger.info(f"Added items to order {order.id} by user {user_id}")
+    except Exception as e:
+        db.session.rollback()
+        return error_response(f"Database error: {str(e)}", 500)
+    return jsonify(order_to_dict(order)), 201
+
+# ---------------- OrderItems: Update one item ----------------
+@orders_bp.route("/<int:order_id>/items/<int:item_id>", methods=["PUT"])
+@jwt_required()
+@roles_required("admin", "manager", "waiter")
+def update_order_item(order_id, item_id):
+    order_item = db.session.get(OrderItem, item_id)
+    if not order_item or order_item.order_id != order_id:
+        return error_response("Order item not found.", 404)
+
+    order = db.session.get(Order, order_id)
+    user_id = safe_int_identity()
+    if "waiter" in get_jwt().get("roles", []):
+        user = db.session.get(User, user_id)
+        table = db.session.get(Table, order.table_id)
+        if table not in user.tables:
+            return error_response("You are not assigned to this table.", 403)
+
+    data = request.get_json() or {}
+    if "quantity" in data:
+        try:
+            quantity = Decimal(str(data["quantity"]))
+            if quantity <= 0:
+                return error_response("Quantity must be greater than zero.", 400)
+            order_item.quantity = quantity
+        except (TypeError, ValueError):
+            return error_response("Invalid quantity value.", 400)
+    if "notes" in data:
+        order_item.notes = data["notes"]
+    if "status" in data:
+        if data["status"] not in {"pending", "ready"}:
+            return error_response("Invalid item status. Allowed: pending, ready.", 400)
+        order_item.status = data["status"]
+
+    recalc_order_total(order)
+    try:
+        db.session.commit()
+        logger.info(f"Updated order item {item_id} in order {order_id} by user {user_id}")
+    except Exception as e:
+        db.session.rollback()
+        return error_response(f"Database error: {str(e)}", 500)
+    return jsonify(order_to_dict(order_item.order)), 200
 
 # ---------------- Orders: List ----------------
 @orders_bp.route("/", methods=["GET"])
@@ -116,7 +278,10 @@ def list_orders():
     status = request.args.get("status")
 
     if table_id:
-        query = query.filter_by(table_id=table_id)
+        try:
+            query = query.filter_by(table_id=int(table_id))
+        except ValueError:
+            return error_response("Invalid table_id.", 400)
     if status:
         query = query.filter_by(status=status)
 
@@ -130,7 +295,7 @@ def list_orders():
 def get_order(order_id):
     order = db.session.get(Order, order_id)
     if not order:
-        abort(404, "Order not found")
+        return error_response("Order not found.", 404)
     return jsonify(order_to_dict(order)), 200
 
 # ---------------- Orders: Update status ----------------
@@ -140,14 +305,26 @@ def get_order(order_id):
 def update_order(order_id):
     order = db.session.get(Order, order_id)
     if not order:
-        abort(404, "Order not found")
+        return error_response("Order not found.", 404)
+
+    user_id = safe_int_identity()
+    if "waiter" in get_jwt().get("roles", []):
+        user = db.session.get(User, user_id)
+        table = db.session.get(Table, order.table_id)
+        if table not in user.tables:
+            return error_response("You are not assigned to this table.", 403)
 
     data = request.get_json() or {}
     status = data.get("status")
     if status not in {"open", "closed", "paid"}:
-        abort(400, "Invalid status. Allowed: open, closed, paid.")
+        return error_response("Invalid status. Allowed: open, closed, paid.", 400)
     order.status = status
-    db.session.commit()
+    try:
+        db.session.commit()
+        logger.info(f"Updated order {order_id} status to {status} by user {user_id}")
+    except Exception as e:
+        db.session.rollback()
+        return error_response(f"Database error: {str(e)}", 500)
     return jsonify(order_to_dict(order)), 200
 
 # ---------------- Orders: Delete ----------------
@@ -157,83 +334,17 @@ def update_order(order_id):
 def delete_order(order_id):
     order = db.session.get(Order, order_id)
     if not order:
-        abort(404, "Order not found")
-    db.session.delete(order)
-    db.session.commit()
+        return error_response("Order not found.", 404)
+
+    user_id = safe_int_identity()
+    try:
+        db.session.delete(order)
+        db.session.commit()
+        logger.info(f"Deleted order {order_id} by user {user_id}")
+    except Exception as e:
+        db.session.rollback()
+        return error_response(f"Database error: {str(e)}", 500)
     return jsonify({"message": "Order deleted"}), 200
-
-# ---------------- OrderItems: Add to existing order ----------------
-@orders_bp.route("/<int:order_id>/items", methods=["POST"])
-@jwt_required()
-@roles_required("admin", "manager", "waiter")
-def add_order_item(order_id):
-    order = db.session.get(Order, order_id)
-    if not order:
-        abort(404, "Order not found")
-
-    table = db.session.get(Table, order.table_id)
-    data = request.get_json() or {}
-    items_data = data.get("items", [])
-    if not items_data:
-        abort(400, "No items provided")
-
-    for payload in items_data:
-        menu_item_id = payload.get("menu_item_id")
-        if not menu_item_id:
-            abort(400, "menu_item_id is required for each item.")
-
-        menu_item = db.session.get(MenuItem, menu_item_id)
-        if not menu_item:
-            abort(404, f"MenuItem {menu_item_id} not found")
-
-        price_to_use = menu_item.vip_price if table.is_vip else menu_item.price
-        category_name = menu_item.category_rel.name if menu_item.category_rel else ""
-        prep_tag = generate_kitchen_tag() if category_name.lower() == "food" else None
-
-        status = "ready" if payload.get("printed") else "pending"
-        quantity = Decimal(str(payload.get("quantity", "1")))
-        notes = payload.get("notes")
-        station = menu_item.station_rel.name if menu_item.station_rel else "Unknown"
-
-        order_item = OrderItem(
-            order_id=order.id,
-            menu_item_id=menu_item.id,
-            quantity=quantity,
-            price=price_to_use,
-            vip_price=menu_item.vip_price,
-            notes=notes,
-            station=station,
-            prep_tag=prep_tag,
-            status=status,
-        )
-        db.session.add(order_item)
-
-    recalc_order_total(order)
-    db.session.commit()
-    return jsonify(order_to_dict(order)), 201
-
-# ---------------- OrderItems: Update one item ----------------
-@orders_bp.route("/<int:order_id>/items/<int:item_id>", methods=["PUT"])
-@jwt_required()
-@roles_required("admin", "manager", "waiter")
-def update_order_item(order_id, item_id):
-    order_item = db.session.get(OrderItem, item_id)
-    if not order_item or order_item.order_id != order_id:
-        abort(404, "Order item not found")
-
-    data = request.get_json() or {}
-    if "quantity" in data:
-        order_item.quantity = Decimal(str(data["quantity"]))
-    if "notes" in data:
-        order_item.notes = data["notes"]
-    if "status" in data:
-        if data["status"] not in {"pending", "ready"}:
-            abort(400, "Invalid item status. Allowed: pending, ready.")
-        order_item.status = data["status"]
-
-    recalc_order_total(db.session.get(Order, order_id))
-    db.session.commit()
-    return jsonify(order_to_dict(order_item.order)), 200
 
 # ---------------- OrderItems: Delete one item ----------------
 @orders_bp.route("/<int:order_id>/items/<int:item_id>", methods=["DELETE"])
@@ -242,11 +353,23 @@ def update_order_item(order_id, item_id):
 def delete_order_item(order_id, item_id):
     order_item = db.session.get(OrderItem, item_id)
     if not order_item or order_item.order_id != order_id:
-        abort(404, "Order item not found")
+        return error_response("Order item not found.", 404)
 
     order = db.session.get(Order, order_id)
-    db.session.delete(order_item)
-    db.session.flush()
-    recalc_order_total(order)
-    db.session.commit()
+    user_id = safe_int_identity()
+    if "waiter" in get_jwt().get("roles", []):
+        user = db.session.get(User, user_id)
+        table = db.session.get(Table, order.table_id)
+        if table not in user.tables:
+            return error_response("You are not assigned to this table.", 403)
+
+    try:
+        db.session.delete(order_item)
+        db.session.flush()
+        recalc_order_total(order)
+        db.session.commit()
+        logger.info(f"Deleted order item {item_id} from order {order_id} by user {user_id}")
+    except Exception as e:
+        db.session.rollback()
+        return error_response(f"Database error: {str(e)}", 500)
     return jsonify(order_to_dict(order)), 200

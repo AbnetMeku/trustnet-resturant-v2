@@ -4,51 +4,90 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "../../context/AuthContext";
 
-export default function TableSelection({ setSelectedTable, onNext, onBack }) {
+export default function TableSelection({ setSelectedTable, onNext, onBack, setError }) {
   const { user } = useAuth();
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [localError, setLocalError] = useState(null);
 
   useEffect(() => {
     const fetchTables = async () => {
       try {
         setLoading(true);
         const allTables = await getTables();
-        const waiterTables = allTables.filter((t) =>
+        // Validate table data
+        const validTables = allTables.filter(table => 
+          table && Number.isInteger(table.id) && table.number && 
+          ["available", "occupied", "reserved"].includes(table.status) && 
+          typeof table.is_vip === "boolean" && Array.isArray(table.waiters)
+        );
+        const waiterTables = validTables.filter((t) =>
           t.waiters.some((w) => w.id === user.id)
         );
         setTables(waiterTables);
-        setError(null);
+        setLocalError(null);
+        setError("");
+        console.log("Successfully fetched tables:", waiterTables.length);
       } catch (err) {
-        console.error("Failed to fetch tables:", err);
-        setError("Failed to load tables. Please try again.");
+        const errorMessage = err.message || "Failed to load tables.";
+        console.error("Failed to fetch tables:", errorMessage);
+        setLocalError(errorMessage);
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
     };
-    fetchTables();
-  }, [user]);
+    if (user?.id) fetchTables();
+    else {
+      const errorMessage = "User not authenticated.";
+      setLocalError(errorMessage);
+      setError(errorMessage);
+    }
+  }, [user, setError]);
 
   const handleSelect = (table) => {
     setSelectedTable(table);
+    setLocalError("");
+    setError("");
     onNext();
   };
 
-  if (loading) return <p className="text-center py-10">Loading tables...</p>;
-
-  if (error)
+  if (!user?.id) {
     return (
       <div className="p-4 text-center text-red-600">
-        <p>{error}</p>
+        <p>You must be logged in to select a table.</p>
+        <Button variant="outline" onClick={onBack} className="mt-4">
+          Back to Hub
+        </Button>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return <p className="text-center py-10">Loading tables...</p>;
+  }
+
+  if (localError) {
+    return (
+      <div className="p-4 text-center text-red-600">
+        <p>{localError}</p>
         <Button onClick={() => window.location.reload()} className="mt-4">
           Retry
         </Button>
       </div>
     );
+  }
 
-  if (!tables.length)
-    return <p className="p-4 text-center">No tables assigned to you yet.</p>;
+  if (!tables.length) {
+    return (
+      <div className="p-4 text-center">
+        <p>No tables assigned to you yet.</p>
+        <Button variant="outline" onClick={onBack}>
+          Back to Hub
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="p-2 flex flex-col h-full bg-gray-50 dark:bg-gray-900 rounded-lg">
@@ -63,9 +102,7 @@ export default function TableSelection({ setSelectedTable, onNext, onBack }) {
             onClick={() => handleSelect(table)}
             tabIndex={0}
             role="button"
-            aria-label={`Select Table ${table.number}${
-              table.is_vip ? ", VIP" : ""
-            }`}
+            aria-label={`Select Table ${table.number}${table.is_vip ? ", VIP" : ""}`}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
@@ -88,8 +125,8 @@ export default function TableSelection({ setSelectedTable, onNext, onBack }) {
                 table.status === "available"
                   ? "bg-green-500 animate-pulse"
                   : table.status === "occupied"
-                  ? "bg-red-600"
-                  : "bg-yellow-500"
+                    ? "bg-red-600"
+                    : "bg-yellow-500"
               } text-white z-10`}
             >
               {table.status}
