@@ -1,5 +1,5 @@
 from decimal import Decimal
-from datetime import datetime, date
+from datetime import datetime
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app.extensions import db
@@ -53,6 +53,11 @@ def order_to_dict(order: Order):
     return {
         "id": order.id,
         "table_id": order.table_id,
+        "table": {
+            "id": order.table.id,
+            "number": order.table.number,
+            "is_vip": order.table.is_vip,  # Include VIP status here
+        },
         "user_id": order.user_id,
         "status": order.status,
         "total_amount": float(order.total_amount) if order.total_amount else 0.0,
@@ -68,7 +73,7 @@ def recalc_order_total(order: Order) -> None:
         price = i.vip_price if table.is_vip and i.vip_price is not None else i.price
         if price is None:
             continue
-        total += price * i.quantity
+        total += Decimal(price) * Decimal(i.quantity)
     order.total_amount = total
 
 # ---------------- Orders: Create ----------------
@@ -118,10 +123,11 @@ def create_order():
         if len(station) > 20:
             return error_response(f"Station name '{station}' exceeds 20 characters.", 400)
 
-        increment = Decimal("0.5") if category_name.lower() == "alcohol" or subcategory_name.lower() == "butchery" else Decimal("1.0")
-        existing_item = db.session.query(OrderItem).filter_by(order_id=order.id, menu_item_id=menu_item.id).first()
-        quantity_to_add = increment
+        # default increment logic
+        default_increment = Decimal("0.5") if category_name.lower() == "alcohol" or subcategory_name.lower() == "butchery" else Decimal("1.0")
+        quantity_to_add = Decimal(str(payload.get("quantity", default_increment)))
 
+        existing_item = db.session.query(OrderItem).filter_by(order_id=order.id, menu_item_id=menu_item.id).first()
         if existing_item:
             existing_item.quantity += quantity_to_add
         else:
@@ -194,10 +200,12 @@ def add_order_item(order_id):
         if len(station) > 20:
             return error_response(f"Station name '{station}' exceeds 20 characters.", 400)
 
-        increment = Decimal("0.5") if category_name.lower() == "alcohol" or subcategory_name.lower() == "butchery" else Decimal("1.0")
+        default_increment = Decimal("0.5") if category_name.lower() == "alcohol" or subcategory_name.lower() == "butchery" else Decimal("1.0")
+        quantity_to_add = Decimal(str(payload.get("quantity", default_increment)))
+
         existing_item = db.session.query(OrderItem).filter_by(order_id=order.id, menu_item_id=menu_item.id).first()
         if existing_item:
-            existing_item.quantity += increment
+            existing_item.quantity += quantity_to_add
         else:
             try:
                 prep_tag = generate_kitchen_tag() if category_name.lower() == "food" else None
@@ -207,7 +215,7 @@ def add_order_item(order_id):
             order_item = OrderItem(
                 order_id=order.id,
                 menu_item_id=menu_item.id,
-                quantity=increment,
+                quantity=quantity_to_add,
                 price=price_to_use,
                 vip_price=Decimal(str(menu_item.vip_price)) if menu_item.vip_price is not None else None,
                 notes=payload.get("notes"),

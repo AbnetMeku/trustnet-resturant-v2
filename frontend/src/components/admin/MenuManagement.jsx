@@ -92,25 +92,33 @@ export default function MenuManagement() {
     fetchAll();
   }, []);
 
-  const fetchAll = async () => {
-    try {
-      const [cats, subs, sts, items] = await Promise.all([
-        getCategories(),
-        getSubcategories(),
-        getStations(),
-        getMenuItems(),
-      ]);
-      setCategories(cats);
-      setSubcategories(subs);
-      setStations(sts);
-      setMenuItems(items);
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to load data", {
-        style: { background: "#ffeded", color: "#d32f2f" },
-      });
-    }
-  };
+const fetchAll = async () => {
+  try {
+    const [cats, subs, sts, items] = await Promise.all([
+      getCategories(),
+      getSubcategories(),
+      getStations(),
+      getMenuItems(),
+    ]);
+
+    // Convert price and vip_price to numbers
+    const normalizedItems = items.map((item) => ({
+      ...item,
+      price: Number(item.price),
+      vip_price: item.vip_price != null ? Number(item.vip_price) : null,
+    }));
+
+    setCategories(cats);
+    setSubcategories(subs);
+    setStations(sts);
+    setMenuItems(normalizedItems);
+  } catch (e) {
+    console.error(e);
+    toast.error("Failed to load data", {
+      style: { background: "#ffeded", color: "#d32f2f" },
+    });
+  }
+};
 
   const handleChange = (form, setForm) => (e) => {
     const { name, value, type, checked } = e.target;
@@ -499,14 +507,15 @@ export default function MenuManagement() {
               {/* VIP Price Ribbon */}
               {item.vip_price != null && (
                 <div className="absolute top-11 left-0 bg-gradient-to-b from-teal-400 via-cyan-500 to-blue-500 px-1 py-1 text-sm font-bold rounded-br-md z-10 animate-none">
-                  ${item.vip_price.toFixed(2)}
+                  ${Number(item.vip_price).toFixed(2)}
                 </div>
               )}
 
               {/* Base price in upper-left (shifted down to avoid overlap) */}
               <div className="absolute top-0 left-0 bg-white dark:bg-gray-800 px-1 py-1 font-bold rounded shadow text-lg">
-                ${item.price.toFixed(2)}
+                ${Number(item.price).toFixed(2)}
               </div>
+
 
               {/* Availability LED in upper-right */}
               <div

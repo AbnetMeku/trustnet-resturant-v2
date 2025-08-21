@@ -54,7 +54,6 @@ export default function StationManagement() {
       return;
     }
 
-    // PIN required if creating new station or editing with PIN provided
     if (!currentStation || formData.password) {
       if (!/^\d{4}$/.test(formData.password)) {
         setError("PIN must be 4 digits");
@@ -97,10 +96,9 @@ export default function StationManagement() {
   };
 
   return (
-    <div className="p-4">
-      <div className="flex justify-between items-center mb-4">
-        {/* <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Stations</h1> */}
-        <Button onClick={() => setModalOpen(true)} className="flex items-center gap-2">
+    <div className="p-4 max-w-full">
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+        <Button onClick={() => setModalOpen(true)} className="flex items-center gap-2 w-full sm:w-auto justify-center">
           <FaPlus /> Add Station
         </Button>
       </div>
@@ -108,29 +106,31 @@ export default function StationManagement() {
       {loading ? (
         <p className="text-gray-500 dark:text-gray-300">Loading...</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="flex flex-col space-y-4">
+          {/* Table header row */}
+          <div className="hidden sm:flex px-4 py-2 font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-300 dark:border-gray-700 select-none">
+            <div className="flex-1">Station Name</div>
+            <div className="w-32 text-center">Printer Identifier</div>
+            <div className="w-24 text-center">PIN</div>
+            <div className="w-48 text-right">Actions</div>
+          </div>
+
+          {/* Cards as rows */}
           {stations.map((station) => (
             <Card
               key={station.id}
-              className="p-4 relative shadow hover:shadow-lg transition-shadow dark:bg-gray-800 dark:text-gray-100"
+              className="p-4 shadow hover:shadow-lg transition-shadow dark:bg-gray-800 dark:text-gray-100 flex flex-col sm:flex-row items-center gap-4"
             >
-              <div className="flex justify-between items-start">
-                <h2 className="text-lg font-semibold">{station.name}</h2>
-                <span
-                  className="px-2 py-1 text-xs font-bold rounded-full text-white bg-green-500"
-                  title="Active"
-                >
-                  Active
-                </span>
-              </div>
-              <p className="mt-2">Printer: {station.printer_identifier || "N/A"}</p>
-              <p className="mt-1">PIN: ****</p>
+              <div className="flex-1 font-semibold text-lg truncate">{station.name}</div>
+              <div className="w-32 text-center truncate">{station.printer_identifier || "N/A"}</div>
+              <div className="w-24 text-center">****</div>
 
-              <div className="flex gap-2 mt-4 justify-end">
+              <div className="w-48 flex justify-end gap-2 flex-shrink-0">
                 <Button
                   onClick={() => handleEdit(station)}
                   variant="outline"
                   className="flex items-center gap-1"
+                  size="sm"
                 >
                   <FaEdit /> Edit
                 </Button>
@@ -138,13 +138,14 @@ export default function StationManagement() {
                   onClick={() => setDeleteConfirm(station.id)}
                   variant="destructive"
                   className="flex items-center gap-1"
+                  size="sm"
                 >
                   <FaTrash /> Delete
                 </Button>
               </div>
 
               {deleteConfirm === station.id && (
-                <div className="absolute top-2 left-2 right-2 bg-red-100 dark:bg-red-900 p-2 rounded text-red-800 dark:text-red-200">
+                <div className="absolute top-2 left-2 right-2 bg-red-100 dark:bg-red-900 p-2 rounded text-red-800 dark:text-red-200 mt-2 z-10">
                   <p>Confirm delete?</p>
                   <div className="flex gap-2 mt-1 justify-end">
                     <Button onClick={() => handleDelete(station.id)} variant="destructive" size="sm">
@@ -164,12 +165,12 @@ export default function StationManagement() {
       {/* Modal */}
       {modalOpen && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 p-4">
-          <div className="bg-white dark:bg-gray-900 p-6 rounded shadow-lg w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4 dark:text-gray-100">
+          <div className="bg-white dark:bg-gray-900 p-6 rounded shadow-lg w-full max-w-md sm:max-w-lg">
+            <h2 className="text-xl font-bold mb-4 dark:text-gray-100 text-center">
               {currentStation ? "Edit Station" : "Add Station"}
             </h2>
 
-            {error && <p className="text-red-600 dark:text-red-400 mb-2">{error}</p>}
+            {error && <p className="text-red-600 dark:text-red-400 mb-2 text-center">{error}</p>}
 
             <Input
               name="name"
@@ -195,9 +196,11 @@ export default function StationManagement() {
               className="mb-4"
             />
 
-            <div className="flex justify-end gap-2">
-              <Button onClick={handleSubmit}>{currentStation ? "Update" : "Create"}</Button>
-              <Button onClick={closeModal} variant="outline">
+            <div className="flex flex-col sm:flex-row justify-center sm:justify-end gap-2">
+              <Button onClick={handleSubmit} className="w-full sm:w-auto">
+                {currentStation ? "Update" : "Create"}
+              </Button>
+              <Button onClick={closeModal} variant="outline" className="w-full sm:w-auto">
                 Cancel
               </Button>
             </div>

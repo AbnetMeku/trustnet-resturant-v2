@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "../../context/AuthContext";
 
-export default function TableSelection({ setSelectedTable, onNext, onBack, setError }) {
+export default function TableSelection({ selectedTable, setSelectedTable, onNext, onBack, setError }) {
   const { user } = useAuth();
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,11 +15,13 @@ export default function TableSelection({ setSelectedTable, onNext, onBack, setEr
       try {
         setLoading(true);
         const allTables = await getTables();
-        // Validate table data
-        const validTables = allTables.filter(table => 
-          table && Number.isInteger(table.id) && table.number && 
-          ["available", "occupied", "reserved"].includes(table.status) && 
-          typeof table.is_vip === "boolean" && Array.isArray(table.waiters)
+        const validTables = allTables.filter(table =>
+          table &&
+          Number.isInteger(table.id) &&
+          table.number &&
+          ["available", "occupied", "reserved"].includes(table.status) &&
+          typeof table.is_vip === "boolean" &&
+          Array.isArray(table.waiters)
         );
         const waiterTables = validTables.filter((t) =>
           t.waiters.some((w) => w.id === user.id)
@@ -27,10 +29,8 @@ export default function TableSelection({ setSelectedTable, onNext, onBack, setEr
         setTables(waiterTables);
         setLocalError(null);
         setError("");
-        console.log("Successfully fetched tables:", waiterTables.length);
       } catch (err) {
         const errorMessage = err.message || "Failed to load tables.";
-        console.error("Failed to fetch tables:", errorMessage);
         setLocalError(errorMessage);
         setError(errorMessage);
       } finally {
@@ -45,12 +45,13 @@ export default function TableSelection({ setSelectedTable, onNext, onBack, setEr
     }
   }, [user, setError]);
 
-  const handleSelect = (table) => {
-    setSelectedTable(table);
-    setLocalError("");
-    setError("");
-    onNext();
-  };
+const handleSelect = (table) => {
+  setSelectedTable(table);
+  setLocalError("");
+  setError("");
+  onNext(table);  // pass selected table directly
+};
+
 
   if (!user?.id) {
     return (
@@ -96,50 +97,57 @@ export default function TableSelection({ setSelectedTable, onNext, onBack, setEr
       </Button>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 overflow-auto flex-grow">
-        {tables.map((table) => (
-          <Card
-            key={table.id}
-            onClick={() => handleSelect(table)}
-            tabIndex={0}
-            role="button"
-            aria-label={`Select Table ${table.number}${table.is_vip ? ", VIP" : ""}`}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                handleSelect(table);
-              }
-            }}
-            className="cursor-pointer relative rounded-lg border border-gray-300 shadow-sm hover:shadow-lg transition p-4 flex items-center justify-center select-none"
-            style={{ minHeight: "110px", aspectRatio: "1 / 1" }}
-          >
-            {/* VIP Ribbon */}
-            {table.is_vip && (
-              <div className="absolute top-0 left-0 bg-gradient-to-r from-yellow-400 via-pink-500 to-red-500 text-white px-2 py-0.5 text-xs font-bold rounded-br-lg animate-pulse z-10">
-                VIP
-              </div>
-            )}
+        {tables.map((table) => {
+          const isSelected = selectedTable?.id === table.id;
+          return (
+            <Card
+              key={table.id}
+              onClick={() => handleSelect(table)}
+              tabIndex={0}
+              role="button"
+              aria-label={`Select Table ${table.number}${table.is_vip ? ", VIP" : ""}`}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  handleSelect(table);
+                }
+              }}
+              className={`cursor-pointer relative rounded-lg border shadow-sm transition p-4 flex items-center justify-center select-none
+                ${isSelected
+                  ? "border-blue-500 shadow-lg bg-blue-100 dark:bg-blue-700"
+                  : "border-gray-300 hover:shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                }`}
+              style={{ minHeight: "110px", aspectRatio: "1 / 1" }}
+            >
+              {/* VIP Ribbon */}
+              {table.is_vip && (
+                <div className="absolute top-0 left-0 bg-gradient-to-r from-yellow-400 via-pink-500 to-red-500 text-white px-2 py-0.5 text-xs font-bold rounded-br-lg animate-pulse z-10">
+                  VIP
+                </div>
+              )}
 
-            {/* Status Badge at top-right */}
-            <div
-              className={`absolute top-0 right-0 mt-2 mr-2 px-2 py-1 text-xs font-semibold rounded ${
-                table.status === "available"
+              {/* Status Badge */}
+              <div
+                className={`absolute top-0 right-0 mt-2 mr-2 px-2 py-1 text-xs font-semibold rounded
+                ${table.status === "available"
                   ? "bg-green-500 animate-pulse"
                   : table.status === "occupied"
                     ? "bg-red-600"
                     : "bg-yellow-500"
-              } text-white z-10`}
-            >
-              {table.status}
-            </div>
+                } text-white z-10`}
+              >
+                {table.status}
+              </div>
 
-            {/* Centered table number */}
-            <div className="flex flex-col items-center">
-              <h3 className="text-lg font-bold text-center truncate">
-                Table {table.number}
-              </h3>
-            </div>
-          </Card>
-        ))}
+              {/* Table Number */}
+              <div className="flex flex-col items-center">
+                <h3 className="text-lg font-bold text-center truncate">
+                  Table {table.number}
+                </h3>
+              </div>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

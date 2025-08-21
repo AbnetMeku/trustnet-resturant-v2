@@ -41,7 +41,7 @@ class MenuItem(db.Model):
     name = db.Column(db.String(120), nullable=False, unique=True)
     description = db.Column(db.Text, nullable=True)
     price = db.Column(db.Numeric(10, 2), nullable=False)
-    vip_price = db.Column(db.Float, nullable=True)   # NEW
+    vip_price = db.Column(db.Numeric, nullable=True)   # NEW
     is_available = db.Column(db.Boolean, default=True)
     image_url = db.Column(db.String(255), nullable=True)
 
@@ -70,7 +70,7 @@ class OrderItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.Integer, db.ForeignKey("orders.id"), nullable=False)
     menu_item_id = db.Column(db.Integer, db.ForeignKey("menu_items.id"), nullable=False)
-    quantity = db.Column(db.Numeric(5, 2), default=1.00)
+    quantity = db.Column(db.Numeric(5, 2))
     price = db.Column(db.Numeric(10, 2), nullable=False)
     vip_price = db.Column(db.Numeric(10, 2))  # VIP price support
     notes = db.Column(db.Text)

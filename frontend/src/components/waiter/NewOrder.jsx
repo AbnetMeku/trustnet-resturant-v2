@@ -66,23 +66,27 @@ export default function NewOrder({ goBack, setError }) {
     );
     setLocalError("");
   };
-
-  const nextStep = () => {
-    if (step === "table" && !selectedTable) {
+const nextStep = (tableArg) => {
+  if (step === "table") {
+    const tableToCheck = tableArg || selectedTable;
+    if (!tableToCheck) {
       setLocalError("Please select a table.");
       setError("Please select a table.");
       return;
     }
-    if (step === "menu" && orderItems.length === 0) {
+    if (tableArg) setSelectedTable(tableArg);
+    setStep("menu");
+  } else if (step === "menu") {
+    if (orderItems.length === 0) {
       setLocalError("Please add at least one item to the order.");
       setError("Please add at least one item to the order.");
       return;
     }
-    setLocalError("");
-    setError("");
-    setStep(step === "table" ? "menu" : "review");
-  };
-
+    setStep("review");
+  }
+  setLocalError("");
+  setError("");
+};
   const prevStep = () => {
     setLocalError("");
     setError("");

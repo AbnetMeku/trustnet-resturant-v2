@@ -5,9 +5,9 @@ import { getMenuItems } from "@/api/menu_item";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-export default function MenuSelection({
-  selectedTable,
-  orderItems,
+export default function ActiveMenuSelection({
+  selectedOrder,
+  orderItems, // only new items here
   addItem,
   removeItem,
   updateQuantity,
@@ -22,7 +22,7 @@ export default function MenuSelection({
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [cartOpenMobile, setCartOpenMobile] = useState(false);
-  const isAdding = useRef(false); // Prevent double clicks
+  const isAdding = useRef(false);
 
   // Fetch categories
   useEffect(() => {
@@ -37,15 +37,13 @@ export default function MenuSelection({
     fetchCategories();
   }, []);
 
-  // Fetch subcategories
+  // Fetch subcategories filtered by selectedCategory
   useEffect(() => {
     const fetchSubcategories = async () => {
       try {
         const subs = await getSubcategories();
         setSubcategories(
-          selectedCategory
-            ? subs.filter((sub) => sub.category_id === selectedCategory)
-            : subs
+          selectedCategory ? subs.filter((sub) => sub.category_id === selectedCategory) : subs
         );
       } catch (err) {
         console.error("Failed to load subcategories:", err);
@@ -56,79 +54,92 @@ export default function MenuSelection({
     setSelectedSubcategory(null);
   }, [selectedCategory]);
 
-  // Fetch menu items
-  useEffect(() => {
-    const fetchMenuItems = async () => {
-      if (categories.length === 0 || subcategories.length === 0) return;
-      try {
-        setLoading(true);
-        const items = await getMenuItems({});
-        const updatedItems = items.map((item) => {
-          const category = categories.find((c) => c.id === item.category_id) || {};
-          const subcategory = subcategories.find((s) => s.id === item.subcategory_id) || {};
-          const categoryName = (category.name || "Unknown").trim();
-          const subcategoryName = (subcategory.name || "Unknown").trim();
-          const increment =
-            categoryName.toLowerCase() === "alcohols" || subcategoryName.toLowerCase() === "butchery"
-              ? 0.5
-              : 1;
+  // Fetch and enrich menu items with prices and category info, apply VIP price correctly
+useEffect(() => {
+  const fetchMenuItems = async () => {
+    if (categories.length === 0 || subcategories.length === 0) return;
+    try {
+      setLoading(true);
+      const items = await getMenuItems({});
+      const updatedItems = items.map((item) => {
+        const category = categories.find(c => c.id === item.category_id) || {};
+        const subcategory = subcategories.find(s => s.id === item.subcategory_id) || {};
+        const categoryName = (category.name || "Unknown").trim();
+        const subcategoryName = (subcategory.name || "Unknown").trim();
 
-          const price = Number(
-            selectedTable?.is_vip && item.vip_price != null ? item.vip_price : item.price
-          ) || 0;
+        // Increment by 0.5 if category is 'alcohol' or subcategory is 'butchery' (match backend logic)
+        const increment = 
+          categoryName.toLowerCase() === "alcohol" || subcategoryName.toLowerCase() === "butchery"
+            ? 0.5
+            : 1;
 
-          return {
-            ...item,
-            category_name: categoryName,
-            subcategory_name: subcategoryName,
-            price,
-            increment,
-          };
-        });
-        setMenuItems(updatedItems);
-      } catch (err) {
-        console.error("Failed to load menu items:", err);
-        setMenuItems([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchMenuItems();
-  }, [categories, subcategories, selectedTable]);
+        // Access VIP flag on selectedOrder.table.is_vip exactly as in your API response
+        const isVipTable = selectedOrder?.table?.is_vip || false;
 
-  // Memoized filtered items
+        // Use vip_price if VIP table and vip_price exists, else normal price
+        const price = Number(
+          isVipTable && item.vip_price != null ? item.vip_price : item.price
+        ) || 0;
+
+        return {
+          ...item,
+          category_name: categoryName,
+          subcategory_name: subcategoryName,
+          price,
+          increment,
+        };
+      });
+      setMenuItems(updatedItems);
+    } catch (err) {
+      console.error("Failed to load menu items:", err);
+      setMenuItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  fetchMenuItems();
+}, [categories, subcategories, selectedOrder]);
+
+
+
+
+  // Filter menu items by selected category, subcategory, and search term
   const filteredItems = useMemo(() => {
     return menuItems.filter((item) => {
       const categoryMatch = !selectedCategory || item.category_id === selectedCategory;
       const subcategoryMatch = !selectedSubcategory || item.subcategory_id === selectedSubcategory;
       const searchMatch =
         !searchTerm ||
-        (item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.description?.toLowerCase().includes(searchTerm.toLowerCase()));
+        item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.description?.toLowerCase().includes(searchTerm.toLowerCase());
       return categoryMatch && subcategoryMatch && searchMatch;
     });
   }, [menuItems, selectedCategory, selectedSubcategory, searchTerm]);
 
-  // Memoized subtotal
+  // Calculate subtotal for new items
   const subtotal = useMemo(() => {
-    return orderItems.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0).toFixed(2);
+    return orderItems
+      .reduce((acc, item) => acc + Number(item.price || 0) * Number(item.quantity || 0), 0)
+      .toFixed(2);
   }, [orderItems]);
 
-  // Handle add item with double-click prevention
+  // Add item handler with double click prevention
   const handleAddItem = (item, e) => {
     e.stopPropagation();
     if (isAdding.current) return;
+
     isAdding.current = true;
-    addItem(item);
+    addItem({ ...item, menu_item_id: item.id });
     setTimeout(() => {
       isAdding.current = false;
     }, 300);
   };
 
-  // Handle quantity update with double-click prevention
+  // Update quantity handler with double click prevention
   const handleUpdateQuantity = (itemId, delta, e) => {
     e.stopPropagation();
     if (isAdding.current) return;
+
     isAdding.current = true;
     updateQuantity(itemId, delta);
     setTimeout(() => {
@@ -136,9 +147,9 @@ export default function MenuSelection({
     }, 300);
   };
 
-  // Check if item is in cart
+  // Get quantity in new items cart
   const getItemQuantity = (itemId) => {
-    const item = orderItems.find((i) => i.id === itemId);
+    const item = orderItems.find((i) => i.menu_item_id === itemId);
     return item ? item.quantity : 0;
   };
 
@@ -153,52 +164,41 @@ export default function MenuSelection({
   return (
     <div className="flex flex-col md:flex-row h-full bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden relative">
       {/* Menu section */}
-      <main className="flex flex-col flex-1 p-2 md:p-4 overflow-auto">            
- {/* Categories horizontal nav */}
-  <nav className="flex space-x-2 md:space-x-3 overflow-x-auto no-scrollbar mb-2 p-1">
-    {categories.map((cat) => (
-      <Button
-        key={cat.id}
-        variant={selectedCategory === cat.id ? "default" : "outline"}
-        onClick={() =>
-          setSelectedCategory(selectedCategory === cat.id ? null : cat.id)
-        }
-        className="text-xs md:text-sm whitespace-nowrap py-1 px-2 dark:bg-gray-700 dark:text-white"
-        aria-label={`Select category ${cat.name}`}
-      >
-        {cat.name}
-      </Button>
-    ))}
-  </nav>
-
-  {/* Subcategories horizontal nav below categories */}
-  {selectedCategory && (
-    <nav className="flex space-x-2 md:space-x-3 overflow-x-auto no-scrollbar mb-4 p-1 border-b border-gray-200 dark:border-gray-700">
-      {subcategories.map((sub) => (
-        <Button
-          key={sub.id}
-          variant={selectedSubcategory === sub.id ? "default" : "outline"}
-          onClick={() =>
-            setSelectedSubcategory(selectedSubcategory === sub.id ? null : sub.id)
-          }
-          className="text-xs md:text-sm whitespace-nowrap py-1 px-2 dark:bg-gray-700 dark:text-white"
-          aria-label={`Select subcategory ${sub.name}`}
-        >
-          {sub.name}
-        </Button>
-      ))}
-    </nav>
-  )}
-          {/* <input
-            type="text"
-            placeholder="Search items..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="p-1 md:p-2 border rounded text-sm dark:bg-gray-900 dark:text-white w-full md:w-40"
-            aria-label="Search menu items"
-          /> */}
-        
-
+      <main className="flex flex-col flex-1 p-2 md:p-4 overflow-auto">
+        {/* Categories horizontal nav */}
+        <nav className="flex space-x-2 md:space-x-3 overflow-x-auto no-scrollbar mb-2 p-1">
+          {categories.map((cat) => (
+            <Button
+              key={cat.id}
+              variant={selectedCategory === cat.id ? "default" : "outline"}
+              onClick={() =>
+                setSelectedCategory(selectedCategory === cat.id ? null : cat.id)
+              }
+              className="text-xs md:text-sm whitespace-nowrap py-1 px-2 dark:bg-gray-700 dark:text-white"
+              aria-label={`Select category ${cat.name}`}
+            >
+              {cat.name}
+            </Button>
+          ))}
+        </nav>
+        {/* Subcategories horizontal nav below categories */}
+        {selectedCategory && (
+          <nav className="flex space-x-2 md:space-x-3 overflow-x-auto no-scrollbar mb-4 p-1 border-b border-gray-200 dark:border-gray-700">
+            {subcategories.map((sub) => (
+              <Button
+                key={sub.id}
+                variant={selectedSubcategory === sub.id ? "default" : "outline"}
+                onClick={() =>
+                  setSelectedSubcategory(selectedSubcategory === sub.id ? null : sub.id)
+                }
+                className="text-xs md:text-sm whitespace-nowrap py-1 px-2 dark:bg-gray-700 dark:text-white"
+                aria-label={`Select subcategory ${sub.name}`}
+              >
+                {sub.name}
+              </Button>
+            ))}
+          </nav>
+        )}
         {/* Menu Items Grid */}
         <section className="flex-1 overflow-auto">
           {filteredItems.length > 0 ? (
@@ -222,7 +222,7 @@ export default function MenuSelection({
                         <>
                           <button
                             className="bg-gray-200 text-black text-xs py-1 px-2 rounded hover:bg-gray-300"
-                            onClick={(e) => handleUpdateQuantity(item.id, -1, e)}
+                            onClick={(e) => handleUpdateQuantity(item.id, -item.increment, e)}
                             aria-label={`Decrease quantity of ${item.name} by ${item.increment}`}
                           >
                             {item.increment === 0.5 ? "-0.5" : "-1"}
@@ -230,7 +230,7 @@ export default function MenuSelection({
                           <span className="w-5 text-center">{getItemQuantity(item.id)}</span>
                           <button
                             className="bg-gray-200 text-black text-xs py-1 px-2 rounded hover:bg-gray-300"
-                            onClick={(e) => handleUpdateQuantity(item.id, 1, e)}
+                            onClick={(e) => handleUpdateQuantity(item.id, item.increment, e)}
                             aria-label={`Increase quantity of ${item.name} by ${item.increment}`}
                           >
                             {item.increment === 0.5 ? "+0.5" : "+1"}
@@ -251,7 +251,9 @@ export default function MenuSelection({
               ))}
             </div>
           ) : (
-            <p className="text-center text-gray-500 dark:text-gray-400 mt-10">No menu items found.</p>
+            <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
+              No menu items found.
+            </p>
           )}
         </section>
 
@@ -265,7 +267,7 @@ export default function MenuSelection({
 
       {/* Cart sidebar (desktop/tablet) */}
       <aside className="hidden md:flex md:flex-col w-72 border-l border-gray-200 dark:border-gray-700 p-4">
-        <h3 className="text-lg font-semibold mb-4 dark:text-white">Your Order</h3>
+        <h3 className="text-lg font-semibold mb-4 dark:text-white">Items to Add</h3>
         {orderItems.length === 0 ? (
           <p className="text-gray-500 dark:text-gray-400">No items added.</p>
         ) : (
@@ -284,8 +286,8 @@ export default function MenuSelection({
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button
                     className="bg-red-500 text-white text-xs py-1 px-2 rounded hover:bg-red-600"
-                    onClick={() => removeItem(item.id)}
-                    aria-label={`Remove ${item.name} from cart`}
+                    onClick={() => removeItem(item.menu_item_id)}
+                    aria-label={`Remove ${item.name} from items to add`}
                   >
                     ×
                   </button>
@@ -295,9 +297,7 @@ export default function MenuSelection({
           </div>
         )}
         <div className="mt-4 border-t pt-3">
-          <p className="text-lg font-semibold dark:text-white">
-            Subtotal: ${subtotal}
-          </p>
+          <p className="text-lg font-semibold dark:text-white">Subtotal: ${subtotal}</p>
           <Button
             className="w-full mt-2 text-sm"
             disabled={orderItems.length === 0}
@@ -326,7 +326,7 @@ export default function MenuSelection({
         {cartOpenMobile && (
           <div className="fixed bottom-16 right-4 w-64 max-h-[70vh] bg-gray-100 dark:bg-gray-800 rounded-lg p-3 shadow-lg overflow-y-auto">
             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-lg font-semibold dark:text-white">Your Order</h3>
+              <h3 className="text-lg font-semibold dark:text-white">Items to Add</h3>
               <button
                 className="bg-gray-200 text-black text-xs py-1 px-2 rounded hover:bg-gray-300"
                 onClick={() => setCartOpenMobile(false)}
@@ -352,8 +352,8 @@ export default function MenuSelection({
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                       className="bg-red-500 text-white text-xs py-1 px-2 rounded hover:bg-red-600"
-                      onClick={() => removeItem(item.id)}
-                      aria-label={`Remove ${item.name} from cart`}
+                      onClick={() => removeItem(item.menu_item_id)}
+                      aria-label={`Remove ${item.name} from items to add`}
                     >
                       ×
                     </button>
@@ -362,9 +362,7 @@ export default function MenuSelection({
               ))
             )}
             <div className="mt-2 border-t pt-2">
-              <p className="text-lg font-semibold dark:text-white">
-                Subtotal: ${subtotal}
-              </p>
+              <p className="text-lg font-semibold dark:text-white">Subtotal: ${subtotal}</p>
               <Button
                 className="w-full mt-2 text-sm"
                 disabled={orderItems.length === 0}
