@@ -261,7 +261,7 @@ export default function MenuSelection({
               ))}
             </div>
           ) : (
-            <p className="text-center text-gray-500 dark:text-gray-400 mt-10">No menu items found.</p>
+            <p className="text-center text-gray-500 dark:text-gray-400 mt-10">ምንም ዝርዝር የለም</p>
           )}
         </section>
 
@@ -269,7 +269,7 @@ export default function MenuSelection({
     <aside className="hidden md:flex md:flex-col w-60 border-l border-gray-200 dark:border-gray-700 p-3">
       <h3 className="text-base font-semibold mb-3 dark:text-white">የተመረጡ ትዛዞች</h3>
       {orderItems.length === 0 ? (
-        <p className="text-gray-500 dark:text-gray-400 text-sm">No items added.</p>
+        <p className="text-gray-500 dark:text-gray-400 text-sm">ምንም አልመረጡም</p>
       ) : (
         <div className="flex-1 overflow-y-auto">
           {orderItems.map((item) => (
@@ -328,7 +328,7 @@ export default function MenuSelection({
         {cartOpenMobile && (
           <div className="fixed bottom-16 right-4 w-64 max-h-[70vh] bg-gray-100 dark:bg-gray-800 rounded-lg p-3 shadow-lg overflow-y-auto">
             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-lg font-semibold dark:text-white">Your Order</h3>
+              <h3 className="text-lg font-semibold dark:text-white">የተመረጡ ትዛዞች</h3>
               <button
                 className="bg-gray-200 text-black text-xs py-1 px-2 rounded hover:bg-gray-300"
                 onClick={() => setCartOpenMobile(false)}
@@ -338,7 +338,7 @@ export default function MenuSelection({
               </button>
             </div>
             {orderItems.length === 0 ? (
-              <p className="text-gray-500 dark:text-gray-400 text-sm">No items added.</p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">ምንም አልመረጡም</p>
             ) : (
               orderItems.map((item) => (
                 <div

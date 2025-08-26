@@ -172,12 +172,12 @@ export default function NewOrder({ goBack, setError }) {
             <p className="relative z-10 text-gray-600 mt-2 text-sm sm:text-base">
               የተመዘገበው ትዕዛዝ ለሰራተኞች ተልኳል 🚀
             </p>
-            <button
+            {/* <button
               onClick={onClose}
               className="mt-4 px-4 py-2 bg-green-500 text-white rounded-lg"
             >
               Close
-            </button>
+            </button> */}
           </motion.div>
         </motion.div>
       )}
