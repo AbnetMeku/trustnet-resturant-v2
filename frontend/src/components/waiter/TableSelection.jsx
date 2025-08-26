@@ -23,8 +23,11 @@ export default function TableSelection({ selectedTable, setSelectedTable, onNext
           typeof table.is_vip === "boolean" &&
           Array.isArray(table.waiters)
         );
-        const waiterTables = validTables.filter((t) =>
-          t.waiters.some((w) => w.id === user.id)
+        // const waiterTables = validTables.filter((t) =>
+        //   t.waiters.some((w) => w.id === user.id)
+        // );
+        const waiterTables = validTables.filter(
+        (t) => t.waiters.some((w) => w.id === user.id) && t.status === "available"
         );
         setTables(waiterTables);
         setLocalError(null);
@@ -142,7 +145,7 @@ const handleSelect = (table) => {
               {/* Table Number */}
               <div className="flex flex-col items-center">
                 <h3 className="text-lg font-bold text-center truncate">
-                  Table {table.number}
+                 {table.number}
                 </h3>
               </div>
             </Card>

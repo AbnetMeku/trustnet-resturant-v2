@@ -153,7 +153,9 @@ export default function MenuSelection({
   return (
    <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden relative">
   {/* Categories Top Navbar */}
-  <nav className="flex space-x-2 overflow-x-auto no-scrollbar p-2 border-b border-gray-200 dark:border-gray-700">
+  <nav className="flex justify-between items-center overflow-x-auto no-scrollbar p-2 border-b border-gray-200 dark:border-gray-700">
+  {/* Categories scrollable section */}
+  <div className="flex space-x-2">
     {categories.map((cat) => (
       <button
         key={cat.id}
@@ -169,8 +171,22 @@ export default function MenuSelection({
         {cat.name}
       </button>
     ))}
-  </nav>
+  </div>
 
+  {/* Back Button */}
+  <Button
+    variant="outline"
+    size="sm"
+    onClick={() => {
+      // Clear cart items
+      orderItems.forEach(item => removeItem(item.id));
+      // Clear selected table in parent (if needed, pass setter)
+      onBack(); // go back to table selection
+    }}
+  >
+    ← Back
+  </Button>
+</nav>
   {/* Main content: subcategory sidebar + menu + cart */}
   <div className="flex flex-1 overflow-hidden">
     {/* Subcategories Sidebar (permanent, smaller) */}
@@ -196,7 +212,7 @@ export default function MenuSelection({
         {/* Menu Items Grid */}
         <section className="flex-1 p-3 overflow-auto">
           {filteredItems.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 gap-3 md:gap-4">
               {filteredItems.map((item) => (
                 <Card
                   key={item.id}
@@ -286,7 +302,7 @@ export default function MenuSelection({
           onClick={onNext}
           aria-label="Proceed to review order"
         >
-          ትዓዛዝ አረጋግጥ →
+          ትዕዛዝ አረጋግጥ →
         </Button>
       </div>
     </aside>
@@ -357,7 +373,7 @@ export default function MenuSelection({
                 onClick={onNext}
                 aria-label="Proceed to review order"
               >
-                ትዓዛዝ አረጋግጥ →
+                ትዕዛዝ አረጋግጥ →
               </Button>
             </div>
           </div>

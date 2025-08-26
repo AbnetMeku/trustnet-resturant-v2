@@ -30,8 +30,7 @@ export default function OrdersHub() {
             aria-label="New Order"
             onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setView("new")}
           >
-            አዲስ ትዓዛዝ |
-            New Order
+            አዲስ ትዕዛዝ
           </Card>
           <Card
             onClick={() => setView("active")}
@@ -41,8 +40,7 @@ export default function OrdersHub() {
             aria-label="Active Orders"
             onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setView("active")}
           >
-            ጭማሪ ትዓዛዝ |
-            Active Orders
+            ጭማሪ ትዕዛዝ
           </Card>
         </div>
       </main>

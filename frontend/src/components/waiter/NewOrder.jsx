@@ -2,7 +2,10 @@ import React, { useState, useEffect } from "react";
 import TableSelection from "./TableSelection";
 import MenuSelection from "./MenuSelection";
 import OrderSummary from "./OrderSummary";
-import { createOrder } from "@/api/orders"; // From orders.js (artifact version 1e61e1c9-364b-4f45-891e-0a063fe99dae)
+import { updateTable } from "@/api/tables";
+import { createOrder } from "@/api/orders";
+import { Button } from "@/components/ui/button";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function NewOrder({ goBack, setError }) {
   const [step, setStep] = useState("table"); // table | menu | review
@@ -10,10 +13,10 @@ export default function NewOrder({ goBack, setError }) {
   const [orderItems, setOrderItems] = useState([]);
   const [localError, setLocalError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [successVisible, setSuccessVisible] = useState(false); // ✅ modal visibility
 
-  const token = localStorage.getItem("auth_token"); // JWT token
+  const token = localStorage.getItem("auth_token");
 
-  // Check token on mount
   useEffect(() => {
     if (!token) {
       setLocalError("You are not logged in.");
@@ -21,7 +24,6 @@ export default function NewOrder({ goBack, setError }) {
     }
   }, [token, setError]);
 
-  // Add item with quantity rule
   const addItem = (item) => {
     if (!item.id || !Number.isInteger(item.id)) {
       setLocalError("Invalid menu item selected.");
@@ -66,27 +68,29 @@ export default function NewOrder({ goBack, setError }) {
     );
     setLocalError("");
   };
-const nextStep = (tableArg) => {
-  if (step === "table") {
-    const tableToCheck = tableArg || selectedTable;
-    if (!tableToCheck) {
-      setLocalError("Please select a table.");
-      setError("Please select a table.");
-      return;
+
+  const nextStep = (tableArg) => {
+    if (step === "table") {
+      const tableToCheck = tableArg || selectedTable;
+      if (!tableToCheck) {
+        setLocalError("Please select a table.");
+        setError("Please select a table.");
+        return;
+      }
+      if (tableArg) setSelectedTable(tableArg);
+      setStep("menu");
+    } else if (step === "menu") {
+      if (orderItems.length === 0) {
+        setLocalError("Please add at least one item to the order.");
+        setError("Please add at least one item to the order.");
+        return;
+      }
+      setStep("review");
     }
-    if (tableArg) setSelectedTable(tableArg);
-    setStep("menu");
-  } else if (step === "menu") {
-    if (orderItems.length === 0) {
-      setLocalError("Please add at least one item to the order.");
-      setError("Please add at least one item to the order.");
-      return;
-    }
-    setStep("review");
-  }
-  setLocalError("");
-  setError("");
-};
+    setLocalError("");
+    setError("");
+  };
+
   const prevStep = () => {
     setLocalError("");
     setError("");
@@ -106,20 +110,32 @@ const nextStep = (tableArg) => {
       const items = orderItems.map((item) => ({
         menu_item_id: item.id,
         quantity: item.quantity,
-        notes: item.notes && typeof item.notes === "string" ? item.notes.slice(0, 255) : "",
+        notes:
+          item.notes && typeof item.notes === "string"
+            ? item.notes.slice(0, 255)
+            : "",
       }));
-      if (items.some(item => !Number.isFinite(item.quantity) || item.quantity <= 0)) {
+
+      if (items.some((item) => !Number.isFinite(item.quantity) || item.quantity <= 0)) {
         setLocalError("All items must have a positive quantity.");
         setError("All items must have a positive quantity.");
         setLoading(false);
         return;
       }
+
       await createOrder(token, selectedTable.id, items);
-      alert("Order placed successfully!");
-      setStep("table");
-      setSelectedTable(null);
-      setOrderItems([]);
-      goBack();
+      await updateTable(selectedTable.id, { status: "occupied" }, token);
+
+      // Show modal instead of toast
+      setSuccessVisible(true);
+
+      setTimeout(() => {
+        setSuccessVisible(false);
+        setStep("table");
+        setSelectedTable(null);
+        setOrderItems([]);
+        goBack();
+      }, 6000);
     } catch (err) {
       const errorMessage = err.message || "Failed to submit order.";
       console.error("Order submission error:", errorMessage);
@@ -129,10 +145,51 @@ const nextStep = (tableArg) => {
     setLoading(false);
   };
 
+  // ✅ Full-screen success modal component
+  const SuccessModal = ({ visible, onClose }) => (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-30"
+        >
+          <motion.div
+            initial={{ scale: 0.8 }}
+            animate={{ scale: 1 }}
+            exit={{ scale: 0.8 }}
+            transition={{ duration: 0.3 }}
+            className="bg-white p-6 sm:p-8 rounded-3xl shadow-2xl text-center max-w-sm sm:max-w-md w-[90%] relative overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-green-400 via-emerald-500 to-green-600 animate-pulse opacity-20"></div>
+            <div className="relative z-10 flex justify-center mb-4">
+              <div className="bg-green-500 text-white rounded-full p-4 shadow-lg">✅</div>
+            </div>
+            <h2 className="relative z-10 text-xl sm:text-2xl font-bold text-gray-900">
+              🎉 ትዕዛዝ በተሳካ ሁኔታ ታዝዟል
+            </h2>
+            <p className="relative z-10 text-gray-600 mt-2 text-sm sm:text-base">
+              የተመዘገበው ትዕዛዝ ለሰራተኞች ተልኳል 🚀
+            </p>
+            <button
+              onClick={onClose}
+              className="mt-4 px-4 py-2 bg-green-500 text-white rounded-lg"
+            >
+              Close
+            </button>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
   if (!token) {
     return (
       <div className="flex flex-col h-full p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
-        <p className="text-red-500 mb-4 text-sm">You must be logged in to create an order.</p>
+        <p className="text-red-500 mb-4 text-sm">
+          You must be logged in to create an order.
+        </p>
         <Button variant="outline" onClick={goBack}>
           Back to Hub
         </Button>
@@ -141,7 +198,7 @@ const nextStep = (tableArg) => {
   }
 
   return (
-    <div className="flex flex-col h-full p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
+    <div className="flex flex-col h-full p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg relative">
       {localError && <p className="text-red-500 mb-4 text-sm">{localError}</p>}
       {loading && <p className="text-center py-4">Submitting order...</p>}
 
@@ -176,6 +233,9 @@ const nextStep = (tableArg) => {
           setError={setError}
         />
       )}
+
+      {/* ✅ Success Modal */}
+      <SuccessModal visible={successVisible} onClose={() => setSuccessVisible(false)} />
     </div>
   );
 }

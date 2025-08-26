@@ -51,9 +51,9 @@ export default function WaiterDashboard() {
   };
 
   const menuSections = [
-    { id: "orders", icon: FaUtensils, label: "ትዓዛዞች | Orders" },
-    { id: "history", icon: FaHistory, label: "የቀኑ የተዘጉ ትዓዛዝ | History" },
-    { id: "tables", icon: FaTable, label: "ጠረጴዛዎች | My Tables " },
+    { id: "orders", icon: FaUtensils, label: "ማዘዣ" },
+    { id: "history", icon: FaHistory, label: "የቀኑ የተዘጉ ትዕዛዝ" },
+    { id: "tables", icon: FaTable, label: "ጠረጴዛዎች" },
   ];
 
   return (

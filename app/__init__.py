@@ -5,6 +5,7 @@ from flask import Flask
 from flask_cors import CORS
 from .config import DevelopmentConfig, TestingConfig, ProductionConfig
 from .extensions import db, migrate, jwt
+from .routes.cors.cors_setup import init_cors
 
 config_map = {
     "development": DevelopmentConfig,
@@ -20,9 +21,8 @@ def create_app(config_name="development"):
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
-    # Enable CORS for all routes (development only)
-   # CORS(app, resources={r"/*": {"origins": "*"}})
-
+    init_cors(app)
+    
     # Register models to ensure they are created in the database
     from . import models 
     
@@ -30,8 +30,6 @@ def create_app(config_name="development"):
     from .routes import main_bp
     app.register_blueprint(main_bp)
     
-    from .routes.cors.cors_setup import init_cors
-    init_cors(app)
     
     from .routes.auth.auth import auth_bp
     app.register_blueprint(auth_bp)
