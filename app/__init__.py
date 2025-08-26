@@ -63,5 +63,7 @@ def create_app(config_name="development"):
     from .routes.categories.subcategories import subcategories_bp
     app.register_blueprint(subcategories_bp)     
     
+    from .routes.reports.sales import reports_bp
+    app.register_blueprint(reports_bp)
 
     return app

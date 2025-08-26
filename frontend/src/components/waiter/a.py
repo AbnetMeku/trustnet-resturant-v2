@@ -193,61 +193,71 @@ export default function MenuSelection({
       ))}
     </aside>
 
-        {/* Menu Items Grid */}
-        <section className="flex-1 p-3 overflow-auto">
-          {filteredItems.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-              {filteredItems.map((item) => (
-                <Card
-                  key={item.id}
+    {/* Menu Items Grid */}
+    <main className="flex-1 p-3 overflow-auto">
+      {filteredItems.length > 0 ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+          {filteredItems.map((item) => {
+            const quantity = getItemQuantity(item.id);
+            const step = item.increment === 0.5 ? 0.5 : 1;
+
+            return (
+              <Card
+                key={item.id}
                 className="relative h-36 md:h-40 rounded-xl overflow-hidden shadow-md"
-                  aria-label={`Menu item ${item.name}`}
-                >
-                  <div
-                    className="absolute inset-0 bg-cover bg-center"
-                    style={{ backgroundImage: `url(${item.image_url || "/placeholder.jpg"})` }}
-                  />
-                  <div className="absolute inset-0 bg-black/40 flex flex-col justify-end p-2 md:p-3 text-white text-xs md:text-sm">
-                    <h3 className="font-bold truncate">{item.name}</h3>
-                    <p className="truncate">{item.description}</p>
-                    <p className="font-semibold mt-1">${Number(item.price).toFixed(2)}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      {getItemQuantity(item.id) > 0 ? (
-                        <>
-                          <button
-                            className="bg-gray-200 text-black text-sm md:text-base py-1.5 px-3 rounded-md hover:bg-gray-300"
-                            onClick={(e) => handleUpdateQuantity(item.id, -1, e)}
-                          >
-                            {item.increment === 0.5 ? "-0.5" : "-1"}
-                          </button>
-                          <span className="w-6 text-center text-sm md:text-base font-semibold">
-                            {getItemQuantity(item.id)}
-                          </span>
-                          <button
-                            className="bg-gray-200 text-black text-sm md:text-base py-1.5 px-3 rounded-md hover:bg-gray-300"
-                            onClick={(e) => handleUpdateQuantity(item.id, 1, e)}
-                          >
-                            {item.increment === 0.5 ? "+0.5" : "+1"}
-                          </button>
-                        </>
-                      ) : (
+              >
+                {/* Background Image */}
+                <div
+                  className="absolute inset-0 bg-cover bg-center"
+                  style={{ backgroundImage: `url(${item.image_url || "/placeholder.jpg"})` }}
+                />
+
+                {/* Overlay with details */}
+                <div className="absolute inset-0 bg-black/40 flex flex-col justify-end p-2 md:p-3 text-white text-xs md:text-sm">
+                  <h3 className="font-bold truncate">{item.name}</h3>
+                  <p className="truncate">{item.description}</p>
+                  <p className="font-semibold mt-1">${Number(item.price).toFixed(2)}</p>
+
+                  {/* Quantity Controls */}
+                  <div className="flex items-center gap-2 mt-2">
+                    {quantity > 0 ? (
+                      <>
+                        <button
+                          className="bg-gray-200 text-black text-xs md:text-sm py-1 px-2 rounded-md hover:bg-gray-300"
+                          onClick={(e) => handleUpdateQuantity(item.id, -step, e)}
+                        >
+                          -{step}
+                        </button>
+                        <span className="w-6 text-center text-sm md:text-base font-semibold">
+                          {quantity}
+                        </span>
                         <button
                         className="bg-blue-600 text-white text-xs md:text-sm py-1 px-2 rounded-md hover:bg-blue-700"
-                          onClick={(e) => handleAddItem(item, e)}
+                          onClick={(e) => handleUpdateQuantity(item.id, step, e)}
                         >
-                          {item.increment === 0.5 ? "+0.5" : "+1"}
+                          +{step}
                         </button>
-                      )}
-                    </div>
-
+                      </>
+                    ) : (
+                      <button
+                        className="bg-blue-600 text-white text-xs md:text-sm py-1 px-2 rounded-md hover:bg-blue-700"
+                        onClick={(e) => handleAddItem(item, e)}
+                      >
+                        +{step}
+                      </button>
+                    )}
                   </div>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <p className="text-center text-gray-500 dark:text-gray-400 mt-10">No menu items found.</p>
-          )}
-        </section>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
+          No menu items found.
+        </p>
+      )}
+    </main>
 
     {/* Cart Sidebar */}
     <aside className="hidden md:flex md:flex-col w-60 border-l border-gray-200 dark:border-gray-700 p-3">

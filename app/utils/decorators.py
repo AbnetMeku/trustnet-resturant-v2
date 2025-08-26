@@ -1,23 +1,19 @@
-# app/utils/decorators.py
-
 from functools import wraps
 from flask_jwt_extended import verify_jwt_in_request, get_jwt
-from flask import jsonify
+from flask import jsonify, request
 
 def roles_required(*allowed_roles):
     """
     Decorator to protect routes based on user roles.
-    Usage: @roles_required('admin', 'manager')
-
-    Checks that:
-    - A valid JWT is present
-    - The JWT contains a 'role' claim
-    - The 'role' claim matches one of the allowed_roles
+    Skip JWT check on OPTIONS requests to allow CORS preflight.
     """
-
     def wrapper(fn):
         @wraps(fn)
         def decorator(*args, **kwargs):
+            if request.method == "OPTIONS":
+                # Skip JWT verification on OPTIONS request for CORS preflight
+                return jsonify({"status": "ok"}), 200
+
             # Ensure JWT is present and valid
             verify_jwt_in_request()
 

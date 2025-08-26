@@ -15,6 +15,8 @@ import UserManagement from "@/components/admin/UserManagement";
 import TableManagement from "@/components/admin/TableManagement";
 import StationManagement from "@/components/admin/StationManagement";
 import MenuManagement from "@/components/admin/MenuManagement";
+import SalesSummaryReport from "@/components/admin/SalesSummaryReport";
+import OverView from "@/components/admin/OverView";
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
@@ -146,7 +148,7 @@ export default function AdminDashboard() {
             {active === "overview" && (
               <Card className="p-6 w-full">
                 <h2 className="text-xl font-bold mb-4">Overview</h2>
-                <p>Quick stats and KPIs will go here.</p>
+                <OverView />
               </Card>
             )}
 
@@ -178,12 +180,12 @@ export default function AdminDashboard() {
               </Card>
             )}
 
-            {active === "reports" && (
-              <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Reports</h2>
-                <p>Sales, orders, and performance reports will appear here.</p>
-              </Card>
-            )}
+{active === "reports" && (
+  <Card className="p-6 w-full overflow-auto max-h-[80vh]">
+    <SalesSummaryReport />
+  </Card>
+)}
+
           </main>
         </div>
       </div>
