@@ -71,8 +71,9 @@ class OrderItem(db.Model):
     order_id = db.Column(db.Integer, db.ForeignKey("orders.id"), nullable=False)
     menu_item_id = db.Column(db.Integer, db.ForeignKey("menu_items.id"), nullable=False)
     quantity = db.Column(db.Numeric(5, 2))
+    printed_quantity = db.Column(db.Numeric(5, 2), default=0)  # NEW: Add this line
     price = db.Column(db.Numeric(10, 2), nullable=False)
-    vip_price = db.Column(db.Numeric(10, 2))  # VIP price support
+    vip_price = db.Column(db.Numeric(10, 2))
     notes = db.Column(db.Text)
     prep_tag = db.Column(db.String(20))
     status = db.Column(db.String(20), default="pending")
@@ -82,6 +83,7 @@ class OrderItem(db.Model):
 
     order = db.relationship("Order", back_populates="items")
     menu_item = db.relationship("MenuItem")
+
 # ---------------------- Kitchen Tag Counter ---------------------- #
 # This table tracks the last used tag number for each day    
 

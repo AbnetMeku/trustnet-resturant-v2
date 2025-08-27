@@ -51,6 +51,41 @@ def order_item_to_dict(item: OrderItem):
     }
 
 def order_to_dict(order: Order):
+    """
+    Returns order dict with aggregated items by menu_item_id
+    """
+    aggregated_items = {}
+    table = db.session.get(Table, order.table_id)
+    for item in order.items:
+        key = item.menu_item_id
+        if key not in aggregated_items:
+            aggregated_items[key] = {
+                "id": item.id,
+                "menu_item_id": item.menu_item_id,
+                "name": item.menu_item.name if item.menu_item else None,
+                "quantity": 0,
+                "price": float(item.price) if item.price is not None else 0.0,
+                "vip_price": float(item.vip_price) if item.vip_price is not None else None,
+                "notes": [],
+                "station": item.station,
+                "status": set(),
+                "prep_tag": set(),
+            }
+        agg = aggregated_items[key]
+        agg["quantity"] += float(item.quantity)
+        if item.notes:
+            agg["notes"].append(item.notes)
+        if item.status:
+            agg["status"].add(item.status)
+        if item.prep_tag:
+            agg["prep_tag"].add(item.prep_tag)
+
+    # Convert sets to list or comma-separated strings
+    for agg in aggregated_items.values():
+        agg["status"] = list(agg["status"])
+        agg["prep_tag"] = list(agg["prep_tag"])
+        agg["notes"] = "; ".join(agg["notes"]) if agg["notes"] else None
+
     return {
         "id": order.id,
         "table_id": order.table_id,
@@ -64,8 +99,9 @@ def order_to_dict(order: Order):
         "total_amount": float(order.total_amount) if order.total_amount else 0.0,
         "created_at": order.created_at.isoformat(),
         "updated_at": order.updated_at.isoformat(),
-        "items": [order_item_to_dict(i) for i in order.items],
+        "items": list(aggregated_items.values()),
     }
+
 
 def recalc_order_total(order: Order) -> None:
     total = Decimal("0.00")
@@ -87,11 +123,19 @@ def group_items_by_station_id(items):
     return dict(grouped)
 
 def create_print_jobs(order: Order, only_new_items=False):
+    items = [
+    item for item in order.items
+    if ( (item.status == "pending" and (item.quantity - item.printed_quantity) > 0) if only_new_items else True )
+]
+
+
     """
     Creates print jobs per station.
     If only_new_items=True, only includes items with status "pending".
     """
-    items = [i for i in order.items if (i.status == "pending" if only_new_items else True)]
+    
+
+    # items = [i for i in order.items if (i.status == "pending" if only_new_items else True)]
     grouped = group_items_by_station_id(items)
     for station_id, items_group in grouped.items():
         job_data = {
@@ -123,7 +167,6 @@ def create_cashier_print_job(order: Order):
     db.session.add(print_job)
     db.session.commit()
     logger.info(f"Created cashier print job for order {order.id}")
-
 # ---------------- Orders: Create ----------------
 @orders_bp.route("/", methods=["POST"])
 @jwt_required()
@@ -174,27 +217,24 @@ def create_order():
         default_increment = Decimal("0.5") if category_name.lower() == "alcohol" or subcategory_name.lower() == "butchery" else Decimal("1.0")
         quantity_to_add = Decimal(str(payload.get("quantity", default_increment)))
 
-        existing_item = db.session.query(OrderItem).filter_by(order_id=order.id, menu_item_id=menu_item.id).first()
-        if existing_item:
-            existing_item.quantity += quantity_to_add
-        else:
-            try:
-                prep_tag = generate_kitchen_tag() if category_name.lower() == "food" else None
-            except Exception as e:
-                return error_response(f"Failed to generate kitchen tag: {str(e)}", 500)
-            status = "pending"
-            order_item = OrderItem(
-                order_id=order.id,
-                menu_item_id=menu_item.id,
-                quantity=quantity_to_add,
-                price=price_to_use,
-                vip_price=Decimal(str(menu_item.vip_price)) if menu_item.vip_price is not None else None,
-                notes=payload.get("notes"),
-                station=station,
-                prep_tag=prep_tag,
-                status=status,
-            )
-            db.session.add(order_item)
+        # Always create a new OrderItem row here   
+        try:
+            prep_tag = generate_kitchen_tag() if category_name.lower() == "food" else None
+        except Exception as e:
+            return error_response(f"Failed to generate kitchen tag: {str(e)}", 500)
+        status = "pending"
+        order_item = OrderItem(
+            order_id=order.id,
+            menu_item_id=menu_item.id,
+            quantity=quantity_to_add,
+            price=price_to_use,
+            vip_price=Decimal(str(menu_item.vip_price)) if menu_item.vip_price is not None else None,
+            notes=payload.get("notes"),
+            station=station,
+            prep_tag=prep_tag,
+            status=status,
+        )
+        db.session.add(order_item)
 
     recalc_order_total(order)
     try:
@@ -205,6 +245,7 @@ def create_order():
         db.session.rollback()
         return error_response(f"Database error: {str(e)}", 500)
     return jsonify(order_to_dict(order)), 201
+
 
 # ---------------- OrderItems: Add to existing order ----------------
 @orders_bp.route("/<int:order_id>/items", methods=["POST"])
@@ -251,32 +292,29 @@ def add_order_item(order_id):
         default_increment = Decimal("0.5") if category_name.lower() == "alcohol" or subcategory_name.lower() == "butchery" else Decimal("1.0")
         quantity_to_add = Decimal(str(payload.get("quantity", default_increment)))
 
-        existing_item = db.session.query(OrderItem).filter_by(order_id=order.id, menu_item_id=menu_item.id).first()
-        if existing_item:
-            existing_item.quantity += quantity_to_add
-        else:
-            try:
-                prep_tag = generate_kitchen_tag() if category_name.lower() == "food" else None
-            except Exception as e:
-                return error_response(f"Failed to generate kitchen tag: {str(e)}", 500)
-            status = "pending"
-            order_item = OrderItem(
-                order_id=order.id,
-                menu_item_id=menu_item.id,
-                quantity=quantity_to_add,
-                price=price_to_use,
-                vip_price=Decimal(str(menu_item.vip_price)) if menu_item.vip_price is not None else None,
-                notes=payload.get("notes"),
-                station=station,
-                prep_tag=prep_tag,
-                status=status,
-            )
-            db.session.add(order_item)
+        # Create a new OrderItem row instead of updating existing one
+        try:
+            prep_tag = generate_kitchen_tag() if category_name.lower() == "food" else None
+        except Exception as e:
+            return error_response(f"Failed to generate kitchen tag: {str(e)}", 500)
+        status = "pending"
+        order_item = OrderItem(
+            order_id=order.id,
+            menu_item_id=menu_item.id,
+            quantity=quantity_to_add,
+            price=price_to_use,
+            vip_price=Decimal(str(menu_item.vip_price)) if menu_item.vip_price is not None else None,
+            notes=payload.get("notes"),
+            station=station,
+            prep_tag=prep_tag,
+            status=status,
+        )
+        db.session.add(order_item)
 
     recalc_order_total(order)
     try:
         db.session.commit()
-        create_print_jobs(order, only_new_items=True)  # enqueue print jobs for new items only
+        create_print_jobs(order, only_new_items=True)  # enqueue print jobs per station for new items only
         logger.info(f"Added items to order {order.id} by user {user_id}")
     except Exception as e:
         db.session.rollback()
