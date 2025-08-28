@@ -356,9 +356,10 @@ def update_order(order_id):
     return jsonify(order_to_dict(order)), 200
 
 # ---------------- Orders: List ----------------
+# ---------------- Orders: List ----------------
 @orders_bp.route("/", methods=["GET"])
 @jwt_required()
-@roles_required("admin", "manager", "waiter", "cashier")
+@roles_required("admin", "manager", "waiter", "cashier", "station")
 def list_orders():
     query = Order.query
     table_id = request.args.get("table_id")
@@ -369,26 +370,60 @@ def list_orders():
             query = query.filter_by(table_id=int(table_id))
         except ValueError:
             return error_response("Invalid table_id.", 400)
+
     if status:
         query = query.filter_by(status=status)
 
+    jwt_data = get_jwt()
+    roles = jwt_data.get("roles", [])
+
     orders = query.order_by(Order.created_at.desc()).all()
+
+    # ---------------- Station restriction ----------------
+    if "station" in roles:
+        station_id = jwt_data.get("station_id")
+        # keep only items from this station
+        filtered_orders = []
+        for order in orders:
+            station_items = [i for i in order.items if i.station_id == station_id]
+            if station_items:  # only include orders that have at least one item for this station
+                o = order_to_dict(order)
+                o["items"] = [order_item_to_dict(i) for i in station_items]
+                filtered_orders.append(o)
+        return jsonify(filtered_orders), 200
+
     return jsonify([order_to_dict(o) for o in orders]), 200
 
+
+# ---------------- Orders: Get Single ----------------
 # ---------------- Orders: Get Single ----------------
 @orders_bp.route("/<int:order_id>", methods=["GET"])
 @jwt_required()
-@roles_required("admin", "manager", "waiter", "cashier")
+@roles_required("admin", "manager", "waiter", "cashier", "station")
 def get_order(order_id):
     order = db.session.get(Order, order_id)
     if not order:
         return error_response("Order not found.", 404)
+
+    jwt_data = get_jwt()
+    roles = jwt_data.get("roles", [])
+
+    if "station" in roles:
+        station_id = jwt_data.get("station_id")
+        station_items = [i for i in order.items if i.station_id == station_id]
+        if not station_items:
+            return error_response("No items for this station in this order.", 403)
+        o = order_to_dict(order)
+        o["items"] = [order_item_to_dict(i) for i in station_items]
+        return jsonify(o), 200
+
     return jsonify(order_to_dict(order)), 200
+
 
 # ---------------- OrderItems: Update one item ----------------
 @orders_bp.route("/<int:order_id>/items/<int:item_id>", methods=["PUT"])
 @jwt_required()
-@roles_required("admin", "manager", "waiter")
+@roles_required("admin", "manager", "waiter", "station")
 def update_order_item(order_id, item_id):
     order_item = db.session.get(OrderItem, item_id)
     if not order_item or order_item.order_id != order_id:
@@ -396,12 +431,23 @@ def update_order_item(order_id, item_id):
 
     order = db.session.get(Order, order_id)
     user_id = safe_int_identity()
-    if "waiter" in get_jwt().get("roles", []):
+    jwt_data = get_jwt()
+    roles = jwt_data.get("roles", [])
+
+    # ---------------- Waiter restriction ----------------
+    if "waiter" in roles:
         user = db.session.get(User, user_id)
         table = db.session.get(Table, order.table_id)
         if table not in user.tables:
             return error_response("You are not assigned to this table.", 403)
 
+    # ---------------- Station restriction ----------------
+    if "station" in roles:
+        station_id = jwt_data.get("station_id")
+        if order_item.station_id != station_id:
+            return error_response("Unauthorized: Not your station item.", 403)
+
+    # ---------------- Data update ----------------
     data = request.get_json() or {}
     if "quantity" in data:
         try:
@@ -411,21 +457,28 @@ def update_order_item(order_id, item_id):
             order_item.quantity = quantity
         except (TypeError, ValueError):
             return error_response("Invalid quantity value.", 400)
+
     if "notes" in data:
         order_item.notes = data["notes"]
+
     if "status" in data:
         if data["status"] not in {"pending", "ready"}:
             return error_response("Invalid item status. Allowed: pending, ready.", 400)
         order_item.status = data["status"]
 
+    # ---------------- Commit ----------------
     recalc_order_total(order)
     try:
         db.session.commit()
-        logger.info(f"Updated order item {item_id} in order {order_id} by user {user_id}")
+        logger.info(
+            f"Updated order item {item_id} in order {order_id} by user {user_id} ({roles})"
+        )
     except Exception as e:
         db.session.rollback()
         return error_response(f"Database error: {str(e)}", 500)
+
     return jsonify(order_to_dict(order_item.order)), 200
+
 
 # ---------------- Orders: Delete ----------------
 @orders_bp.route("/<int:order_id>", methods=["DELETE"])
