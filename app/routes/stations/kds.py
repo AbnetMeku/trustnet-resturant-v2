@@ -66,6 +66,8 @@ def get_pending_orders():
         if order_id not in orders_dict:
             orders_dict[order_id] = {
                 "order_id": order_id,
+                "station_id": station.id,
+                "station_name": station.name,   # ✅ Added here
                 "table_id": table.id if table else None,
                 "table_number": table.number if table else None,
                 "waiter_id": waiter.id if waiter else None,

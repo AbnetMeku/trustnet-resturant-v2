@@ -54,14 +54,14 @@ export default function StationOrders() {
 
   useEffect(() => {
     fetchOrders();
-    const interval = setInterval(fetchOrders, 10000); // 10 seconds
+    const interval = setInterval(fetchOrders, 6000); // 10 seconds
     return () => clearInterval(interval);
   }, [stationToken]);
 
   if (!orders.length)
     return (
       <p className="text-center mt-10 text-gray-400 dark:text-gray-500">
-        No pending orders
+        ምንም ትዕዛዝ የለም በአሁን ጊዜ
       </p>
     );
 
@@ -74,13 +74,13 @@ export default function StationOrders() {
         >
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-2xl font-bold">Order #{order.order_id}</h2>
+              <h2 className="text-2xl font-bold">ትዕዛዝ #{order.order_id}</h2>
               <p className="text-sm text-gray-500 dark:text-gray-300">
-                Table: {order.table_number || "N/A"} | Waiter:{" "}
+                ጠረጴዛ ቁጥር: {order.table_number || "N/A"} | አስተናጋጅ:{" "}
                 {order.waiter_name || "N/A"}
               </p>
               <p className="text-xs text-gray-400 dark:text-gray-500">
-                Created:{" "}
+                ትዕዛዝ ሰዐት:{" "}
                 {new Date(order.order_created_at).toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",
@@ -88,9 +88,9 @@ export default function StationOrders() {
               </p>
             </div>
             <span
-              className="px-3 py-1 rounded-full text-white font-semibold bg-blue-500 text-sm"
+              className="px-3 py-1 rounded-full text-slate-900 font-semibold bg-gray-100 text-sm"
             >
-              {order.items.length} items
+              {order.items.length} ትዕዛዝ
             </span>
           </div>
 
@@ -120,10 +120,10 @@ export default function StationOrders() {
                   className={`px-4 py-2 rounded-full font-semibold text-white ${
                     item.status === "ready"
                       ? "bg-green-500 cursor-not-allowed"
-                      : "bg-yellow-500 hover:bg-yellow-600"
+                      : "bg-rose-900 hover:bg-rose-600"
                   }`}
                 >
-                  {item.status === "ready" ? "Ready" : "Mark Ready"}
+                  {item.status === "ready" ? "ደርሷል" : "ደርሷል"}
                 </button>
               </li>
             ))}
