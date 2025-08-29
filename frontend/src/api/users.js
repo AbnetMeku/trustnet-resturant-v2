@@ -1,5 +1,5 @@
 import axios from "axios";
-const BASE_URL = "http://localhost:5000/api";
+const BASE_URL = "/api";
 
 export const getUsers = async (role = "", token = null) => {
   const authToken = token || localStorage.getItem("auth_token");

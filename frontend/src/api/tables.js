@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BASE_URL = "http://localhost:5000/api";
+const BASE_URL = "/api";
 
 export const getTables = async (token = null) => {
   const authToken = token || localStorage.getItem("auth_token");

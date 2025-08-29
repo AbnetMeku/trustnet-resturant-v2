@@ -46,7 +46,7 @@ export default function ClosedOrders() {
   const handlePrintReceipt = async (orderId) => {
     try {
       await axios.post(
-        "http://localhost:5000/api/print-jobs/cashier/manual",
+        "/api/print-jobs/cashier/manual",
         { order_id: orderId },
         { headers: { Authorization: `Bearer ${authToken}` } }
       );

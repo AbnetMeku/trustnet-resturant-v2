@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BASE_URL = "http://localhost:5000/api/stations/kds";
+const BASE_URL = "/api/stations/kds";
 
 const getAuthHeader = (token) => ({
   Authorization: `Bearer ${token || localStorage.getItem("station_token")}`,

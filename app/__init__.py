@@ -18,21 +18,23 @@ def create_app(config_name="development"):
     config_class = config_map.get(config_name, DevelopmentConfig)
     app.config.from_object(config_class)
 
+    # Ignore trailing slashes globally
+    app.url_map.strict_slashes = False
+
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
     init_cors(app)
     
     # Ensure models are imported
-    from . import models 
+    from . import models
 
-    # Helper function to register with /api prefix
+    # Helper function to register blueprints under /api
     def register_api(bp):
-        # If bp.url_prefix is None, just use "/api"
         prefix = "/api" + (bp.url_prefix or "")
         app.register_blueprint(bp, url_prefix=prefix)
 
-    # Register Blueprints
+    # ------------------- Register Blueprints -------------------
     from .routes import main_bp
     register_api(main_bp)
 
