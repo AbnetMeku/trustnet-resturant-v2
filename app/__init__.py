@@ -64,4 +64,7 @@ def create_app(config_name="development"):
     from .routes.reports.sales import reports_bp
     app.register_blueprint(reports_bp)
 
+    from .routes.print.print_jobs import print_jobs_bp
+    app.register_blueprint(print_jobs_bp)
+
     return app

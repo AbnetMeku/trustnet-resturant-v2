@@ -93,25 +93,31 @@ class KitchenTagCounter(db.Model):
     date = db.Column(db.Date, nullable=False, unique=True)
     last_number = db.Column(db.Integer, default=0)
 
-# ---------------------- Print Queue ---------------------- #
-# Stores pending print jobs for each station (e.g., Kitchen, Bar, Butchery)
+# ---------------------- Print JObs ---------------------- #
+
 class PrintJob(db.Model):
     __tablename__ = "print_jobs"
     id = db.Column(db.Integer, primary_key=True)
-    
-    order_id = db.Column(db.Integer, db.ForeignKey("orders.id"), nullable=False)  
-    station_id = db.Column(db.Integer, db.ForeignKey("stations.id"), nullable=False)
-    
-    # store grouped items per station as JSON for flexibility
-    items_data = db.Column(db.JSON, nullable=False)  
-    
+
+    order_id = db.Column(db.Integer, db.ForeignKey("orders.id"), nullable=False)
+    station_id = db.Column(db.Integer, db.ForeignKey("stations.id"), nullable=True)  # nullable for cashier
+
+    type = db.Column(db.String(20), default="station")  # "station" or "cashier"
+
+    items_data = db.Column(db.JSON, nullable=False)
+
     status = db.Column(db.String(20), default="pending")  # pending, printed, failed
-    attempts = db.Column(db.Integer, default=0)  # retry tracking
+    error_message = db.Column(db.Text, nullable=True)
+    printed_at = db.Column(db.DateTime, nullable=True)
+    attempts = db.Column(db.Integer, default=0)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # relationships
     order = db.relationship("Order", backref="print_jobs")
     station = db.relationship("Station", backref="print_jobs")
+
 
 # ---------------------- Categories and Subcategories ---------------------- #
 # This table structure allows for a flexible menu organization

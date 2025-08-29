@@ -8,6 +8,7 @@ from app.utils.decorators import roles_required
 from app.routes.orders.kitchen_tag import generate_kitchen_tag
 from collections import defaultdict
 import logging
+from app.routes.print.print_jobs import create_station_print_jobs, create_cashier_print_job 
 
 orders_bp = Blueprint("orders_bp", __name__, url_prefix="/orders")
 
@@ -113,60 +114,62 @@ def recalc_order_total(order: Order) -> None:
         total += Decimal(price) * Decimal(i.quantity)
     order.total_amount = total
 
-# ---------------- Print Job Utilities ----------------
-def group_items_by_station_id(items):
-    grouped = defaultdict(list)
-    for item in items:
-        station_id = item.menu_item.station_id if item.menu_item else None
-        if station_id is not None:
-            grouped[station_id].append(item)
-    return dict(grouped)
+# # ---------------- Print Job Utilities ----------------
+# def group_items_by_station_id(items):
+#     grouped = defaultdict(list)
+#     for item in items:
+#         station_id = item.menu_item.station_id if item.menu_item else None
+#         if station_id is not None:
+#             grouped[station_id].append(item)
+#     return dict(grouped)
 
-def create_print_jobs(order: Order, only_new_items=False):
-    items = [
-    item for item in order.items
-    if ( (item.status == "pending" and (item.quantity - item.printed_quantity) > 0) if only_new_items else True )
-]
+# def create_station_print_jobs(order: Order, only_new_items=False):
+#     items = [
+#     item for item in order.items
+#     if ( (item.status == "pending" and (item.quantity - item.printed_quantity) > 0) if only_new_items else True )
+# ]
 
 
-    """
-    Creates print jobs per station.
-    If only_new_items=True, only includes items with status "pending".
-    """
+#     """
+#     Creates print jobs per station.
+#     If only_new_items=True, only includes items with status "pending".
+#     """
     
 
-    # items = [i for i in order.items if (i.status == "pending" if only_new_items else True)]
-    grouped = group_items_by_station_id(items)
-    for station_id, items_group in grouped.items():
-        job_data = {
-            "order_id": order.id,
-            "station_id": station_id,
-            "items_data": [order_item_to_dict(i) for i in items_group],
-            "status": "pending",
-        }
-        print_job = PrintJob(**job_data)
-        db.session.add(print_job)
-    db.session.commit()
-    logger.info(f"Created print jobs for order {order.id}")
+#     # items = [i for i in order.items if (i.status == "pending" if only_new_items else True)]
+#     grouped = group_items_by_station_id(items)
+#     for station_id, items_group in grouped.items():
+#         job_data = {
+#             "order_id": order.id,
+#             "station_id": station_id,
+#             "items_data": [order_item_to_dict(i) for i in items_group],
+#             "status": "pending",
+#         }
+#         print_job = PrintJob(**job_data)
+#         db.session.add(print_job)
+#     db.session.commit()
+#     logger.info(f"Created print jobs for order {order.id}")
 
-def create_cashier_print_job(order: Order):
-    """
-    Creates a print job for the cashier with full order summary.
-    """
-    items_data = [order_item_to_dict(i) for i in order.items]
-    cashier_station = db.session.query(Station).filter_by(name="Cashier").first()
-    if not cashier_station:
-        logger.warning("No Cashier station found, skipping cashier print job.")
-        return
-    print_job = PrintJob(
-        order_id=order.id,
-        station_id=cashier_station.id,
-        items_data=items_data,
-        status="pending"
-    )
-    db.session.add(print_job)
-    db.session.commit()
-    logger.info(f"Created cashier print job for order {order.id}")
+# def create_cashier_print_job(order: Order):
+#     """
+#     Creates a print job for the cashier with full order summary.
+#     """
+#     items_data = [order_item_to_dict(i) for i in order.items]
+#     cashier_station = db.session.query(Station).filter_by(name="Cashier").first()
+#     if not cashier_station:
+#         logger.warning("No Cashier station found, skipping cashier print job.")
+#         return
+#     print_job = PrintJob(
+#         order_id=order.id,
+#         station_id=cashier_station.id,
+#         items_data=items_data,
+#         status="pending"
+#     )
+#     db.session.add(print_job)
+#     db.session.commit()
+#     logger.info(f"Created cashier print job for order {order.id}")
+
+
 # ---------------- Orders: Create ----------------
 @orders_bp.route("/", methods=["POST"])
 @jwt_required()
@@ -239,7 +242,7 @@ def create_order():
     recalc_order_total(order)
     try:
         db.session.commit()
-        create_print_jobs(order)  # enqueue print jobs per station
+        create_station_print_jobs(order)  # enqueue print jobs per station
         logger.info(f"Created order {order.id} for table {table_id} by user {user_id}")
     except Exception as e:
         db.session.rollback()
@@ -314,7 +317,7 @@ def add_order_item(order_id):
     recalc_order_total(order)
     try:
         db.session.commit()
-        create_print_jobs(order, only_new_items=True)  # enqueue print jobs per station for new items only
+        create_station_print_jobs(order, only_new_items=True)  # enqueue print jobs per station for new items only
         logger.info(f"Added items to order {order.id} by user {user_id}")
     except Exception as e:
         db.session.rollback()
@@ -347,15 +350,11 @@ def update_order(order_id):
         db.session.commit()
         logger.info(f"Updated order {order_id} status to {status} by user {user_id}")
 
-        if status == "closed":
-            create_cashier_print_job(order)  # enqueue cashier print job
-
     except Exception as e:
         db.session.rollback()
         return error_response(f"Database error: {str(e)}", 500)
     return jsonify(order_to_dict(order)), 200
 
-# ---------------- Orders: List ----------------
 # ---------------- Orders: List ----------------
 @orders_bp.route("/", methods=["GET"])
 @jwt_required()
