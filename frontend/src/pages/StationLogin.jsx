@@ -34,7 +34,7 @@ const handleSubmit = async (submittedPin = pin) => {
 
   try {
     const res = await axios.post(
-      'http://localhost:5000/auth/pin/station',
+      'http://localhost:5000/api/auth/pin/station',
       { pin: submittedPin }
     );
 

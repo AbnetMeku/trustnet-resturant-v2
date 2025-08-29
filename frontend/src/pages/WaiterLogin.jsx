@@ -33,7 +33,7 @@ export default function WaiterLogin() {
     }
     setError('');
     try {
-      const res = await axios.post('http://localhost:5000/auth/pin/waiter', { pin: submittedPin });
+      const res = await axios.post('http://localhost:5000/api/auth/pin/waiter', { pin: submittedPin });
       login(res.data.user, res.data.access_token); // use updated AuthContext login
     } catch (err) {
       setError(err.response?.data?.msg || 'Invalid PIN');

@@ -23,48 +23,53 @@ def create_app(config_name="development"):
     jwt.init_app(app)
     init_cors(app)
     
-    # Register models to ensure they are created in the database
+    # Ensure models are imported
     from . import models 
-    
-    # Register Blueprints...
+
+    # Helper function to register with /api prefix
+    def register_api(bp):
+        # If bp.url_prefix is None, just use "/api"
+        prefix = "/api" + (bp.url_prefix or "")
+        app.register_blueprint(bp, url_prefix=prefix)
+
+    # Register Blueprints
     from .routes import main_bp
-    app.register_blueprint(main_bp)
-    
-    
+    register_api(main_bp)
+
     from .routes.auth.auth import auth_bp
-    app.register_blueprint(auth_bp)
+    register_api(auth_bp)
 
     from .routes.users.users import users_bp
-    app.register_blueprint(users_bp)
+    register_api(users_bp)
 
     from .routes.tables.tables import tables_bp
-    app.register_blueprint(tables_bp)
+    register_api(tables_bp)
     
     from .routes.menu_items.menu_items import menu_items_bp
-    app.register_blueprint(menu_items_bp) 
+    register_api(menu_items_bp)
 
     from .routes.stations.stations import stations_bp
-    app.register_blueprint(stations_bp) 
+    register_api(stations_bp)
 
     from .routes.orders.order import orders_bp
-    app.register_blueprint(orders_bp)
+    register_api(orders_bp)
 
     from .routes.stations.auth import stations_auth_bp
-    app.register_blueprint(stations_auth_bp)
+    register_api(stations_auth_bp)
 
     from .routes.stations.kds import stations_kds_bp
-    app.register_blueprint(stations_kds_bp) 
+    register_api(stations_kds_bp)
 
     from .routes.categories.categories import categories_bp
-    app.register_blueprint(categories_bp)  
-    
+    register_api(categories_bp)
+
     from .routes.categories.subcategories import subcategories_bp
-    app.register_blueprint(subcategories_bp)     
-    
+    register_api(subcategories_bp)
+
     from .routes.reports.sales import reports_bp
-    app.register_blueprint(reports_bp)
+    register_api(reports_bp)
 
     from .routes.print.print_jobs import print_jobs_bp
-    app.register_blueprint(print_jobs_bp)
+    register_api(print_jobs_bp)
 
     return app
