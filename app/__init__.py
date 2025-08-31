@@ -74,4 +74,7 @@ def create_app(config_name="development"):
     from .routes.print.print_jobs import print_jobs_bp
     register_api(print_jobs_bp)
 
+    # from .routes.menu_items.upload import upload_bp
+    # register_api(upload_bp) 
+
     return app

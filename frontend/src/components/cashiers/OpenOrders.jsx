@@ -44,7 +44,7 @@ export default function OpenOrders() {
               key={order.id}
               className="shadow-lg rounded-lg border border-gray-300 dark:border-gray-700 p-6 hover:scale-[1.02] transition-transform relative"
             >
-              <h3 className="text-lg font-semibold mb-2">Table {order.table_id}</h3>
+              <h3 className="text-lg font-semibold mb-2">Table {order.table.number}</h3>
               <p className="mb-1">
                 Total: <strong>${order.total_amount.toFixed(2)}</strong>
               </p>
@@ -69,7 +69,7 @@ export default function OpenOrders() {
         <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-11/12 max-w-lg">
             <h3 className="text-xl font-bold mb-4">
-              Table {selectedOrder.table_id} - Order #{selectedOrder.id}
+              Table {selectedOrder.table.number} - Order #{selectedOrder.id}
             </h3>
             <div className="max-h-80 overflow-y-auto">
               <table className="w-full text-left border-collapse">

@@ -5,6 +5,20 @@ import { getMenuItems } from "@/api/menu_item";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
+// ✅ Translation maps
+const categoryTranslations = {
+  Alcohols: "መጠጥ",
+  Butchery: "በግብር ስጋ",
+  "Soft Drinks": "ነጭ መጠጥ",
+  Food: "ምግብ",
+};
+
+const subcategoryTranslations = {
+  Beer: "ቢራ",
+  Wine: "ወይን",
+  Beef: "በሬ ስጋ",
+};
+
 export default function ActiveMenuSelection({
   selectedOrder,
   orderItems,
@@ -54,14 +68,25 @@ export default function ActiveMenuSelection({
     setSelectedSubcategory(null);
   }, [selectedCategory]);
 
-  // Fetch menu items
-  useEffect(() => {
-    const fetchMenuItems = async () => {
-      if (categories.length === 0 || subcategories.length === 0) return;
-      try {
-        setLoading(true);
-        const items = await getMenuItems({});
-        const updatedItems = items.map((item) => {
+// Fetch menu items
+useEffect(() => {
+  const fetchMenuItems = async () => {
+    if (categories.length === 0 || subcategories.length === 0) return;
+    try {
+      setLoading(true);
+      const items = await getMenuItems({});
+
+      const updatedItems = items
+        .filter((item) => {
+          // Hide unavailable items
+          if (!item.is_available) return false;
+
+          // If table is VIP, hide items without vip_price
+          if (selectedOrder?.table?.is_vip && item.vip_price == null) return false;
+
+          return true;
+        })
+        .map((item) => {
           const category = categories.find((c) => c.id === item.category_id) || {};
           const subcategory = subcategories.find((s) => s.id === item.subcategory_id) || {};
           const categoryName = (category.name || "Unknown").trim();
@@ -74,20 +99,30 @@ export default function ActiveMenuSelection({
               : 1;
 
           const isVip = selectedOrder?.table?.is_vip || false;
-          const price = Number(isVip && item.vip_price != null ? item.vip_price : item.price) || 0;
+          const usingVip = isVip && item.vip_price != null;
+          const price = Number(usingVip ? item.vip_price : item.price) || 0;
 
-          return { ...item, category_name: categoryName, subcategory_name: subcategoryName, price, increment };
+          return {
+            ...item,
+            category_name: categoryName,
+            subcategory_name: subcategoryName,
+            price,
+            increment,
+            usingVip, // ✅ mark if VIP pricing is applied
+          };
         });
-        setMenuItems(updatedItems);
-      } catch (err) {
-        console.error("Failed to load menu items:", err);
-        setMenuItems([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchMenuItems();
-  }, [categories, subcategories, selectedOrder]);
+
+      setMenuItems(updatedItems);
+    } catch (err) {
+      console.error("Failed to load menu items:", err);
+      setMenuItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  fetchMenuItems();
+}, [categories, subcategories, selectedOrder]);
+
 
   // Filtered items
   const filteredItems = useMemo(() => {
@@ -153,7 +188,7 @@ export default function ActiveMenuSelection({
                   : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600"
               }`}
             >
-              {cat.name}
+              {categoryTranslations[cat.name] || cat.name}
             </button>
           ))}
         </div>
@@ -177,7 +212,7 @@ export default function ActiveMenuSelection({
                   : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600"
               }`}
             >
-              {sub.name}
+              {subcategoryTranslations[sub.name] || sub.name}
             </button>
           ))}
         </aside>
@@ -196,7 +231,15 @@ export default function ActiveMenuSelection({
                     style={{ backgroundImage: `url(${item.image_url || "/placeholder.jpg"})` }}
                   />
                   <div className="absolute inset-0 bg-black/40 flex flex-col justify-end p-2 md:p-3 text-white text-xs md:text-sm">
-                    <h3 className="font-bold truncate">{item.name}</h3>
+                    <h3 className="font-bold truncate flex items-center gap-2">
+                      {item.name}
+                      {item.usingVip && (
+                        <span className="bg-yellow-400 text-black text-[10px] font-bold px-2 py-0.5 rounded-md">
+                          VIP
+                        </span>
+                      )}
+                    </h3>
+
                     <p className="truncate">{item.description}</p>
                     <p className="font-semibold mt-1">${Number(item.price).toFixed(2)}</p>
                     <div className="flex items-center gap-2 mt-2">

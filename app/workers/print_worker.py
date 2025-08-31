@@ -1,116 +1,214 @@
-import time
-from datetime import datetime, timezone
+import sys
 import os
+import time
+import socket
+from datetime import datetime, timezone, timedelta
 from PIL import Image, ImageDraw, ImageFont
 from escpos.printer import Network
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app import create_app
-from app.extensions import db
-from app.models.models import PrintJob, Station
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from app.models.models import PrintJob, OrderItem, Station
 
 # -----------------------------
 # CONFIG
 # -----------------------------
-PRINTER_DEFAULT_IP = "192.168.0.111"
-CHECK_INTERVAL = 5  # seconds between polling cycles
+DATABASE_URI = os.environ.get(
+    "DATABASE_URI"
+) or "postgresql://trustnet_pos:trustnet_pos_password@localhost:5432/trustnet_pos_db"
+
+FONT_PATH = os.path.join(os.path.dirname(__file__), "NotoSansEthiopic.ttf")
+LOGO_PATH = os.path.join(os.path.dirname(__file__), "TNS.png")
+PRINTER_WIDTH_PX = 576
+CHECK_INTERVAL = 10      # seconds between polling for new jobs
 MAX_RETRIES = 3
-JOB_DELAY = 5       # seconds delay between individual jobs
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FONT_PATH = os.path.join(BASE_DIR, "NotoSansEthiopic.ttf")
-LOGO_PATH = os.path.join(BASE_DIR, "TNS.png")
 
 # -----------------------------
-# FLASK APP
+# DB Setup
 # -----------------------------
-app = create_app()
+engine = create_engine(DATABASE_URI)
+Session = sessionmaker(bind=engine)
 
 # -----------------------------
-# Helper: render text to image (Amharic support)
+# Helper functions
 # -----------------------------
-def render_text_to_image(lines, font_path=FONT_PATH, font_size=24):
-    font = ImageFont.truetype(font_path, font_size)
-    line_height = font.getsize("A")[1] + 4
-    height = line_height * len(lines) + 40
-    width = 576
-    img = Image.new("L", (width, height), 255)
+def load_font(size=24):
+    try:
+        return ImageFont.truetype(FONT_PATH, size)
+    except Exception:
+        return ImageFont.load_default()
+
+
+def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="station"):
+    font = load_font()
+    lines = []
+
+    # Header
+    lines.append(f"{station_name.upper()} - {copy_type.upper()}")
+    lines.append(f"Order ID: {job.order_id}")
+    lines.append(f"Time: {datetime.now().strftime('%H:%M:%S')}")
+    lines.append("-" * 32)
+
+    for item in items:
+        line = f"{item.get('quantity',1)}x {item.get('name','')[:24]}"
+        if item.get("prep_tag"):
+            line = f"{item['prep_tag']} | {line}"
+        lines.append(line)
+        if item.get("notes"):
+            lines.append(f"Notes: {item['notes']}")
+    lines.append("-" * 32)
+
+    if job.type == "cashier":
+        total = job.items_data.get("total", 0)
+        lines.append(f"Total: {total}")
+    lines.append("Thank you!")
+
+    line_height = font.getbbox("A")[3] - font.getbbox("A")[1] + 4
+    height = len(lines) * line_height + 20 + 300  # extra space for logo
+    img = Image.new("1", (PRINTER_WIDTH_PX, height), 1)
     draw = ImageDraw.Draw(img)
 
-    y = 10
+    # Paste logo
+    y_offset = 10
+    if os.path.exists(LOGO_PATH):
+        try:
+            logo = Image.open(LOGO_PATH).convert("1")
+            logo_width = min(logo.width, PRINTER_WIDTH_PX)
+            logo = logo.resize((logo_width, int(logo.height * logo_width / logo.width)))
+            img.paste(logo, ((PRINTER_WIDTH_PX - logo.width) // 2, 0))
+            y_offset = logo.height + 5
+        except Exception as e:
+            print(f"[WARN] Failed to load logo: {e}")
+
+    y = y_offset
     for line in lines:
-        draw.text((10, y), line, font=font, fill=0)
+        bbox = draw.textbbox((0, 0), line, font=font)
+        text_width = bbox[2] - bbox[0]
+        x = (PRINTER_WIDTH_PX - text_width) // 2 if text_width < PRINTER_WIDTH_PX else 0
+        draw.text((x, y), line, font=font, fill=0)
         y += line_height
+
     return img
 
-# -----------------------------
-# Print a single job
-# -----------------------------
-def process_print_job(job: PrintJob):
-    session = sessionmaker(bind=db.engine)()
+
+def is_printer_reachable(ip, port=9100, timeout=2):
     try:
-        # Printer IP
-        printer_ip = job.station.printer_identifier if job.station and job.station.printer_identifier else PRINTER_DEFAULT_IP
-        p = Network(printer_ip)
+        with socket.create_connection((ip, port), timeout=timeout):
+            return True
+    except (socket.timeout, ConnectionRefusedError):
+        return False
 
-        lines = []
-        if os.path.exists(LOGO_PATH):
-            logo = Image.open(LOGO_PATH).convert("L")
-            p.image(logo)
 
-        # Header
-        lines.append(f"Order ID: {job.order_id}")
-        lines.append(f"Type: {job.type.capitalize()}")
-        lines.append(f"Date: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}")
-        lines.append("-" * 32)
+def print_ticket_image(printer_ip, img):
+    for attempt in range(1, MAX_RETRIES + 1):
+        if not is_printer_reachable(printer_ip):
+            print(f"[WARN] Printer {printer_ip} not reachable on attempt {attempt}")
+            time.sleep(2)
+            continue
+        printer = None
+        try:
+            printer = Network(printer_ip, port=9100, timeout=30)
+            printer.profile.profile_data["media"] = {
+                "width": {"pixel": PRINTER_WIDTH_PX},
+                "height": {"pixel": img.height},
+            }
+            printer.image(img)
+            printer.cut()
+            printer.close()
+            print(f"[SUCCESS] Printed to {printer_ip} on attempt {attempt}")
+            return True
+        except ConnectionResetError as e:
+            print(f"[ERROR] Connection reset on attempt {attempt} to {printer_ip}: {e}")
+            time.sleep(5)
+        except Exception as e:
+            print(f"[ERROR] Printing attempt {attempt} to {printer_ip} failed: {e}")
+            time.sleep(2)
+        finally:
+            if printer:
+                try:
+                    printer.close()
+                except:
+                    pass
+    return False
 
-        # Items
-        items = job.items_data.get("items") or []
-        for item in items:
-            name = item.get("name")
-            qty = item.get("qty") or item.get("quantity") or 1
-            notes = item.get("notes") or ""
-            prep_tag = item.get("prep_tag") or ""
-            lines.append(f"{name} x{qty}")
-            if notes:
-                lines.append(f"Notes: {notes}")
-            if prep_tag:
-                lines.append(f"Prep: {prep_tag}")
-            lines.append("-" * 32)
 
-        # Footer
-        phone = "Tel: +251-000-000-000"
-        if job.type == "cashier":
-            total = job.items_data.get("total", "0")
-            lines.append(f"Total: {total}")
-            lines.append(phone)
-            lines.append("Thank you for your order!")
-        else:
-            lines.append(phone)
-
-        # Render and print
-        img = render_text_to_image(lines)
-        p.image(img)
-        p.cut()
-
-        # Mark as printed
-        job_db = session.get(PrintJob, job.id)
-        job_db.status = "printed"
-        job_db.printed_at = datetime.now(timezone.utc)
+# -----------------------------
+# Job functions
+# -----------------------------
+def fetch_next_job(session):
+    """Fetch the oldest pending job, mark as in_progress and return it."""
+    job = (
+        session.query(PrintJob)
+        .filter(PrintJob.status == "pending")
+        .order_by(PrintJob.created_at.asc())
+        .with_for_update(skip_locked=True)
+        .first()
+    )
+    if job:
+        job.status = "in_progress"
         session.commit()
-        print(f"[SUCCESS] Printed job {job.id}")
+        print(f"[LOCKED] Job {job.id} locked for printing")
+        return job
+    return None
 
+def print_job(job: PrintJob):
+    session = Session()
+    try:
+        station = session.get(Station, job.station_id) if job.station_id else None
+        printer_ip = station.printer_identifier if station else "192.168.0.111"
+
+        # Determine items
+        copy_type = job.items_data.get("copy", "station")
+        if copy_type == "customer":
+            items = job.items_data.get("items", [])
+        elif copy_type == "kitchen":
+            item = job.items_data.get("item")
+            items = [item] if item else []
+        else:
+            items = job.items_data.get("items", []) or [job.items_data.get("item")]
+
+        # Render ticket
+        img = render_ticket(job, items, station.name if station else "CASHIER", copy_type)
+
+        # === DEVELOPMENT PREVIEW ===
+        try:
+            img.show(title=f"Job {job.id} Preview")  # Opens image viewer
+        except Exception as e:
+            print(f"[WARN] Could not preview image: {e}")
+        # ============================
+
+        # Attempt printing
+        success = print_ticket_image(printer_ip, img)
+
+        job_db = session.get(PrintJob, job.id)
+        if job_db.status != "in_progress":
+            print(f"[SKIP] Job {job.id} not in_progress (status={job_db.status})")
+            return
+
+        if success:
+            job_db.status = "printed"
+            job_db.printed_at = datetime.now(timezone.utc)
+            for item_dict in items:
+                item_id = item_dict.get("item_id")
+                if item_id:
+                    order_item = session.get(OrderItem, item_id)
+                    if order_item:
+                        order_item.status = "ready"
+            print(f"[SUCCESS] Job {job.id} marked as printed")
+        else:
+            job_db.attempts = (job_db.attempts or 0) + 1
+            if job_db.attempts >= MAX_RETRIES:
+                job_db.status = "failed"
+                print(f"[FAILED] Job {job.id} marked as failed after {job_db.attempts} attempts")
+            else:
+                job_db.status = "pending"
+                job_db.retry_after = datetime.now(timezone.utc) + timedelta(seconds=60)
+                print(f"[RETRY] Job {job.id} will retry later (attempt {job_db.attempts})")
+        session.commit()
     except Exception as e:
-        job_db = session.get(PrintJob, job.id)
-        job_db.attempts = (job_db.attempts or 0) + 1
-        if job_db.attempts < MAX_RETRIES:
-            job_db.status = "pending"
-            print(f"[RETRY] Job {job.id} will retry (attempt {job_db.attempts})")
-        else:
-            job_db.status = "failed"
-            job_db.error_message = str(e)
-            print(f"[FAILED] Job {job.id} failed: {str(e)}")
-        session.commit()
+        print(f"[CRITICAL] Job {job.id} processing error: {e}")
+        session.rollback()
     finally:
         session.close()
 
@@ -118,19 +216,22 @@ def process_print_job(job: PrintJob):
 # Worker loop
 # -----------------------------
 def worker_loop():
+    print("[WORKER] Print worker started...")
     while True:
-        with app.app_context():
-            jobs = PrintJob.query.filter_by(status="pending").all()
-            if jobs:
-                print(f"Found {len(jobs)} pending print jobs...")
-            for job in jobs:
-                process_print_job(job)
-                time.sleep(JOB_DELAY)  # <-- delay between each job
-        time.sleep(CHECK_INTERVAL)
-
+        session = Session()
+        try:
+            job = fetch_next_job(session)
+            if job:
+                print_job(job)
+                time.sleep(1)  # Add delay between jobs to avoid overwhelming the printer
+            else:
+                time.sleep(CHECK_INTERVAL)
+        except Exception as e:
+            print(f"[ERROR] Worker loop exception: {e}")
+        finally:
+            session.close()
 # -----------------------------
-# Entry
+# Entry point
 # -----------------------------
 if __name__ == "__main__":
-    print("Starting print worker...")
     worker_loop()

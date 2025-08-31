@@ -24,24 +24,24 @@ def order_item_to_dict(item: OrderItem):
         "notes": item.notes,
         "station": item.station,
         "status": item.status,
-        "prep_tag": getattr(item, "prep_tag", None)
+        "prep_tag": getattr(item, "prep_tag", None),
+        "table": item.order.table.number if item.order and item.order.table else "Unknown",
+        "waiter": item.order.user.username if item.order and item.order.user else "Unknown",
     }
 
 # -----------------------------
 # Create station print jobs
 # -----------------------------
 def create_station_print_jobs(order: Order, only_new_items=True):
-    """
-    Creates print jobs for all stations (kitchen/bar/butcher)
-    when a new order is placed.
-    """
     stations = Station.query.all()
+
+    table_number = order.table.number if order.table else "Unknown"
+    waiter_name = order.user.username if order.user else "Unknown"
 
     for station in stations:
         if not station.printer_identifier:
-            continue  # skip stations without printer setup
+            continue
 
-        # collect items for this station
         station_items = [
             order_item_to_dict(item)
             for item in order.items
@@ -50,11 +50,9 @@ def create_station_print_jobs(order: Order, only_new_items=True):
         ]
 
         if not station_items:
-            continue  # nothing to print for this station
+            continue
 
-        # Special butcher logic
         if station.name.lower() == "butcher":
-            # Customer copy with prep_tag
             db.session.add(PrintJob(
                 order_id=order.id,
                 station_id=station.id,
@@ -62,10 +60,11 @@ def create_station_print_jobs(order: Order, only_new_items=True):
                 items_data={
                     "copy": "customer",
                     "order_id": order.id,
-                    "items": station_items
+                    "table": table_number,
+                    "waiter": waiter_name,
+                    "items": station_items,
                 }
             ))
-            # Separate slip for each item (kitchen style)
             for it in station_items:
                 db.session.add(PrintJob(
                     order_id=order.id,
@@ -74,19 +73,22 @@ def create_station_print_jobs(order: Order, only_new_items=True):
                     items_data={
                         "copy": "kitchen",
                         "order_id": order.id,
+                        "table": table_number,
+                        "waiter": waiter_name,
                         "item": it,
-                        "prep_tag": it.get("prep_tag")
+                        "prep_tag": it.get("prep_tag"),
                     }
                 ))
         else:
-            # Normal station: all items grouped in one job
             db.session.add(PrintJob(
                 order_id=order.id,
                 station_id=station.id,
                 type="station",
                 items_data={
                     "order_id": order.id,
-                    "items": station_items
+                    "table": table_number,
+                    "waiter": waiter_name,
+                    "items": station_items,
                 }
             ))
 
@@ -96,7 +98,6 @@ def create_station_print_jobs(order: Order, only_new_items=True):
 # Mark order items as 'ready' after print
 # -----------------------------
 def mark_items_ready_after_print(job: PrintJob):
-    from app.extensions import db
     for item_dict in job.items_data.get("items", []):
         item_id = item_dict.get("item_id")
         if item_id:
@@ -104,17 +105,17 @@ def mark_items_ready_after_print(job: PrintJob):
             if order_item:
                 order_item.status = "ready"
     db.session.commit()
+
 # -----------------------------
 # Create cashier print job
 # -----------------------------
 def create_cashier_print_job(order_id: int):
-    """
-    Creates a cashier print job for a closed/paid order.
-    Triggered manually from frontend.
-    """
     order = Order.query.get(order_id)
     if not order:
         raise ValueError("Order not found")
+
+    table_number = order.table.number if order.table else "Unknown"
+    waiter_name = order.user.username if order.user else "Unknown"
 
     items_data = [
         {
@@ -123,27 +124,29 @@ def create_cashier_print_job(order_id: int):
             "price": float(item.price) if item.price else 0.0,
             "vip_price": float(item.vip_price) if item.vip_price else None,
             "notes": item.notes,
-            "prep_tag": getattr(item, "prep_tag", None)
+            "prep_tag": getattr(item, "prep_tag", None),
+            "table": table_number,
+            "waiter": waiter_name,
         }
         for item in order.items
     ]
 
     job = PrintJob(
         order_id=order.id,
-        station_id=None,  # cashier job not tied to a station
+        station_id=None,
         type="cashier",
         items_data={
             "order_id": order.id,
-            "table": order.table.number if order.table else None,
+            "table": table_number,
+            "waiter": waiter_name,
             "items": items_data,
             "total": float(order.total_amount),
-            "closed_at": datetime.utcnow().isoformat()
-        }
+            "closed_at": datetime.utcnow().isoformat(),
+        },
     )
     db.session.add(job)
     db.session.commit()
     return job
-
 
 # -----------------------------
 # Mark print job as printed
@@ -156,7 +159,6 @@ def mark_job_printed(job_id: int):
     job.printed_at = datetime.utcnow()
     db.session.commit()
     return jsonify({"message": f"Print job {job.id} marked as printed"}), 200
-
 
 # -----------------------------
 # Get pending jobs for a station
@@ -173,11 +175,10 @@ def get_pending_jobs(station_id: int):
             "items_data": job.items_data,
             "status": job.status,
             "created_at": job.created_at.isoformat(),
-            "updated_at": job.updated_at.isoformat()
+            "updated_at": job.updated_at.isoformat(),
         }
         for job in jobs
     ])
-
 
 # -----------------------------
 # Retry a failed print job
@@ -188,11 +189,9 @@ def retry_failed_job(job_id: int):
     user_id = get_jwt_identity()
     job = PrintJob.query.get_or_404(job_id)
 
-    # Only jobs with failed status can be retried
     if job.status != "failed":
         return jsonify({"error": "Job not failed"}), 403
 
-    # Optional: restrict retry by waiter who owns the order
     if job.order.user_id != user_id:
         return jsonify({"error": "Unauthorized"}), 403
 
@@ -200,16 +199,13 @@ def retry_failed_job(job_id: int):
     job.attempts = (job.attempts or 0) + 1
     db.session.commit()
     return jsonify({"message": f"Print job {job.id} set to pending for retry"}), 200
+
 # -----------------------------
 # Manual creation of station print job
 # -----------------------------
 @print_jobs_bp.route("/station/manual", methods=["POST"])
 @jwt_required()
 def manual_station_print():
-    """
-    Trigger a manual print job for a station.
-    Frontend sends order_id and station_id.
-    """
     data = request.get_json()
     order_id = data.get("order_id")
     station_id = data.get("station_id")
@@ -217,7 +213,9 @@ def manual_station_print():
     order = Order.query.get_or_404(order_id)
     station = Station.query.get_or_404(station_id)
 
-    # Collect items for this station
+    table_number = order.table.number if order.table else "Unknown"
+    waiter_name = order.user.username if order.user else "Unknown"
+
     station_items = [
         order_item_to_dict(item)
         for item in order.items
@@ -233,13 +231,14 @@ def manual_station_print():
         type="station",
         items_data={
             "order_id": order.id,
-            "items": station_items
-        }
+            "table": table_number,
+            "waiter": waiter_name,
+            "items": station_items,
+        },
     )
     db.session.add(job)
     db.session.commit()
     return jsonify({"message": f"Manual station print job {job.id} created"}), 201
-
 
 # -----------------------------
 # Manual creation of cashier print job
@@ -253,12 +252,13 @@ def print_cashier_receipt():
     if not order_id:
         return jsonify({"error": "order_id required"}), 400
 
-    # Ensure order exists
     order = Order.query.get(order_id)
     if not order:
         return jsonify({"error": "Order not found"}), 404
 
-    # Build items data: name, qty, price, line total
+    table_number = order.table.number if order.table else "Unknown"
+    waiter_name = order.user.username if order.user else "Unknown"
+
     items_data = []
     for item in order.items:
         items_data.append({
@@ -266,24 +266,21 @@ def print_cashier_receipt():
             "name": item.menu_item.name if item.menu_item else None,
             "quantity": float(item.quantity),
             "price": float(item.price) if item.price else 0.0,
-            "total": float(item.price) * float(item.quantity) if item.price else 0.0
+            "total": float(item.price) * float(item.quantity) if item.price else 0.0,
+            "table": table_number,
+            "waiter": waiter_name,
         })
 
-    # Table and waiter info
-    table_name = order.table.number if order.table else None
-    #waiter_name = order.user.name if order.user else None
-
-    # Create print job
     job = PrintJob(
         order_id=order.id,
-        station_id=None,   # cashier job not tied to a station printer
+        station_id=None,
         type="cashier",
         items_data={
             "order_id": order.id,
+            "table": table_number,
+            "waiter": waiter_name,
             "items": items_data,
             "total": float(order.total_amount) if order.total_amount else 0.0,
-            "table": table_name,
-            #"waiter": waiter_name
         },
         status="pending",
     )

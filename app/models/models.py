@@ -35,6 +35,7 @@ class Station(db.Model):
     menu_items = db.relationship("MenuItem", back_populates="station_rel")
 
 # ---------------------- Menu Items ---------------------- #
+  
 class MenuItem(db.Model):
     __tablename__ = "menu_items"
     id = db.Column(db.Integer, primary_key=True)
@@ -43,7 +44,8 @@ class MenuItem(db.Model):
     price = db.Column(db.Numeric(10, 2), nullable=False)
     vip_price = db.Column(db.Numeric, nullable=True)   # NEW
     is_available = db.Column(db.Boolean, default=True)
-    image_url = db.Column(db.String(255), nullable=True)
+    image_url = db.Column(db.Text, nullable=True)  # Changed to Text
+
 
     station_id = db.Column(db.Integer, db.ForeignKey("stations.id"), nullable=False)
     station_rel = db.relationship("Station", back_populates="menu_items")

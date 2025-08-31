@@ -97,7 +97,7 @@ export default function HistoryPage() {
               >
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold truncate">
-                    Table {order.table_id} - ትዕዛዝ #{order.id}
+                    Table {order.table.number} - ትዕዛዝ #{order.id}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -149,7 +149,7 @@ export default function HistoryPage() {
         <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-11/12 max-w-lg">
             <h3 className="text-xl font-bold mb-4">
-              Table {selectedOrder.table_id} - ትዕዛዝ #{selectedOrder.id}
+              Table {selectedOrder.table.number} - ትዕዛዝ #{selectedOrder.id}
             </h3>
             <div className="max-h-80 overflow-y-auto">
               <table className="w-full text-left border-collapse">

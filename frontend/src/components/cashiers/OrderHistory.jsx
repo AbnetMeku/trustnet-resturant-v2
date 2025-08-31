@@ -37,7 +37,7 @@ export default function OrderHistory() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {orders.map((order) => (
             <Card key={order.id} className="p-4">
-              <h3 className="font-semibold">Table {order.table_id}</h3>
+              <h3 className="font-semibold">Table {order.table.number}</h3>
               <p>Total: ${order.total_amount.toFixed(2)}</p>
               <p>Items: {order.items.length}</p>
             </Card>
