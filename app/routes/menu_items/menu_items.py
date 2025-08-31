@@ -99,7 +99,7 @@ def create_menu_item():
         return error_response("Name exceeds 120 characters", 400)
     if price is None or not isinstance(price, (int, float, Decimal)) or price < 0:
         return error_response("Price is required and must be a non-negative number", 400)
-    if vip_price is not None and not isinstance(vip_price, (int, float, Decimal)) or vip_price < 0:
+    if vip_price is not None and (not isinstance(vip_price, (int, float, Decimal)) or vip_price < 0):
         return error_response("VIP price must be a non-negative number or null", 400)
     if not isinstance(station_id, int):
         return error_response("Station ID must be an integer", 400)
