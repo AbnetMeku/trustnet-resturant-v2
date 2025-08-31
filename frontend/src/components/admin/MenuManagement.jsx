@@ -140,14 +140,15 @@ export default function MenuManagement() {
         return;
       }
       // Resize image and convert to base64
+      // Resize image and convert to base64
       const reader = new FileReader();
       reader.onload = (event) => {
         const img = new Image();
         img.src = event.target.result;
         img.onload = () => {
           const canvas = document.createElement("canvas");
-          const MAX_WIDTH = 100; // Thumbnail size
-          const MAX_HEIGHT = 100;
+          const MAX_WIDTH = 200; // Increased from 100 to 200
+          const MAX_HEIGHT = 200; // Increased from 100 to 200
           let width = img.width;
           let height = img.height;
 
@@ -167,7 +168,7 @@ export default function MenuManagement() {
           canvas.height = height;
           const ctx = canvas.getContext("2d");
           ctx.drawImage(img, 0, 0, width, height);
-          const base64 = canvas.toDataURL(files[0].type, 0.7); // 70% quality
+          const base64 = canvas.toDataURL(files[0].type, 0.85); // Increased quality from 0.7 to 0.85
           setForm({ ...form, image_file: files[0], image_url: base64 });
         };
       };
