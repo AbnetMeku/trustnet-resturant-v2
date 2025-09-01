@@ -63,11 +63,11 @@ export default function ActiveOrderSummary({
         {/* Original Items (read-only) */}
         <section className="flex-1 overflow-auto mr-4">
           <h3 className="text-xl font-semibold mb-3 dark:text-white">
-            Original Order (Locked)
+            ከዚህ በፊት የታዘዘ (መቀየር አይቻልም)
           </h3>
           {originalItems.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400">
-              No original items.
+              ከዚህ በፊት የታዘዘ የለም
             </p>
           ) : (
             <ul className="space-y-2">
@@ -85,14 +85,14 @@ export default function ActiveOrderSummary({
             </ul>
           )}
           <p className="mt-4 font-semibold dark:text-white">
-            Original Subtotal: ${originalSubtotal}
+            የበፊት አጠቃላይ: ${originalSubtotal}
           </p>
         </section>
 
         {/* New Items (editable) */}
         <section className="flex-1 overflow-auto ml-4">
           <h3 className="text-xl font-semibold mb-3 dark:text-white">
-            New Items (Editable)
+            ጭማሪ ትዕዛዝ (መቀየር ይቻላል)
           </h3>
           {newItems.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400">No new items added.</p>
@@ -130,14 +130,14 @@ export default function ActiveOrderSummary({
             </ul>
           )}
           <p className="mt-4 font-semibold dark:text-white">
-            New Items Subtotal: ${newItemsSubtotal}
+            ጭማሪ አጠቃላይ: ${newItemsSubtotal}
           </p>
         </section>
 
         {/* Combined Total + Actions */}
         <section className="w-full md:w-60 flex flex-col justify-between mt-4 md:mt-0 ml-4">
           <p className="text-2xl font-bold dark:text-white mb-4">
-            Total: ${combinedTotal}
+            አጠቃላይ: ${combinedTotal}
           </p>
           <div className="flex gap-2">
             <Button variant="outline" className="flex-1" onClick={onBack}>
@@ -148,7 +148,7 @@ export default function ActiveOrderSummary({
               disabled={newItems.length === 0}
               onClick={handleSave}
             >
-              Submit New Items
+              ጭማሪ ዕዘዝ
             </Button>
           </div>
         </section>

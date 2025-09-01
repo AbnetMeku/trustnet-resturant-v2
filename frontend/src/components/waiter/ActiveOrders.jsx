@@ -7,7 +7,6 @@ import ActiveOrderSummary from "./ActiveOrderSummary";
 import { Button } from "@/components/ui/button";
 import { updateTable } from "@/api/tables";
 
-
 export default function ActiveOrders({ goBack }) {
   const { authToken } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -16,10 +15,11 @@ export default function ActiveOrders({ goBack }) {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [showErrorModal, setShowErrorModal] = useState(null); // null or string for error
-
-  // Modal state
+  const [showErrorModal, setShowErrorModal] = useState(null);
   const [confirmCloseId, setConfirmCloseId] = useState(null);
+
+  // NEW: state for details modal
+  const [detailsOrder, setDetailsOrder] = useState(null);
 
   useEffect(() => {
     if (!authToken) return;
@@ -51,14 +51,18 @@ export default function ActiveOrders({ goBack }) {
       const idx = prev.findIndex((i) => i.menu_item_id === item.menu_item_id);
       if (idx !== -1) {
         const updated = [...prev];
-        updated[idx].quantity = Number((updated[idx].quantity + increment).toFixed(1));
+        updated[idx].quantity = Number(
+          (updated[idx].quantity + increment).toFixed(1)
+        );
         return updated;
       }
       return [...prev, { ...item, quantity: increment }];
     });
   };
 
-  const removeItem = (itemId) => setOrderItems((prev) => prev.filter((i) => i.menu_item_id !== itemId));
+  const removeItem = (itemId) =>
+    setOrderItems((prev) => prev.filter((i) => i.menu_item_id !== itemId));
+
   const updateQuantity = (itemId, delta) => {
     setOrderItems((prev) =>
       prev
@@ -79,36 +83,32 @@ export default function ActiveOrders({ goBack }) {
     else if (step === "menu") setStep("list");
   };
 
-const handleSave = async () => {
-  if (!authToken) return;
-  try {
-    const itemsToSend = orderItems.map((i) => ({
-      menu_item_id: i.menu_item_id,
-      quantity: i.quantity,
-      notes: i.notes || "",
-    }));
+  const handleSave = async () => {
+    if (!authToken) return;
+    try {
+      const itemsToSend = orderItems.map((i) => ({
+        menu_item_id: i.menu_item_id,
+        quantity: i.quantity,
+        notes: i.notes || "",
+      }));
 
-    await addOrderItems(authToken, selectedOrder.id, itemsToSend);
+      await addOrderItems(authToken, selectedOrder.id, itemsToSend);
 
-    // Show success modal
-    setShowSuccessModal(true);
+      setShowSuccessModal(true);
 
-    // Refresh orders in the background
-    const orders = await fetchOrders(authToken, { status: "open" });
-    setOpenOrders(orders);
+      const orders = await fetchOrders(authToken, { status: "open" });
+      setOpenOrders(orders);
 
-    // Auto-close modal and go back after 6 seconds
-    setTimeout(() => {
-      setShowSuccessModal(false);
-      setStep("list");
-      setSelectedOrder(null);
-      setOrderItems([]);
-    }, 5000);
-  } catch (err) {
-    setShowErrorModal(err.message || "Failed to update order");
-  }
-};
-
+      setTimeout(() => {
+        setShowSuccessModal(false);
+        setStep("list");
+        setSelectedOrder(null);
+        setOrderItems([]);
+      }, 5000);
+    } catch (err) {
+      setShowErrorModal(err.message || "Failed to update order");
+    }
+  };
 
   const handleCloseOrder = async (orderId) => {
     if (!authToken) return;
@@ -206,12 +206,21 @@ const handleSave = async () => {
                   ጠቅላላ ዋጋ: ${order.total_amount.toFixed(2)}
                 </span>
               </div>
+
+              {/* New Details Button */}
+              <Button
+                className="mt-4"
+                variant="outline"
+                onClick={() => setDetailsOrder(order)}
+              >
+                ዝርዝር ይመልከቱ
+              </Button>
             </div>
           ))}
         </div>
       )}
 
-      {/* Modal */}
+      {/* Confirm Close Modal */}
       {confirmCloseId && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-11/12 max-w-md">
@@ -228,6 +237,45 @@ const handleSave = async () => {
               <Button variant="destructive" onClick={() => handleCloseOrder(confirmCloseId)}>
                 አዎ ዝጋ
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Details Modal */}
+      {detailsOrder && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-11/12 max-w-lg">
+            <h3 className="text-xl font-bold mb-4">
+              Table {detailsOrder.table.number} - ትዕዛዝ #{detailsOrder.id}
+            </h3>
+            <div className="max-h-80 overflow-y-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b dark:border-gray-600">
+                    <th className="pb-2">ትዛዝ</th>
+                    <th className="pb-2">ብዛት</th>
+                    <th className="pb-2">ዋጋ</th>
+                    <th className="pb-2">አጠቃላይ ዋጋ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detailsOrder.items.map((item) => (
+                    <tr key={item.id} className="border-b dark:border-gray-700">
+                      <td>{item.name}</td>
+                      <td>{item.quantity}</td>
+                      <td>${item.price.toFixed(2)}</td>
+                      <td>${(item.price * item.quantity).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-4 font-bold text-right">
+              አጠቃላይ: ${detailsOrder.total_amount.toFixed(2)}
+            </p>
+            <div className="flex justify-end mt-4">
+              <Button onClick={() => setDetailsOrder(null)}>Close</Button>
             </div>
           </div>
         </div>
