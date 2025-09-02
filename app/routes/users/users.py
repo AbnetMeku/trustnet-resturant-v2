@@ -21,7 +21,7 @@ def user_to_dict(user):
 @users_bp.route("/", methods=["GET"])
 @users_bp.route("", methods=["GET"])
 @jwt_required()
-@roles_required("admin", "manager")
+@roles_required("admin", "manager","cashier")
 def get_users():
     role = request.args.get("role", type=str)
     query = User.query

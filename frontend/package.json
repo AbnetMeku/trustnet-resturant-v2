@@ -26,7 +26,7 @@
     "decimal.js": "^10.6.0",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.23.12",
-    "jspdf": "^3.0.1",
+    "jspdf": "^3.0.2",
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.539.0",
     "react": "^19.1.1",

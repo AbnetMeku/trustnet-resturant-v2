@@ -12,47 +12,53 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Get token from localStorage or adjust as needed
   const token = localStorage.getItem("auth_token");
 
   useEffect(() => {
+    if (!token) {
+      setError("Authentication token missing.");
+      return;
+    }
+
     async function loadData() {
       try {
         setLoading(true);
 
-        // 1. Fetch all orders
+        // --- Fetch all orders ---
         const allOrders = await fetchOrders(token);
 
-        // 2. Count orders by status
-        const orderStatusCounts = { open: 0, closed: 0, paid: 0 };
-        allOrders.forEach(o => {
-          const status = (o.status || "").toLowerCase();
-          if (orderStatusCounts[status] !== undefined) {
-            orderStatusCounts[status]++;
-          }
-        });
+        // --- Filter by status ---
+        const openOrders = allOrders.filter(o => o.status === "open").length;
+        const closedOrders = allOrders.filter(o => o.status === "closed").length;
+        const paidOrders = allOrders.filter(o => o.is_paid).length;
 
-        // 3. Fetch all waiters
+        // --- Fetch waiters ---
         const waiters = await getUsers("waiter", token);
 
-        // 4. Aggregate waiters sales count from orders
+        // --- Aggregate top waiters ---
         const waiterSalesMap = {};
         allOrders.forEach(o => {
           if (o.waiter_id) {
             waiterSalesMap[o.waiter_id] = (waiterSalesMap[o.waiter_id] || 0) + (o.total_amount || 0);
           }
         });
-        const topWaiters = waiters.map(w => ({
-          id: w.id,
-          name: w.username || w.name,
-          salesCount: waiterSalesMap[w.id] || 0,
-        })).sort((a, b) => b.salesCount - a.salesCount).slice(0, 5);
 
-        // 5. Fetch today's sales summary
+        const topWaiters = waiters
+          .map(w => ({
+            id: w.id,
+            name: w.username || w.name,
+            salesCount: waiterSalesMap[w.id] || 0,
+          }))
+          .sort((a, b) => b.salesCount - a.salesCount)
+          .slice(0, 5);
+
+        // --- Fetch today's sales summary ---
         const todayStr = new Date().toISOString().slice(0, 10);
         const salesSummary = await getSalesSummary(todayStr, todayStr, null, null, token);
 
-        // 6. Calculate top selling items from all orders' items
+        const todayTotalSales = salesSummary?.grand_totals?.total_amount || 0;
+
+        // --- Aggregate top selling items ---
         const itemSalesMap = {};
         allOrders.forEach(order => {
           if (order.items) {
@@ -65,25 +71,27 @@ export default function AdminDashboard() {
             });
           }
         });
+
         const topItems = Object.values(itemSalesMap)
           .sort((a, b) => b.count - a.count)
           .slice(0, 5);
 
-        // 7. Set all collected metrics into state
+        // --- Set state ---
         setMetrics({
-          openOrders: orderStatusCounts.open,
-          closedOrders: orderStatusCounts.closed,
-          paidOrders: orderStatusCounts.paid,
-          todayTotalSales: salesSummary ? salesSummary.grand_totals.total_amount : 0,
-          grandTotalSales: salesSummary ? salesSummary.grand_totals.total_amount : 0,
+          openOrders,
+          closedOrders,
+          paidOrders,
+          todayTotalSales,
+          grandTotalSales: todayTotalSales, // can replace with full total if API supports
           orderStatusData: [
-            { status: "Open", count: orderStatusCounts.open },
-            { status: "Closed", count: orderStatusCounts.closed },
-            { status: "Paid", count: orderStatusCounts.paid },
+            { status: "Open", count: openOrders },
+            { status: "Closed", count: closedOrders },
+            { status: "Paid", count: paidOrders },
           ],
           topItems,
           topWaiters,
         });
+
       } catch (e) {
         console.error(e);
         setError(e.message || "Could not load dashboard data");
@@ -91,8 +99,8 @@ export default function AdminDashboard() {
         setLoading(false);
       }
     }
-    if (token) loadData();
-    else setError("Authentication token missing.");
+
+    loadData();
   }, [token]);
 
   if (loading) return <p className="p-4">Loading dashboard...</p>;
@@ -116,7 +124,7 @@ export default function AdminDashboard() {
         <p className="text-3xl">${metrics.grandTotalSales.toLocaleString()}</p>
       </div>
 
-      {/* Order Status Bar Chart
+      {/* Order Status Bar Chart */}
       <div className="bg-white rounded-lg shadow p-6 dark:bg-gray-800">
         <h3 className="text-lg font-semibold mb-4">Order Status Breakdown</h3>
         <ResponsiveContainer width="100%" height={250}>
@@ -127,7 +135,7 @@ export default function AdminDashboard() {
             <Bar dataKey="count" fill="#3b82f6" />
           </BarChart>
         </ResponsiveContainer>
-      </div> */}
+      </div>
 
       {/* Top Items and Waiters */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -152,9 +160,9 @@ function ListBlock({ title, items }) {
     <div className="bg-white rounded-lg shadow p-6 dark:bg-gray-800">
       <h3 className="text-lg font-semibold mb-4">{title}</h3>
       <ul className="list-disc list-inside space-y-1">
-        {items.map(({ id, name, salesCount }) => (
+        {items.map(({ id, name, salesCount, count }) => (
           <li key={id}>
-            {name} - {(salesCount ?? 0).toLocaleString()} sales
+            {name} - {(salesCount ?? count ?? 0).toLocaleString()} sales
           </li>
         ))}
       </ul>

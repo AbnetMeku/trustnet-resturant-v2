@@ -117,19 +117,25 @@ def create_cashier_print_job(order_id: int):
     table_number = order.table.number if order.table else "Unknown"
     waiter_name = order.user.username if order.user else "Unknown"
 
-    items_data = [
-        {
-            "name": item.menu_item.name,
-            "quantity": float(item.quantity),
-            "price": float(item.price) if item.price else 0.0,
-            "vip_price": float(item.vip_price) if item.vip_price else None,
-            "notes": item.notes,
-            "prep_tag": getattr(item, "prep_tag", None),
-            "table": table_number,
-            "waiter": waiter_name,
-        }
-        for item in order.items
-    ]
+    # Group items by id
+    grouped_items = {}
+    for item in order.items:
+        item_id = item.id
+        if item_id not in grouped_items:
+            grouped_items[item_id] = {
+                "id": item.id,
+                "name": item.menu_item.name if item.menu_item else None,
+                "quantity": 0.0,
+                "price": float(item.price) if item.price else 0.0,
+                "total": 0.0,
+                "table": table_number,
+                "waiter": waiter_name,
+                "notes": item.notes
+            }
+        grouped_items[item_id]["quantity"] += float(item.quantity)
+        grouped_items[item_id]["total"] += float(item.price) * float(item.quantity) if item.price else 0.0
+
+    items_data = list(grouped_items.values())
 
     job = PrintJob(
         order_id=order.id,
@@ -245,32 +251,52 @@ def manual_station_print():
 # -----------------------------
 @print_jobs_bp.route("/cashier/manual", methods=["POST"])
 @jwt_required()
-def print_cashier_receipt():
+def print_cashier_manual():
     data = request.get_json()
     order_id = data.get("order_id")
 
     if not order_id:
-        return jsonify({"error": "order_id required"}), 400
+        return jsonify({"error": "order_id is required"}), 400
 
-    order = Order.query.get(order_id)
+    order = db.session.get(Order, order_id)
     if not order:
         return jsonify({"error": "Order not found"}), 404
 
     table_number = order.table.number if order.table else "Unknown"
     waiter_name = order.user.username if order.user else "Unknown"
 
-    items_data = []
+    # ---------------- Group items by menu_item_id ----------------
+    grouped_items = {}
     for item in order.items:
+        key = item.menu_item_id
+        if key not in grouped_items:
+            grouped_items[key] = {
+                "name": item.menu_item.name if item.menu_item else None,
+                "quantity": 0,
+                "price": float(item.price) if item.price else 0.0,
+                "vip_price": float(item.vip_price) if item.vip_price else None,
+                "notes": [],
+                "prep_tag": getattr(item, "prep_tag", None),
+            }
+        grouped_items[key]["quantity"] += float(item.quantity)
+        if item.notes:
+            grouped_items[key]["notes"].append(item.notes)
+
+    # Prepare items for the print job
+    items_data = []
+    for item in grouped_items.values():
         items_data.append({
-            "id": item.id,
-            "name": item.menu_item.name if item.menu_item else None,
-            "quantity": float(item.quantity),
-            "price": float(item.price) if item.price else 0.0,
-            "total": float(item.price) * float(item.quantity) if item.price else 0.0,
+            "name": item["name"],
+            "quantity": item["quantity"],
+            "price": item["price"],
+            "vip_price": item["vip_price"],
+            "notes": "; ".join(item["notes"]) if item["notes"] else None,
+            "prep_tag": item["prep_tag"],
             "table": table_number,
             "waiter": waiter_name,
         })
 
+    # Create cashier print job
     job = PrintJob(
         order_id=order.id,
         station_id=None,
@@ -281,9 +307,11 @@ def print_cashier_receipt():
             "waiter": waiter_name,
             "items": items_data,
             "total": float(order.total_amount) if order.total_amount else 0.0,
+            "closed_at": datetime.utcnow().isoformat(),
         },
         status="pending",
     )
+
     db.session.add(job)
     db.session.commit()
 

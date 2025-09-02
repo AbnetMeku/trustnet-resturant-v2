@@ -47,47 +47,75 @@ def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="stat
     # Header
     lines.append(f"{station_name.upper()} - {copy_type.upper()}")
     lines.append(f"Order ID: {job.order_id}")
-    lines.append(f"Time: {datetime.now().strftime('%H:%M:%S')}")
-    lines.append("-" * 32)
-
-    for item in items:
-        line = f"{item.get('quantity',1)}x {item.get('name','')[:24]}"
-        if item.get("prep_tag"):
-            line = f"{item['prep_tag']} | {line}"
-        lines.append(line)
-        if item.get("notes"):
-            lines.append(f"Notes: {item['notes']}")
+    lines.append(f"Table: {job.items_data.get('table', 'Unknown')}")
+    lines.append(f"Waiter: {job.items_data.get('waiter', 'Unknown')}")
+    lines.append(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append("-" * 32)
 
     if job.type == "cashier":
-        total = job.items_data.get("total", 0)
-        lines.append(f"Total: {total}")
+        # Cashier receipt: detailed itemized list
+        for item in items:
+            name = item.get("name", "")[:20]  # Truncate for readability
+            qty = float(item.get("quantity", 1))
+            price = float(item.get("price", 0.0))
+            total = float(item.get("total", qty * price))
+            lines.append(f"{qty:.1f}x {name:<20} {price:>8.2f}")
+            lines.append(f"{'':<22} Total: {total:>8.2f}")
+            if item.get("notes"):
+                lines.append(f"Notes: {item['notes'][:24]}")
+        lines.append("-" * 32)
+        total = float(job.items_data.get("total", 0))
+        lines.append(f"Order Total: {total:>8.2f}")
+    else:
+        # Station ticket: existing format
+        for item in items:
+            line = f"{item.get('quantity', 1)}x {item.get('name', '')[:24]}"
+            if item.get("prep_tag"):
+                line = f"{item['prep_tag']} | {line}"
+            lines.append(line)
+            if item.get("notes"):
+                lines.append(f"Notes: {item['notes']}")
+        lines.append("-" * 32)
+
     lines.append("Thank you!")
 
+    # Calculate text height
     line_height = font.getbbox("A")[3] - font.getbbox("A")[1] + 4
-    height = len(lines) * line_height + 20 + 300  # extra space for logo
-    img = Image.new("1", (PRINTER_WIDTH_PX, height), 1)
-    draw = ImageDraw.Draw(img)
+    text_height = len(lines) * line_height + 20
 
-    # Paste logo
-    y_offset = 10
+    # Calculate logo height
+    logo_height = 0
     if os.path.exists(LOGO_PATH):
         try:
             logo = Image.open(LOGO_PATH).convert("1")
             logo_width = min(logo.width, PRINTER_WIDTH_PX)
-            logo = logo.resize((logo_width, int(logo.height * logo_width / logo.width)))
-            img.paste(logo, ((PRINTER_WIDTH_PX - logo.width) // 2, 0))
-            y_offset = logo.height + 5
+            logo_height = int(logo.height * logo_width / logo.width)
         except Exception as e:
             print(f"[WARN] Failed to load logo: {e}")
 
-    y = y_offset
+    # Create image with space for text and logo
+    total_height = text_height + logo_height + 20  # Extra padding
+    img = Image.new("1", (PRINTER_WIDTH_PX, total_height), 1)
+    draw = ImageDraw.Draw(img)
+
+    # Draw text
+    y = 10
     for line in lines:
         bbox = draw.textbbox((0, 0), line, font=font)
         text_width = bbox[2] - bbox[0]
         x = (PRINTER_WIDTH_PX - text_width) // 2 if text_width < PRINTER_WIDTH_PX else 0
         draw.text((x, y), line, font=font, fill=0)
         y += line_height
+
+    # Paste logo at the bottom
+    if logo_height > 0:
+        try:
+            logo = Image.open(LOGO_PATH).convert("1")
+            logo_width = min(logo.width, PRINTER_WIDTH_PX)
+            logo = logo.resize((logo_width, logo_height))
+            img.paste(logo, ((PRINTER_WIDTH_PX - logo_width) // 2, text_height))
+        except Exception as e:
+            print(f"[WARN] Failed to load logo: {e}")
 
     return img
 
@@ -152,6 +180,7 @@ def fetch_next_job(session):
         return job
     return None
 
+
 def print_job(job: PrintJob):
     session = Session()
     try:
@@ -212,6 +241,7 @@ def print_job(job: PrintJob):
     finally:
         session.close()
 
+
 # -----------------------------
 # Worker loop
 # -----------------------------
@@ -230,6 +260,8 @@ def worker_loop():
             print(f"[ERROR] Worker loop exception: {e}")
         finally:
             session.close()
+
+
 # -----------------------------
 # Entry point
 # -----------------------------

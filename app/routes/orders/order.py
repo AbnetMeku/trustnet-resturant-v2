@@ -96,6 +96,11 @@ def order_to_dict(order: Order):
             "is_vip": order.table.is_vip,
         },
         "user_id": order.user_id,
+        "user": {  # ✅ Add this
+            "id": order.user.id if order.user else None,
+            "username": order.user.username if order.user else None,
+            "role": order.user.role if order.user else None
+        },
         "status": order.status,
         "total_amount": float(order.total_amount) if order.total_amount else 0.0,
         "created_at": order.created_at.isoformat(),
