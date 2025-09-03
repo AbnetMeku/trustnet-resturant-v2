@@ -30,7 +30,7 @@ export default function AdminDashboard() {
         // --- Filter by status ---
         const openOrders = allOrders.filter(o => o.status === "open").length;
         const closedOrders = allOrders.filter(o => o.status === "closed").length;
-        const paidOrders = allOrders.filter(o => o.is_paid).length;
+        const paidOrders = allOrders.filter(o => o.status === "paid").length;
 
         // --- Fetch waiters ---
         const waiters = await getUsers("waiter", token);

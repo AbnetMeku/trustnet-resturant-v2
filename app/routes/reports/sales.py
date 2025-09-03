@@ -58,7 +58,7 @@ def sales_summary():
         and_(
             Order.created_at >= start_dt,
             Order.created_at < end_dt,
-            Order.status == 'closed',
+            Order.status == 'paid',
         )
     )
     # apply filters and group_by etc.

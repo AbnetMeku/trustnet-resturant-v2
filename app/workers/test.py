@@ -16,12 +16,12 @@ from app.models.models import PrintJob, OrderItem, Station
 # -----------------------------
 DATABASE_URI = os.environ.get(
     "DATABASE_URI"
-) or "postgresql://trustnet_pos:trustnet_pos_password@localhost:5432/trustnet_pos_db"
+) or "postgresql://postgres:ab@localhost:5432/restaurant_db"
 
 FONT_PATH = os.path.join(os.path.dirname(__file__), "NotoSansEthiopic.ttf")
 LOGO_PATH = os.path.join(os.path.dirname(__file__), "TNS.png")
-PRINTER_WIDTH_PX = 576
-CHECK_INTERVAL = 10      # seconds between polling for new jobs
+PRINTER_WIDTH_PX = 576  # 80mm printer resolution
+CHECK_INTERVAL = 10     # seconds between polling for new jobs
 MAX_RETRIES = 3
 
 # -----------------------------
@@ -33,7 +33,7 @@ Session = sessionmaker(bind=engine)
 # -----------------------------
 # Helper functions
 # -----------------------------
-def load_font(size=20):  # Reduced from 24 to 20 for better fit
+def load_font(size=20):
     try:
         return ImageFont.truetype(FONT_PATH, size)
     except Exception:
@@ -41,7 +41,7 @@ def load_font(size=20):  # Reduced from 24 to 20 for better fit
 
 def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="station"):
     font_header = load_font(30)  # For restaurant name
-    font_regular = load_font(20)  # Reduced for tighter layout
+    font_regular = load_font(20)  # For body text
     font_bold = load_font(30)    # For prep tag
     line_height = font_regular.getbbox("A")[3] - font_regular.getbbox("A")[1] + 4
     bold_line_height = font_bold.getbbox("A")[3] - font_bold.getbbox("A")[1] + 4
@@ -59,91 +59,75 @@ def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="stat
     print(f"Rendering job {job.id} with type: {job.type}, items_data: {job.items_data}")  # Debug log
 
     if job.type == "cashier":
-        # Cashier receipt format
+        # Cashier receipt format for 80mm printer
         lines = []
         # Header
-        lines.append(("TrustNet Restaurant", font_header))
-        lines.append(("." * 32, font_regular))
-        lines.append((f"ትዕዛዝ ቁጥር: {job.order_id}", font_regular))
-        lines.append((f"ቀን: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", font_regular))
+        lines.append(("TRUSTNET RESTAURANT", font_header, 'ma'))  # Centered
+        lines.append(("=" * 32, font_regular, 'ma'))
+        lines.append((f"ORDER #: {job.order_id}", font_regular, 'la'))  # Left-aligned
+        lines.append((f"DATE: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}", font_regular, 'la'))
         waiter_name = job.items_data.get("waiter", "Unknown")
         table_number = job.items_data.get("table", "N/A")
-        lines.append((f"አገልጋይ: {waiter_name}", font_regular))
-        lines.append((f"ጠረጴዛ: {table_number}", font_regular))
-        lines.append(("." * 32, font_regular))
+        lines.append((f"WAITER: {waiter_name}", font_regular, 'la'))
+        lines.append((f"TABLE: {table_number}", font_regular, 'la'))
+        lines.append(("=" * 32, font_regular, 'ma'))
 
         # Table header
-        lines.append(("ትዕዛዝ | ብዛት | ዋጋ | አጠቃላይ", font_regular))
-        lines.append(("=" * 32, font_regular))
+        lines.append(("ITEM        QTY    PRICE     TOTAL", font_regular, 'la'))  # Simplified English header
+        lines.append(("-" * 32, font_regular, 'la'))
 
         # Items
         for item in items:
-            name = item.get("name", "")[:16]  # Truncate to 16 chars
-            qty = f"{item.get('quantity', 1):.1f}"
-            price = f"ETB {item.get('price', 0.0):.2f}"  # Ensure price is included
-            total = f"ETB {(item.get('quantity', 1) * item.get('price', 0.0)):.2f}"
-            # Adjust column widths for alignment
-            line = f"{name:<16} {qty:>5} {price:>10} {total:>10}"
-            lines.append((line, font_regular))
+            name = item.get("name", "")[:12].ljust(12)  # Truncate to 12 chars, left-justified
+            qty = f"{item.get('quantity', 1):.1f}".rjust(5)
+            price = f"ETB {item.get('price', 0.0):.2f}".rjust(10)
+            total = f"ETB {(item.get('quantity', 1) * item.get('price', 0.0)):.2f}".rjust(10)
+            line = f"{name} {qty} {price} {total}"
+            lines.append((line, font_regular, 'la'))
             if item.get("notes"):
-                lines.append((f"ማስታወሻ: {item['notes']}", font_regular))
+                lines.append((f"NOTE: {item['notes']}", font_regular, 'la'))
 
         # Footer
-        lines.append(("=" * 32, font_regular))
-        total = f"አጠቃላይ: ETB {job.items_data.get('total', 0.0):.2f}"
-        lines.append((total, font_regular))
-        lines.append(("ምስጋና!", font_regular))
+        lines.append(("-" * 32, font_regular, 'la'))
+        total = f"TOTAL: ETB {job.items_data.get('total', 0.0):.2f}"
+        lines.append((total, font_regular, 'ra'))  # Right-aligned
+        lines.append(("THANK YOU!", font_regular, 'ma'))  # Centered
 
-        # Calculate image height
-        header_lines = sum(1 for text, font in lines if font == font_header)
+        # Calculate image height with extra space for 80mm receipt
+        header_lines = sum(1 for text, font, _ in lines if font == font_header)
         regular_lines = len(lines) - header_lines
-        height = (header_lines * header_line_height) + (regular_lines * line_height) + logo_height
+        height = (header_lines * header_line_height) + (regular_lines * line_height) + logo_height + 100  # Increased height
 
         img = Image.new("1", (PRINTER_WIDTH_PX, height), 1)
         draw = ImageDraw.Draw(img)
         y = 10
 
-        # Draw text with proper alignment
-        for text, font in lines:
-            if isinstance(text, str) and "ETB" in text:
-                # Right-align price-related lines
-                bbox = draw.textbbox((0, 0), text, font=font)
-                text_width = bbox[2] - bbox[0]
-                x = PRINTER_WIDTH_PX - text_width  # Right-aligned
-            else:
-                # Center-align other lines
-                bbox = draw.textbbox((0, 0), text, font=font)
-                text_width = bbox[2] - bbox[0]
-                x = (PRINTER_WIDTH_PX - text_width) // 2
+        # Draw text with alignment
+        for text, font, anchor in lines:
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            if anchor == 'ma':
+                x = (PRINTER_WIDTH_PX - text_width) // 2  # Center
+            elif anchor == 'ra':
+                x = PRINTER_WIDTH_PX - text_width - 10  # Right, with 10px padding
+            else:  # 'la' (left)
+                x = 10  # Left with 10px padding
             draw.text((x, y), text, font=font, fill=0)
-            y += header_line_height if font == font_header else line_height
+            y += (header_line_height if font == font_header else line_height) + 5  # 5px gap between lines
 
-        # Paste logo at the top
+        # Paste logo at the bottom
         if os.path.exists(LOGO_PATH):
             try:
                 logo = Image.open(LOGO_PATH).convert("1")
                 logo_width = min(int(logo.width * 0.5), PRINTER_WIDTH_PX // 2)
                 logo = logo.resize((logo_width, int(logo.height * logo_width / logo.width)))
-                img.paste(logo, ((PRINTER_WIDTH_PX - logo.width) // 2, 0))
-                y += logo_height
-                # Redraw text below logo
-                draw = ImageDraw.Draw(img)
-                for text, font in lines:
-                    if isinstance(text, str) and "ETB" in text:
-                        bbox = draw.textbbox((0, 0), text, font=font)
-                        text_width = bbox[2] - bbox[0]
-                        x = PRINTER_WIDTH_PX - text_width
-                    else:
-                        bbox = draw.textbbox((0, 0), text, font=font)
-                        text_width = bbox[2] - bbox[0]
-                        x = (PRINTER_WIDTH_PX - text_width) // 2
-                    draw.text((x, y), text, font=font, fill=0)
-                    y += header_line_height if font == font_header else line_height
+                img.paste(logo, ((PRINTER_WIDTH_PX - logo.width) // 2, height - logo_height - 10))  # Bottom with padding
             except Exception as e:
                 print(f"[WARN] Failed to load logo: {e}")
 
     else:
-        # Original station job format
+        # Original station job format (unchanged)
         lines = []
         # Header
         for item in items:
@@ -227,7 +211,7 @@ def print_ticket_image(printer_ip, img):
             print(f"[ERROR] Connection reset on attempt {attempt} to {printer_ip}: {e}")
             time.sleep(5)
         except Exception as e:
-            print(f"[ERROR] Printing attempt {attempt} to {printer_ip} failed: {e}")
+            print(f"[ERROR] Printing attempt (attempt) to {printer_ip} failed: {e}")
             time.sleep(2)
         finally:
             if printer:
@@ -260,7 +244,7 @@ def print_job(job: PrintJob):
     session = Session()
     try:
         station = session.get(Station, job.station_id) if job.station_id else None
-        printer_ip = station.printer_identifier if station else "192.168.1.111"
+        printer_ip = station.printer_identifier if station else "192.168.0.111"
         copy_type = job.items_data.get("copy", "station")
         if copy_type == "customer":
             items = job.items_data.get("items", [])
