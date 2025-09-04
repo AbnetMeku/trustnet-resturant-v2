@@ -35,3 +35,17 @@ export const updateOrderItemStatus = async (stationToken, orderItemId) => {
     throw error;
   }
 };
+
+// Fetch all ready items (history) for this station
+export const fetchReadyOrdersHistory = async (stationToken) => {
+  if (!stationToken) throw new Error("Station token is required");
+  try {
+    const res = await axios.get(`${BASE_URL}/orders/history`, {
+      headers: getAuthHeader(stationToken),
+    });
+    return res.data;
+  } catch (error) {
+    console.error("Failed to fetch ready orders history:", error);
+    throw error;
+  }
+};

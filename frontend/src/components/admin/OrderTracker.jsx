@@ -26,6 +26,11 @@ export default function AdminOrders() {
   const [filterTable, setFilterTable] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
+  // Date filter: default today
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [dateFrom, setDateFrom] = useState(todayStr);
+  const [dateTo, setDateTo] = useState(todayStr);
+
   // Fetch waiters
   useEffect(() => {
     async function loadWaiters() {
@@ -56,13 +61,16 @@ export default function AdminOrders() {
     loadOrders();
   }, [authToken]);
 
+  // Filtered orders
   const filteredOrders = orders.filter((order) => {
+    const orderDate = order.created_at.slice(0, 10); // YYYY-MM-DD
     return (
       (filterWaiter ? order.user?.id?.toString() === filterWaiter : true) &&
       (filterTable
         ? order.table.number.toString().includes(filterTable)
         : true) &&
-      (filterStatus ? order.status === filterStatus : true)
+      (filterStatus ? order.status === filterStatus : true) &&
+      (orderDate >= dateFrom && orderDate <= dateTo)
     );
   });
 
@@ -79,9 +87,9 @@ export default function AdminOrders() {
     }
   };
 
+  // Handlers
   const handleSaveChanges = async () => {
     try {
-      // Update all items
       for (const item of selectedOrder.items) {
         await updateOrderItem(authToken, selectedOrder.id, item.id, {
           quantity: item.quantity,
@@ -165,6 +173,31 @@ export default function AdminOrders() {
           <option value="closed">Closed</option>
           <option value="paid">Paid</option>
         </select>
+
+        {/* Date filter */}
+        <div className="flex gap-2 items-center">
+          <label className="text-sm text-gray-700 dark:text-gray-300">From:</label>
+          <input
+            type="date"
+            className="border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100"
+            value={dateFrom}
+            max={dateTo}
+            onChange={(e) => setDateFrom(e.target.value)}
+          />
+          <label className="text-sm text-gray-700 dark:text-gray-300">To:</label>
+          <input
+            type="date"
+            className="border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100"
+            value={dateTo}
+            min={dateFrom}
+            onChange={(e) => setDateTo(e.target.value)}
+          />
+        </div>
+
+        {/* Orders count */}
+        <span className="text-gray-700 dark:text-gray-300 font-medium">
+          Showing {filteredOrders.length} orders
+        </span>
       </div>
 
       {/* Orders Grid */}
@@ -252,22 +285,22 @@ export default function AdminOrders() {
                       <td className="py-1 text-gray-800 dark:text-gray-100">{item.name}</td>
                       <td className="py-1">
                         {editMode ? (
-<input
-          type="number"
-          value={item.quantity}
-          min={1}
-          className="w-16 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-          onChange={(e) =>
-            setSelectedOrder((prev) => ({
-              ...prev,
-              items: prev.items.map((i) =>
-                i.id === item.id
-                  ? { ...i, quantity: Number(e.target.value) }
-                  : i
-              ),
-            }))
-          }
-        />
+                          <input
+                            type="number"
+                            value={item.quantity}
+                            min={1}
+                            className="w-16 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            onChange={(e) =>
+                              setSelectedOrder((prev) => ({
+                                ...prev,
+                                items: prev.items.map((i) =>
+                                  i.id === item.id
+                                    ? { ...i, quantity: Number(e.target.value) }
+                                    : i
+                                ),
+                              }))
+                            }
+                          />
                         ) : (
                           <span className="text-gray-800 dark:text-gray-100">{item.quantity}</span>
                         )}

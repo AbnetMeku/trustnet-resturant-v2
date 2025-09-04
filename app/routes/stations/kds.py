@@ -134,3 +134,65 @@ def update_order_item_status(order_item_id):
             "updated_at": item.updated_at.isoformat() if getattr(item, "updated_at", None) else None
         }
     }), 200
+# ---- GET READY ITEMS HISTORY FOR STATION ----
+@stations_kds_bp.route("/orders/history", methods=["GET"])
+@jwt_required()
+def get_ready_orders_history():
+    identity = get_jwt_identity()
+    station_id = parse_station_identity(identity)
+    if station_id is None:
+        abort(400, "Invalid station identity in token")
+
+    station = db.session.get(Station, station_id)
+    if not station:
+        abort(404, "Station not found")
+
+    ready_items = (
+        db.session.query(OrderItem)
+        .join(Order)
+        .join(Order.table)
+        .join(Order.user)
+        .filter(OrderItem.station == station.name, OrderItem.status == "ready")
+        .order_by(asc(OrderItem.updated_at))
+        .all()
+    )
+
+    orders_dict = {}
+    for item in ready_items:
+        order_obj = item.order
+        order_id = item.order_id
+        table = getattr(order_obj, "table", None)
+        waiter = getattr(order_obj, "user", None)
+
+        menu_item = getattr(item, "menu_item", None)
+        item_name = menu_item.name if menu_item else None
+
+        if order_id not in orders_dict:
+            orders_dict[order_id] = {
+                "order_id": order_id,
+                "station_id": station.id,
+                "station_name": station.name,
+                "table_id": table.id if table else None,
+                "table_number": table.number if table else None,
+                "waiter_id": waiter.id if waiter else None,
+                "waiter_name": waiter.username if waiter else None,
+                "order_created_at": order_obj.created_at.isoformat() if order_obj and getattr(order_obj, "created_at", None) else None,
+                "order_updated_at": order_obj.updated_at.isoformat() if order_obj and getattr(order_obj, "updated_at", None) else None,
+                "items": [],
+            }
+
+        orders_dict[order_id]["items"].append({
+            "item_id": item.id,
+            "menu_item_id": item.menu_item_id,
+            "name": item_name,
+            "quantity": float(item.quantity) if item.quantity is not None else 0.0,
+            "price": float(item.price) if item.price is not None else 0.0,
+            "vip_price": float(item.vip_price) if item.vip_price is not None else None,
+            "notes": item.notes,
+            "prep_tag": item.prep_tag,
+            "status": item.status,
+            "created_at": item.created_at.isoformat() if getattr(item, "created_at", None) else None,
+            "updated_at": item.updated_at.isoformat() if getattr(item, "updated_at", None) else None,
+        })
+
+    return jsonify(list(orders_dict.values())), 200

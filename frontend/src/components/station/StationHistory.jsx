@@ -1,187 +1,132 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
-import { fetchKDSOrders } from "@/api/kds";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { fetchReadyOrdersHistory, fetchKDSOrders } from "@/api/kds"; // ✅ fetchKDSOrders for pending
 
-export default function StationHistory() {
+export default function StationReportTable() {
   const { stationToken } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [closedOrdersToday, setClosedOrdersToday] = useState([]);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [showSummarySidebar, setShowSummarySidebar] = useState(false);
+  const [orders, setOrders] = useState([]);
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     if (!stationToken) return;
 
-    const fetchClosedOrdersToday = async () => {
+    const fetchData = async () => {
       setLoading(true);
       try {
-        const orders = await fetchKDSOrders(stationToken);
-        const todayISO = new Date().toISOString().slice(0, 10);
+        const readyOrders = await fetchReadyOrdersHistory(stationToken);
+        setOrders(readyOrders || []);
 
-        // Filter items with status 'ready' and group by order
-        const todayClosedOrdersMap = {};
-        orders.forEach(order => {
-          const readyItems = order.items.filter(i => i.status === "ready");
-          if (readyItems.length === 0) return;
-
-          const orderDate = order.order_created_at?.slice(0, 10);
-          if (orderDate !== todayISO) return;
-
-          todayClosedOrdersMap[order.order_id] = {
-            ...order,
-            items: readyItems
-          };
+        // Fetch pending orders for the card
+        const pendingOrders = await fetchKDSOrders(stationToken);
+        let count = 0;
+        pendingOrders.forEach(order => {
+          count += order.items.length;
         });
-
-        setClosedOrdersToday(Object.values(todayClosedOrdersMap));
+        setPendingCount(count);
       } catch (err) {
-        toast.error(err.message || "Failed to load closed orders");
+        toast.error(err.message || "Failed to load orders");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchClosedOrdersToday();
+    fetchData();
   }, [stationToken]);
 
-  // Summary stats
-  const summary = useMemo(() => {
-    const totalRevenue = closedOrdersToday.reduce(
-      (sum, o) => sum + o.items.reduce((itemSum, i) => sum + i.price * i.quantity, 0),
-      0
-    );
+  // Aggregate items for ready orders
+  const itemSummary = {};
+  let totalRevenue = 0;
+  let totalItems = 0;
 
-    const totalItems = closedOrdersToday.reduce(
-      (sum, o) => sum + o.items.reduce((iSum, item) => iSum + item.quantity, 0),
-      0
-    );
+  orders.forEach(order => {
+    order.items.forEach(item => {
+      if (!itemSummary[item.name]) {
+        itemSummary[item.name] = { name: item.name, quantity: 0, subtotal: 0 };
+      }
+      itemSummary[item.name].quantity += item.quantity;
+      const subtotal = item.quantity * item.price;
+      itemSummary[item.name].subtotal += subtotal;
 
-    const dailyItemsMap = {};
-    closedOrdersToday.forEach(order => {
-      order.items.forEach(item => {
-        if (dailyItemsMap[item.name]) dailyItemsMap[item.name] += item.quantity;
-        else dailyItemsMap[item.name] = item.quantity;
-      });
+      totalItems += item.quantity;
+      totalRevenue += subtotal;
     });
+  });
 
-    const dailyItemsSummary = Object.entries(dailyItemsMap).map(([name, quantity]) => ({
-      name,
-      quantity
-    }));
-
-    return { totalOrders: closedOrdersToday.length, totalRevenue, totalItems, dailyItemsSummary };
-  }, [closedOrdersToday]);
+  const items = Object.values(itemSummary);
 
   return (
-    <div className="p-4 dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 flex">
-      <div className="flex-1">
-        <h1 className="text-3xl font-bold mb-6">የቀኑ የተዘጉ ትዕዛዞች (Station)</h1>
+    <div className="p-4 dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100">
+      <h1 className="text-3xl font-bold mb-6">የተዘጋጀ ትዕዛዞች - ዛሬ (Station Report)</h1>
 
-        {/* Summary cards */}
-        <div className="flex flex-wrap gap-4 mb-6">
-          <div className="bg-blue-100 dark:bg-blue-800 p-4 rounded-lg shadow flex-1 min-w-[150px]">
-            <p className="text-sm font-semibold">አጠቃላይ ትዛዝ</p>
-            <p className="text-xl font-bold">{summary.totalOrders}</p>
-          </div>
-          <div className="bg-green-100 dark:bg-green-800 p-4 rounded-lg shadow flex-1 min-w-[150px]">
-            <p className="text-sm font-semibold">አጠቃላይ ሽያጭ</p>
-            <p className="text-xl font-bold">${summary.totalRevenue.toFixed(2)}</p>
-          </div>
-          <div
-            className="bg-yellow-100 dark:bg-yellow-800 p-4 rounded-lg shadow flex-1 min-w-[150px] cursor-pointer"
-            onClick={() => setShowSummarySidebar(!showSummarySidebar)}
-          >
-            <p className="text-sm font-semibold">አጠቃላይ የተሸጡ አይነቶች</p>
-            <p className="text-xl font-bold">{summary.totalItems}</p>
-            <p className="text-xs mt-1 underline">ሙሉ ዝርዝር እይ</p>
-          </div>
+      {/* Summary Cards */}
+      <div className="flex flex-wrap gap-4 mb-6">
+        <div className="bg-blue-800 dark:bg-blue-800 p-4 rounded-lg shadow flex-1 min-w-[150px]">
+          <p className="text-sm font-semibold">አጠቃላይ ትዕዛዞች</p>
+          <p className="text-xl font-bold">{orders.length}</p>
+        </div>
+                <div className="bg-red-800 dark:bg-red-800 p-4 rounded-lg shadow flex-1 min-w-[150px]">
+          <p className="text-sm font-semibold">አጠቃላይ ትዕዛዞች ቀጥ ላይ</p>
+          <p className="text-xl font-bold">{pendingCount}</p>
+        </div>
+        <div className="bg-yellow-800 dark:bg-yellow-800 p-4 rounded-lg shadow flex-1 min-w-[150px]">
+          <p className="text-sm font-semibold">አጠቃላይ የተሸጡ አይነቶች</p>
+          <p className="text-xl font-bold">{totalItems}</p>
+        </div>
+        <div className="bg-green-800 dark:bg-green-800 p-4 rounded-lg shadow flex-1 min-w-[150px]">
+          <p className="text-sm font-semibold">አጠቃላይ ሽያጭ</p>
+          <p className="text-xl font-bold">${totalRevenue.toFixed(2)}</p>
         </div>
 
-        {loading ? (
-          <p>Loading closed orders...</p>
-        ) : closedOrdersToday.length === 0 ? (
-          <p>ዛሬ የተዘጋ የለም</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {closedOrdersToday.map(order => (
-              <Card key={order.order_id} className="shadow-lg rounded-lg p-4 hover:scale-[1.02] transition-transform">
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold truncate">
-                    Table {order.table_number} - ትዕዛዝ #{order.order_id}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm">Items: {order.items.length}</p>
-                  <p className="text-sm">Time: {new Date(order.order_created_at).toLocaleTimeString()}</p>
-                  <p className="mt-2 font-semibold text-green-600 dark:text-green-400">Closed</p>
-                  <Button variant="outline" className="mt-3 w-full" onClick={() => setSelectedOrder(order)}>
-                    ዝርዝር እይ
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
       </div>
 
-      {/* Sidebar */}
-      {showSummarySidebar && (
-        <div className="w-64 ml-6 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg shadow-lg max-h-screen overflow-y-auto">
-          <h2 className="text-xl font-bold mb-4">አጠቃላይ ዛሬ የተሸጡ</h2>
-          {summary.dailyItemsSummary.length === 0 ? (
-            <p className="text-sm">ዛሬ የተሸጠ የለም</p>
-          ) : (
-            <ul className="space-y-2">
-              {summary.dailyItemsSummary.map(item => (
-                <li key={item.name} className="flex justify-between bg-white dark:bg-gray-700 px-3 py-2 rounded shadow">
-                  <span>{item.name}</span>
-                  <span className="font-semibold">{item.quantity}</span>
-                </li>
+      {/* Table */}
+      {loading ? (
+        <p>Loading ready items...</p>
+      ) : items.length === 0 ? (
+        <p>የተዘጋጀ እቃ የለም</p>
+      ) : (
+        <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow-lg">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0">
+              <tr>
+                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900 dark:text-gray-100 uppercase tracking-wider">
+                  Item
+                </th>
+                <th className="px-6 py-3 text-right text-sm font-medium text-gray-900 dark:text-gray-100 uppercase tracking-wider">
+                  Quantity Sold
+                </th>
+                <th className="px-6 py-3 text-right text-sm font-medium text-gray-900 dark:text-gray-100 uppercase tracking-wider">
+                  Price per Item
+                </th>
+                <th className="px-6 py-3 text-right text-sm font-medium text-gray-900 dark:text-gray-100 uppercase tracking-wider">
+                  Subtotal
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              {items.map((item, index) => (
+                <tr
+                  key={item.name}
+                  className={index % 2 === 0 ? "bg-white dark:bg-gray-800" : "bg-gray-50 dark:bg-gray-900"}
+                >
+                  <td className="px-6 py-4 whitespace-nowrap">{item.name}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">{item.quantity}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">${(item.subtotal / item.quantity).toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">${item.subtotal.toFixed(2)}</td>
+                </tr>
               ))}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {/* Order Modal */}
-      {selectedOrder && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-11/12 max-w-lg">
-            <h3 className="text-xl font-bold mb-4">
-              Table {selectedOrder.table_number} - ትዕዛዝ #{selectedOrder.order_id}
-            </h3>
-            <div className="max-h-80 overflow-y-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b dark:border-gray-600">
-                    <th className="pb-2">ትዛዝ</th>
-                    <th className="pb-2">ብዛት</th>
-                    <th className="pb-2">ዋጋ</th>
-                    <th className="pb-2">አጠቃላይ ዋጋ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedOrder.items.map(item => (
-                    <tr key={item.item_id} className="border-b dark:border-gray-700">
-                      <td>{item.name}</td>
-                      <td>{item.quantity}</td>
-                      <td>${item.price.toFixed(2)}</td>
-                      <td>${(item.price * item.quantity).toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="mt-4 font-bold text-right">
-              አጠቃላይ: ${selectedOrder.items.reduce((sum, i) => sum + i.price * i.quantity, 0).toFixed(2)}
-            </p>
-            <div className="flex justify-end mt-4">
-              <Button onClick={() => setSelectedOrder(null)}>Close</Button>
-            </div>
-          </div>
+            </tbody>
+            <tfoot className="bg-gray-100 dark:bg-gray-700 font-bold">
+              <tr>
+                <td className="px-6 py-3 text-left">Totals</td>
+                <td className="px-6 py-3 text-right">{totalItems}</td>
+                <td className="px-6 py-3 text-right">—</td>
+                <td className="px-6 py-3 text-right">${totalRevenue.toFixed(2)}</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       )}
     </div>

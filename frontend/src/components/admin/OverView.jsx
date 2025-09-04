@@ -17,6 +17,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (!token) {
       setError("Authentication token missing.");
+      setLoading(false);
       return;
     }
 
@@ -24,70 +25,58 @@ export default function AdminDashboard() {
       try {
         setLoading(true);
 
-        // --- Fetch all orders ---
         const allOrders = await fetchOrders(token);
 
-        // --- Filter by status ---
         const openOrders = allOrders.filter(o => o.status === "open").length;
         const closedOrders = allOrders.filter(o => o.status === "closed").length;
         const paidOrders = allOrders.filter(o => o.status === "paid").length;
 
-        // --- Fetch waiters ---
         const waiters = await getUsers("waiter", token);
 
-        // --- Aggregate top waiters ---
-// Aggregate top waiters
-const waiterSalesMap = {};
-allOrders.forEach(order => {
-  const waiterId = order.user_id || order.waiter_id || order.user?.id;
-  if (waiterId) {
-    waiterSalesMap[waiterId] = (waiterSalesMap[waiterId] || 0) + (parseFloat(order.total_amount) || 0);
-  }
-});
+        const waiterSalesMap = {};
+        allOrders.forEach(order => {
+          const waiterId = order.user_id || order.waiter_id || order.user?.id;
+          if (waiterId) {
+            waiterSalesMap[waiterId] = (waiterSalesMap[waiterId] || 0) + (parseFloat(order.total_amount) || 0);
+          }
+        });
 
-const topWaiters = waiters
-  .map(waiter => {
-    const id = waiter.id;
-    const name = waiter.username || waiter.name || `Waiter #${id}`;
-    const salesCount = waiterSalesMap[id] || 0;
-    return { id, name, salesCount };
-  })
-  .filter(w => w.salesCount > 0)
-  .sort((a, b) => b.salesCount - a.salesCount)
-  .slice(0, 5);
+        const topWaiters = waiters
+          .map(waiter => {
+            const id = waiter.id;
+            const name = waiter.username || waiter.name || `Waiter #${id}`;
+            const salesCount = waiterSalesMap[id] || 0;
+            return { id, name, salesCount };
+          })
+          .filter(w => w.salesCount > 0)
+          .sort((a, b) => b.salesCount - a.salesCount)
+          .slice(0, 5);
 
-
-        // --- Fetch today's sales summary ---
         const todayStr = new Date().toISOString().slice(0, 10);
         const salesSummary = await getSalesSummary(todayStr, todayStr, null, null, token);
-
         const todayTotalSales = salesSummary?.grand_totals?.total_amount || 0;
 
-        // --- Aggregate top selling items ---
         const itemSalesMap = {};
         allOrders.forEach(order => {
-          if (order.items) {
-            order.items.forEach(item => {
-              const key = `${item.menu_item_id}-${item.name || ""}`;
-              if (!itemSalesMap[key]) {
-                itemSalesMap[key] = { id: item.menu_item_id, name: item.name, count: 0 };
-              }
-              itemSalesMap[key].count += item.quantity || 0;
-            });
-          }
+          order.items?.forEach(item => {
+            const key = `${item.menu_item_id}-${item.name || ""}`;
+            if (!itemSalesMap[key]) {
+              itemSalesMap[key] = { id: item.menu_item_id, name: item.name, count: 0 };
+            }
+            itemSalesMap[key].count += item.quantity || 0;
+          });
         });
 
         const topItems = Object.values(itemSalesMap)
           .sort((a, b) => b.count - a.count)
           .slice(0, 5);
 
-        // --- Set state ---
         setMetrics({
           openOrders,
           closedOrders,
           paidOrders,
           todayTotalSales,
-          grandTotalSales: todayTotalSales, // can replace with full total if API supports
+          grandTotalSales: todayTotalSales,
           orderStatusData: [
             { status: "Open", count: openOrders },
             { status: "Closed", count: closedOrders },
