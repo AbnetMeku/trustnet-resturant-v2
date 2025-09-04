@@ -62,14 +62,14 @@ def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="stat
         lines = []
         # Header
         lines.append(("Yonas Cher Cher", font_header, 'ma'))
-        lines.append(("-" * 32, font_regular, 'ma'))
+        lines.append(("-" * 45, font_regular, 'ma'))
         lines.append((f"ORDER #: {job.order_id}", font_regular, 'la'))
         lines.append((f"DATE: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}", font_regular, 'la'))
         waiter_name = job.items_data.get("waiter", "Unknown")
         table_number = job.items_data.get("table", "N/A")
         lines.append((f"WAITER: {waiter_name}", font_regular, 'la'))
         lines.append((f"TABLE: {table_number}", font_regular, 'la'))
-        lines.append(("-" * 52, font_regular, 'ma'))
+        lines.append(("-" * 92, font_regular, 'ma'))
 
         # Items with aligned columns
         subtotal = 0
@@ -83,8 +83,8 @@ def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="stat
 
         # Footer (only TOTAL, no SUBTOTAL)
         footer_lines = [
-            ("-" * 52, font_regular, 'ma'),
-            (f"TOTAL: ETB {job.items_data.get('total', subtotal):.2f}", font_regular, 'ra'),
+            ("-" * 92, font_regular, 'ma'),
+            (f"TOTAL: {job.items_data.get('total', subtotal):.2f}ETB ", font_regular, 'ra'),
             ("THANK YOU!", font_regular, 'ma')
         ]
 
@@ -94,7 +94,7 @@ def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="stat
         height = (
             (header_lines * header_line_height)
             + (regular_lines * line_height)
-            + (len(item_rows) * line_height)
+            + ((len(item_rows) + 1) * line_height)  # +1 for header row
             + (len(footer_lines) * line_height)
             + logo_height
             + 100
@@ -117,12 +117,25 @@ def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="stat
             draw.text((x, y), text, font=font, fill=0)
             y += (header_line_height if font == font_header else line_height) + 5
 
+        # -----------------------------
+        # Column Layout (Adjust here ↓)
+        # -----------------------------
+        col_item_x = 10      # left margin for Item names
+        col_qty_x = 260      # horizontal position for Qty x Price
+        col_total_x = 480    # right-side Total column
+        # ↑ You can tweak these values if spacing looks off on your printer
+
+        # Column headers
+        draw.text((col_item_x, y), "Item", font=font_regular, fill=0)
+        draw.text((col_qty_x, y), "Qty x Price", font=font_regular, fill=0)
+        draw.text((col_total_x, y), "Total", font=font_regular, fill=0)
+        y += line_height + 5
+        draw.line((10, y, PRINTER_WIDTH_PX - 10, y), fill=0)  # underline
+        y += 5
+
         # Draw items in 3 columns
-        col_item_x = 10
-        col_qty_x = 200   # adjust if spacing is off
-        col_total_x = PRINTER_WIDTH_PX - 100
         for name, qty_price, total in item_rows:
-            draw.text((col_item_x, y), name[:20], font=font_regular, fill=0)
+            draw.text((col_item_x, y), name[:28], font=font_regular, fill=0)  # longer item name allowed
             draw.text((col_qty_x, y), qty_price, font=font_regular, fill=0)
             bbox = draw.textbbox((0, 0), total, font=font_regular)
             draw.text((col_total_x, y), total, font=font_regular, fill=0)
@@ -150,9 +163,6 @@ def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="stat
                 img.paste(logo, ((PRINTER_WIDTH_PX - logo.width) // 2, y + 10))
             except Exception as e:
                 print(f"[WARN] Failed to load logo: {e}")
-
-
-
     else:
         # Original station job format (unchanged)
         lines = []
