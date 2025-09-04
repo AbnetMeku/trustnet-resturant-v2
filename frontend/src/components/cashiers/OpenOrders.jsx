@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchOrders } from "@/api/orders";
+import { getUsers } from "@/api/users";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -9,6 +10,23 @@ export default function OpenOrders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
+
+  const [waiters, setWaiters] = useState([]);
+  const [filterWaiter, setFilterWaiter] = useState("");
+  const [filterTable, setFilterTable] = useState("");
+
+  // Fetch waiters
+  useEffect(() => {
+    async function loadWaiters() {
+      try {
+        const data = await getUsers("waiter");
+        setWaiters([{ id: "", username: "All Waiters" }, ...data]);
+      } catch {
+        setWaiters([{ id: "", username: "All Waiters" }]);
+      }
+    }
+    loadWaiters();
+  }, []);
 
   // Fetch all open orders
   useEffect(() => {
@@ -29,17 +47,53 @@ export default function OpenOrders() {
     loadOrders();
   }, [authToken]);
 
+  // Apply filters
+  const filteredOrders = orders.filter((order) => {
+    return (
+      (filterWaiter ? order.user?.id?.toString() === filterWaiter : true) &&
+      (filterTable ? order.table.number.toString().includes(filterTable) : true)
+    );
+  });
+
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-semibold text-gray-800 dark:text-gray-100">Open Orders</h2>
+      <h2 className="text-3xl font-semibold text-gray-800 dark:text-gray-100">
+        እየተሰሩ ያሉ ትዕዛዞች (Open Orders)
+      </h2>
 
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <select
+          className="border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+          value={filterWaiter}
+          onChange={(e) => setFilterWaiter(e.target.value)}
+        >
+          {waiters.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.username}
+            </option>
+          ))}
+        </select>
+
+        <input
+          type="text"
+          placeholder="Filter by table"
+          className="border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+          value={filterTable}
+          onChange={(e) => setFilterTable(e.target.value)}
+        />
+      </div>
+
+      {/* Orders Grid */}
       {loading ? (
         <p className="text-gray-500 dark:text-gray-400">Loading...</p>
-      ) : orders.length === 0 ? (
-        <p className="text-gray-500 dark:text-gray-400">No open orders available.</p>
+      ) : filteredOrders.length === 0 ? (
+        <p className="text-gray-500 dark:text-gray-400">
+          No open orders available.
+        </p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {orders.map(order => (
+          {filteredOrders.map((order) => (
             <Card
               key={order.id}
               className="shadow-sm dark:shadow-none rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md transition-all flex flex-col justify-between bg-gray-50 dark:bg-gray-800"
@@ -55,10 +109,16 @@ export default function OpenOrders() {
                 </div>
 
                 <p className="text-gray-700 dark:text-gray-300 mb-1">
-                  Total: <span className="font-semibold">${order.total_amount.toFixed(2)}</span>
+                  Total:{" "}
+                  <span className="font-semibold">
+                    ${order.total_amount.toFixed(2)}
+                  </span>
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
                   Items: {order.items.length}
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                  Waiter: {order.user?.username || "—"}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
                   Time: {new Date(order.created_at).toLocaleTimeString()}
@@ -92,18 +152,35 @@ export default function OpenOrders() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-600">
-                    <th className="py-2 text-gray-700 dark:text-gray-300">Item</th>
-                    <th className="py-2 text-gray-700 dark:text-gray-300">Qty</th>
-                    <th className="py-2 text-gray-700 dark:text-gray-300">Price</th>
-                    <th className="py-2 text-gray-700 dark:text-gray-300">Total</th>
+                    <th className="py-2 text-gray-700 dark:text-gray-300">
+                      Item
+                    </th>
+                    <th className="py-2 text-gray-700 dark:text-gray-300">
+                      Qty
+                    </th>
+                    <th className="py-2 text-gray-700 dark:text-gray-300">
+                      Price
+                    </th>
+                    <th className="py-2 text-gray-700 dark:text-gray-300">
+                      Total
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedOrder.items.map(item => (
-                    <tr key={item.id} className="border-b border-gray-200 dark:border-gray-700">
-                      <td className="py-1 text-gray-800 dark:text-gray-100">{item.name}</td>
-                      <td className="py-1 text-gray-800 dark:text-gray-100">{item.quantity}</td>
-                      <td className="py-1 text-gray-800 dark:text-gray-100">${item.price.toFixed(2)}</td>
+                  {selectedOrder.items.map((item) => (
+                    <tr
+                      key={item.id}
+                      className="border-b border-gray-200 dark:border-gray-700"
+                    >
+                      <td className="py-1 text-gray-800 dark:text-gray-100">
+                        {item.name}
+                      </td>
+                      <td className="py-1 text-gray-800 dark:text-gray-100">
+                        {item.quantity}
+                      </td>
+                      <td className="py-1 text-gray-800 dark:text-gray-100">
+                        ${item.price.toFixed(2)}
+                      </td>
                       <td className="py-1 text-gray-800 dark:text-gray-100">
                         ${(item.price * item.quantity).toFixed(2)}
                       </td>

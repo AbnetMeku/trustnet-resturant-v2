@@ -16,7 +16,7 @@ from app.models.models import PrintJob, OrderItem, Station
 # -----------------------------
 DATABASE_URI = os.environ.get(
     "DATABASE_URI"
-) or "postgresql://postgres:ab@localhost:5432/restaurant_db"
+) or "postgresql://trustnet_pos:trustnet_pos_password@localhost:5432/trustnet_pos_db"
 
 FONT_PATH = os.path.join(os.path.dirname(__file__), "NotoSansEthiopic.ttf")
 LOGO_PATH = os.path.join(os.path.dirname(__file__), "TNS.png")
@@ -59,72 +59,99 @@ def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="stat
     print(f"Rendering job {job.id} with type: {job.type}, items_data: {job.items_data}")  # Debug log
 
     if job.type == "cashier":
-        # Cashier receipt format for 80mm printer
         lines = []
         # Header
-        lines.append(("TRUSTNET RESTAURANT", font_header, 'ma'))  # Centered
-        lines.append(("=" * 32, font_regular, 'ma'))
-        lines.append((f"ORDER #: {job.order_id}", font_regular, 'la'))  # Left-aligned
+        lines.append(("Yonas Cher Cher", font_header, 'ma'))
+        lines.append(("-" * 32, font_regular, 'ma'))
+        lines.append((f"ORDER #: {job.order_id}", font_regular, 'la'))
         lines.append((f"DATE: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}", font_regular, 'la'))
         waiter_name = job.items_data.get("waiter", "Unknown")
         table_number = job.items_data.get("table", "N/A")
         lines.append((f"WAITER: {waiter_name}", font_regular, 'la'))
         lines.append((f"TABLE: {table_number}", font_regular, 'la'))
-        lines.append(("=" * 32, font_regular, 'ma'))
+        lines.append(("-" * 52, font_regular, 'ma'))
 
-        # Table header
-        lines.append(("ITEM        QTY    PRICE     TOTAL", font_regular, 'la'))  # Simplified English header
-        lines.append(("-" * 32, font_regular, 'la'))
-
-        # Items
+        # Items with aligned columns
+        subtotal = 0
+        item_rows = []
         for item in items:
-            name = item.get("name", "")[:12].ljust(12)  # Truncate to 12 chars, left-justified
-            qty = f"{item.get('quantity', 1):.1f}".rjust(5)
-            price = f"ETB {item.get('price', 0.0):.2f}".rjust(10)
-            total = f"ETB {(item.get('quantity', 1) * item.get('price', 0.0)):.2f}".rjust(10)
-            line = f"{name} {qty} {price} {total}"
-            lines.append((line, font_regular, 'la'))
-            if item.get("notes"):
-                lines.append((f"NOTE: {item['notes']}", font_regular, 'la'))
+            qty = item.get("quantity", 1)
+            price = item.get("price", 0.0)
+            total = qty * price
+            subtotal += total
+            item_rows.append((item.get("name", ""), f"{qty} x {price:.2f}", f"{total:.2f}"))
 
-        # Footer
-        lines.append(("-" * 32, font_regular, 'la'))
-        total = f"TOTAL: ETB {job.items_data.get('total', 0.0):.2f}"
-        lines.append((total, font_regular, 'ra'))  # Right-aligned
-        lines.append(("THANK YOU!", font_regular, 'ma'))  # Centered
+        # Footer (only TOTAL, no SUBTOTAL)
+        footer_lines = [
+            ("-" * 52, font_regular, 'ma'),
+            (f"TOTAL: ETB {job.items_data.get('total', subtotal):.2f}", font_regular, 'ra'),
+            ("THANK YOU!", font_regular, 'ma')
+        ]
 
-        # Calculate image height with extra space for 80mm receipt
+        # Height calculation
         header_lines = sum(1 for text, font, _ in lines if font == font_header)
         regular_lines = len(lines) - header_lines
-        height = (header_lines * header_line_height) + (regular_lines * line_height) + logo_height + 100  # Increased height
+        height = (
+            (header_lines * header_line_height)
+            + (regular_lines * line_height)
+            + (len(item_rows) * line_height)
+            + (len(footer_lines) * line_height)
+            + logo_height
+            + 100
+        )
 
         img = Image.new("1", (PRINTER_WIDTH_PX, height), 1)
         draw = ImageDraw.Draw(img)
         y = 10
 
-        # Draw text with alignment
+        # Draw header
         for text, font, anchor in lines:
             bbox = draw.textbbox((0, 0), text, font=font)
             text_width = bbox[2] - bbox[0]
-            text_height = bbox[3] - bbox[1]
             if anchor == 'ma':
-                x = (PRINTER_WIDTH_PX - text_width) // 2  # Center
+                x = (PRINTER_WIDTH_PX - text_width) // 2
             elif anchor == 'ra':
-                x = PRINTER_WIDTH_PX - text_width - 10  # Right, with 10px padding
-            else:  # 'la' (left)
-                x = 10  # Left with 10px padding
+                x = PRINTER_WIDTH_PX - text_width - 10
+            else:
+                x = 10
             draw.text((x, y), text, font=font, fill=0)
-            y += (header_line_height if font == font_header else line_height) + 5  # 5px gap between lines
+            y += (header_line_height if font == font_header else line_height) + 5
 
-        # Paste logo at the bottom
+        # Draw items in 3 columns
+        col_item_x = 10
+        col_qty_x = 200   # adjust if spacing is off
+        col_total_x = PRINTER_WIDTH_PX - 100
+        for name, qty_price, total in item_rows:
+            draw.text((col_item_x, y), name[:20], font=font_regular, fill=0)
+            draw.text((col_qty_x, y), qty_price, font=font_regular, fill=0)
+            bbox = draw.textbbox((0, 0), total, font=font_regular)
+            draw.text((col_total_x, y), total, font=font_regular, fill=0)
+            y += line_height + 5
+
+        # Footer
+        for text, font, anchor in footer_lines:
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            if anchor == 'ma':
+                x = (PRINTER_WIDTH_PX - text_width) // 2
+            elif anchor == 'ra':
+                x = PRINTER_WIDTH_PX - text_width - 10
+            else:
+                x = 10
+            draw.text((x, y), text, font=font, fill=0)
+            y += line_height + 5
+
+        # Paste logo
         if os.path.exists(LOGO_PATH):
             try:
                 logo = Image.open(LOGO_PATH).convert("1")
                 logo_width = min(int(logo.width * 0.5), PRINTER_WIDTH_PX // 2)
                 logo = logo.resize((logo_width, int(logo.height * logo_width / logo.width)))
-                img.paste(logo, ((PRINTER_WIDTH_PX - logo.width) // 2, height - logo_height - 10))  # Bottom with padding
+                img.paste(logo, ((PRINTER_WIDTH_PX - logo.width) // 2, y + 10))
             except Exception as e:
                 print(f"[WARN] Failed to load logo: {e}")
+
+
 
     else:
         # Original station job format (unchanged)

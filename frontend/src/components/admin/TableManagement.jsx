@@ -145,7 +145,9 @@ export default function TableManagement() {
         <div>Loading...</div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {filteredTables.map(table => (
+          {filteredTables
+          .sort((a, b) => a.number - b.number)
+          .map(table => (
             <Card
               key={table.id}
               className="relative transform hover:scale-105 hover:shadow-2xl hover:-rotate-1 transition-all duration-300 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden p-2 flex flex-col justify-between"

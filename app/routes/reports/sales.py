@@ -10,7 +10,7 @@ reports_bp = Blueprint('reports_bp', __name__, url_prefix='/reports')
 
 @reports_bp.route('/sales-summary', methods=['GET', 'OPTIONS'])
 @jwt_required()
-@roles_required("admin", "manager")
+@roles_required("admin", "manager", "cashier")
 def sales_summary():
     if request.method == "OPTIONS":
         return jsonify({"status": "ok"}), 200

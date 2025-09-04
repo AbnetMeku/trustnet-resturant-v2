@@ -81,7 +81,7 @@ export default function ClosedOrders() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-semibold text-gray-800 dark:text-gray-100">Closed Orders (Pending Payment)</h2>
+      <h2 className="text-3xl font-semibold text-gray-800 dark:text-gray-100">የተዘጉ ትዕዛዞች (ደረሰኝ ያልተቆረጠ)</h2>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">

@@ -377,32 +377,43 @@ export default function UserManagement() {
         </div>
       </div>
 
-      {/* Filters */}
-      <Card className="p-3 sm:p-4">
-        <div className="flex flex-col md:flex-row md:items-center gap-3">
-          <div className="flex-1">
-            <Input
-              placeholder="Search by username or role…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <div className="w-full md:w-48">
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All roles</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="manager">Manager</SelectItem>
-                <SelectItem value="cashier">Cashier</SelectItem>
-                <SelectItem value="waiter">Waiter</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </Card>
+{/* Filters */}
+<Card className="p-3 sm:p-4">
+  <div className="flex flex-col md:flex-row md:items-center gap-3">
+    <div className="flex-1">
+      <Input
+        placeholder="Search by username or role…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+    </div>
+    <div className="w-full md:w-48">
+      <Select value={roleFilter} onValueChange={setRoleFilter}>
+        <SelectTrigger>
+          <SelectValue placeholder="Filter by role" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">
+            All roles ({filteredUsers.length})
+          </SelectItem>
+          <SelectItem value="admin">
+            Admin ({filteredUsers.filter(u => u.role === "admin").length})
+          </SelectItem>
+          <SelectItem value="manager">
+            Manager ({filteredUsers.filter(u => u.role === "manager").length})
+          </SelectItem>
+          <SelectItem value="cashier">
+            Cashier ({filteredUsers.filter(u => u.role === "cashier").length})
+          </SelectItem>
+          <SelectItem value="waiter">
+            Waiter ({filteredUsers.filter(u => u.role === "waiter").length})
+          </SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  </div>
+</Card>
+
 
       {/* Table */}
       <Card className="overflow-hidden">

@@ -36,21 +36,26 @@ export default function AdminDashboard() {
         const waiters = await getUsers("waiter", token);
 
         // --- Aggregate top waiters ---
-        const waiterSalesMap = {};
-        allOrders.forEach(o => {
-          if (o.waiter_id) {
-            waiterSalesMap[o.waiter_id] = (waiterSalesMap[o.waiter_id] || 0) + (o.total_amount || 0);
-          }
-        });
+// Aggregate top waiters
+const waiterSalesMap = {};
+allOrders.forEach(order => {
+  const waiterId = order.user_id || order.waiter_id || order.user?.id;
+  if (waiterId) {
+    waiterSalesMap[waiterId] = (waiterSalesMap[waiterId] || 0) + (parseFloat(order.total_amount) || 0);
+  }
+});
 
-        const topWaiters = waiters
-          .map(w => ({
-            id: w.id,
-            name: w.username || w.name,
-            salesCount: waiterSalesMap[w.id] || 0,
-          }))
-          .sort((a, b) => b.salesCount - a.salesCount)
-          .slice(0, 5);
+const topWaiters = waiters
+  .map(waiter => {
+    const id = waiter.id;
+    const name = waiter.username || waiter.name || `Waiter #${id}`;
+    const salesCount = waiterSalesMap[id] || 0;
+    return { id, name, salesCount };
+  })
+  .filter(w => w.salesCount > 0)
+  .sort((a, b) => b.salesCount - a.salesCount)
+  .slice(0, 5);
+
 
         // --- Fetch today's sales summary ---
         const todayStr = new Date().toISOString().slice(0, 10);

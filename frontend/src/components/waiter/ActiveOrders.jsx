@@ -124,7 +124,7 @@ export default function ActiveOrders({ goBack }) {
         setStep("list");
         setSelectedOrder(null);
         setOrderItems([]);
-      }, 5000);
+      }, 2000);
     } catch (err) {
       setShowErrorModal(err.message || "Failed to update order");
     }
@@ -195,14 +195,15 @@ export default function ActiveOrders({ goBack }) {
         <p className="text-gray-500">ምንም የተከፈተ ትዕዛዝ የለም</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          
           {openOrders.map(order => (
             <div key={order.id} className="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border rounded-2xl p-5 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all flex flex-col justify-between">
-              <button
+              {/* <button
                 onClick={e => { e.stopPropagation(); setConfirmCloseId(order.id); }}
                 className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-red-500 hover:text-white transition"
               >
-                ×
-              </button>
+                ዝጋ
+              </button> */}
 
               <div onClick={() => selectOrder(order)} className="cursor-pointer">
                 <h3 className="font-bold text-xl mb-2 text-gray-900 dark:text-white">Table {order.table.number}</h3>
@@ -210,10 +211,17 @@ export default function ActiveOrders({ goBack }) {
                   ጠቅላላ ዋጋ: ${order.total_amount.toFixed(2)}
                 </span>
               </div>
-
               <Button className="mt-4" variant="outline" onClick={() => setDetailsOrder(order)}>
                 ዝርዝር ይመልከቱ
               </Button>
+              { <Button
+                className="mt-3"
+                variant="destructive"
+                onClick={() => setConfirmCloseId(order.id)}
+              >
+                ትዕዛዝ ዝጋ
+              </Button> }
+
             </div>
           ))}
         </div>

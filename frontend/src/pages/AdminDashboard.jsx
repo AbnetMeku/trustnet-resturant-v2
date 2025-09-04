@@ -6,6 +6,11 @@ import {
   FaUtensils,
   FaBars,
   FaChartBar,
+  FaUser, 
+  FaUsers, 
+  FaReceipt, 
+  FaPrint, 
+  FaFileAlt 
 } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,6 +22,8 @@ import StationManagement from "@/components/admin/StationManagement";
 import MenuManagement from "@/components/admin/MenuManagement";
 import SalesSummaryReport from "@/components/admin/SalesSummaryReport";
 import OverView from "@/components/admin/OverView";
+import OrderTracker from "@/components/admin/OrderTracker"; 
+import PrintJobs from "@/components/admin/PrintJobs"; 
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
@@ -59,11 +66,14 @@ export default function AdminDashboard() {
   // ---------------- Sidebar Items ----------------
   const menuItems = [
     { id: "overview", icon: FaChartBar, label: "Overview" },
-    { id: "users", icon: FaUserPlus, label: "Users" },
+    { id: "users", icon: FaUsers, label: "Users" },
     { id: "tables", icon: FaTable, label: "Tables" },
     { id: "stations", icon: FaStore, label: "Stations" },
     { id: "menu", icon: FaUtensils, label: "Menu" },
-    { id: "reports", icon: FaBars, label: "Reports" },
+    { id: "order", icon: FaReceipt, label: "Order Tracker" },
+    { id: "print", icon: FaPrint, label: "Print Jobs" },
+    { id: "reports", icon: FaFileAlt, label: "Reports" },
+
   ];
 
   return (
@@ -185,7 +195,16 @@ export default function AdminDashboard() {
     <SalesSummaryReport />
   </Card>
 )}
-
+{active === "order" && (
+  <Card className="p-6 w-full overflow-auto max-h-[80vh]">
+    <OrderTracker />
+  </Card>
+)}
+{active === "print" && (
+  <Card className="p-6 w-full overflow-auto max-h-[80vh]">
+    <PrintJobs />
+  </Card>
+)}
           </main>
         </div>
       </div>

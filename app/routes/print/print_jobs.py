@@ -6,7 +6,7 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.extensions import db
-from app.models.models import PrintJob, Order, Station, OrderItem
+from app.models.models import PrintJob, Order, Station, OrderItem, User
 
 print_jobs_bp = Blueprint("print_jobs", __name__, url_prefix="/print-jobs")
 
@@ -195,16 +195,22 @@ def retry_failed_job(job_id: int):
     user_id = get_jwt_identity()
     job = PrintJob.query.get_or_404(job_id)
 
+    # Only failed jobs can be retried
     if job.status != "failed":
         return jsonify({"error": "Job not failed"}), 403
 
-    if job.order.user_id != user_id:
+    # Fetch user and check permissions
+    user = User.query.get(user_id)
+    if job.order.user_id != user_id and user.role not in ["admin", "manager"]:
         return jsonify({"error": "Unauthorized"}), 403
 
+    # Retry the job
     job.status = "pending"
     job.attempts = (job.attempts or 0) + 1
     db.session.commit()
+
     return jsonify({"message": f"Print job {job.id} set to pending for retry"}), 200
+
 
 # -----------------------------
 # Manual creation of station print job
@@ -316,3 +322,53 @@ def print_cashier_manual():
     db.session.commit()
 
     return jsonify({"message": f"Cashier receipt print job created for order {order.id}"}), 201
+# -----------------------------
+# Get all print jobs (with optional status filter)
+# -----------------------------
+@print_jobs_bp.route("/", methods=["GET"])
+@jwt_required()
+def get_all_print_jobs():
+    status = request.args.get("status")  # optional query param
+    query = PrintJob.query
+
+    if status:
+        query = query.filter_by(status=status)
+
+    jobs = query.order_by(PrintJob.created_at.desc()).all()
+
+    result = []
+    for job in jobs:
+        result.append({
+            "id": job.id,
+            "order_id": job.order_id,
+            "station_id": job.station_id,
+            "type": job.type,
+            "items_data": job.items_data,
+            "status": job.status,
+            "error_message": job.error_message,
+            "attempts": job.attempts,
+            "created_at": job.created_at.isoformat(),
+            "updated_at": job.updated_at.isoformat(),
+        })
+
+    return jsonify(result), 200
+# Delete a print job
+@print_jobs_bp.route("/<int:job_id>", methods=["DELETE"])
+@jwt_required()
+def delete_print_job(job_id: int):
+    job = PrintJob.query.get_or_404(job_id)
+    user_id = get_jwt_identity()
+
+    # Only admin, manager, or creator of the order can delete
+    if job.order.user_id != user_id and not current_user_is_admin_or_manager(user_id):
+        return jsonify({"error": "Unauthorized"}), 403
+
+    db.session.delete(job)
+    db.session.commit()
+    return jsonify({"message": f"Print job {job.id} deleted"}), 200
+
+
+# Utility function to check role
+def current_user_is_admin_or_manager(user_id):
+    user = User.query.get(user_id)
+    return user and user.role.lower() in ["admin", "manager"]

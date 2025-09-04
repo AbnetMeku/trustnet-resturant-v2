@@ -135,7 +135,7 @@ export default function NewOrder({ goBack, setError }) {
         setSelectedTable(null);
         setOrderItems([]);
         goBack();
-      }, 6000);
+      }, 2000);
     } catch (err) {
       const errorMessage = err.message || "Failed to submit order.";
       console.error("Order submission error:", errorMessage);
@@ -146,44 +146,22 @@ export default function NewOrder({ goBack, setError }) {
   };
 
   // ✅ Full-screen success modal component
-  const SuccessModal = ({ visible, onClose }) => (
-    <AnimatePresence>
-      {visible && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-30"
-        >
-          <motion.div
-            initial={{ scale: 0.8 }}
-            animate={{ scale: 1 }}
-            exit={{ scale: 0.8 }}
-            transition={{ duration: 0.3 }}
-            className="bg-white p-6 sm:p-8 rounded-3xl shadow-2xl text-center max-w-sm sm:max-w-md w-[90%] relative overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-green-400 via-emerald-500 to-green-600 animate-pulse opacity-20"></div>
-            <div className="relative z-10 flex justify-center mb-4">
-              <div className="bg-green-500 text-white rounded-full p-4 shadow-lg">✅</div>
-            </div>
-            <h2 className="relative z-10 text-xl sm:text-2xl font-bold text-gray-900">
-              🎉 ትዕዛዝ በተሳካ ሁኔታ ታዝዟል
-            </h2>
-            <p className="relative z-10 text-gray-600 mt-2 text-sm sm:text-base">
-              የተመዘገበው ትዕዛዝ ለሰራተኞች ተልኳል 🚀
-            </p>
-            {/* <button
-              onClick={onClose}
-              className="mt-4 px-4 py-2 bg-green-500 text-white rounded-lg"
-            >
-              Close
-            </button> */}
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
 
+const SuccessModal = ({ visible }) => {
+  if (!visible) return null;
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-[9999]">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm text-center">
+        <h2 className="text-xl font-semibold mb-4 text-green-600">
+          ✅ ትዕዛዙ ተሳክቷል!
+        </h2>
+        <p className="text-gray-600 dark:text-gray-300">
+          ትዕዛዝ በተሳካ ሁኔታ ተልኳል 🚀
+        </p>
+      </div>
+    </div>
+  );
+};
   if (!token) {
     return (
       <div className="flex flex-col h-full p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
