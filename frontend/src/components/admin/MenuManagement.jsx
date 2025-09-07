@@ -102,10 +102,10 @@ export default function MenuManagement() {
         getMenuItems(),
       ]);
 
-      // Convert price and vip_price to numbers
+      // Convert price and vip_price to numbers or keep as null
       const normalizedItems = items.map((item) => ({
         ...item,
-        price: Number(item.price),
+        price: item.price != null ? Number(item.price) : null,
         vip_price: item.vip_price != null ? Number(item.vip_price) : null,
       }));
 
@@ -140,15 +140,14 @@ export default function MenuManagement() {
         return;
       }
       // Resize image and convert to base64
-      // Resize image and convert to base64
       const reader = new FileReader();
       reader.onload = (event) => {
         const img = new Image();
         img.src = event.target.result;
         img.onload = () => {
           const canvas = document.createElement("canvas");
-          const MAX_WIDTH = 200; // Increased from 100 to 200
-          const MAX_HEIGHT = 200; // Increased from 100 to 200
+          const MAX_WIDTH = 200;
+          const MAX_HEIGHT = 200;
           let width = img.width;
           let height = img.height;
 
@@ -168,7 +167,7 @@ export default function MenuManagement() {
           canvas.height = height;
           const ctx = canvas.getContext("2d");
           ctx.drawImage(img, 0, 0, width, height);
-          const base64 = canvas.toDataURL(files[0].type, 0.85); // Increased quality from 0.7 to 0.85
+          const base64 = canvas.toDataURL(files[0].type, 0.85);
           setForm({ ...form, image_file: files[0], image_url: base64 });
         };
       };
@@ -228,10 +227,12 @@ export default function MenuManagement() {
       const payload = {
         name: menuForm.name,
         description: menuForm.description,
-        price: parseFloat(menuForm.price),
-        ...(menuForm.vip_price !== "" && !isNaN(parseFloat(menuForm.vip_price)) && {
-          vip_price: parseFloat(menuForm.vip_price),
-        }),
+        price: menuForm.price !== "" && !isNaN(parseFloat(menuForm.price))
+          ? parseFloat(menuForm.price)
+          : null,
+        vip_price: menuForm.vip_price !== "" && !isNaN(parseFloat(menuForm.vip_price))
+          ? parseFloat(menuForm.vip_price)
+          : null,
         station_id: parseInt(menuForm.station_id),
         subcategory_id: parseInt(menuForm.subcategory_id),
         is_available: menuForm.is_available,
@@ -278,8 +279,8 @@ export default function MenuManagement() {
         id: item.id,
         name: item.name,
         description: item.description,
-        price: item.price,
-        vip_price: item.vip_price ?? "",
+        price: item.price != null ? item.price : "",
+        vip_price: item.vip_price != null ? item.vip_price : "",
         station_id: item.station_id,
         subcategory_id: item.subcategory_id,
         is_available: item.is_available,
@@ -299,7 +300,7 @@ export default function MenuManagement() {
     if (!deleteTarget) return;
     try {
       await deleteTarget.deleteFunc(deleteTarget.id);
-      toast.success(`${deleteTarget.type} "${ heaters.deleteTarget.name}" deleted`, {
+      toast.success(`${deleteTarget.type} "${deleteTarget.name}" deleted`, {
         style: { background: "#e0f7fa", color: "#006064" },
       });
       setConfirmOpen(false);
@@ -558,9 +559,11 @@ export default function MenuManagement() {
               )}
 
               {/* Base price in upper-left */}
-              <div className="absolute top-0 left-0 bg-white dark:bg-gray-800 px-1 py-1 font-bold rounded shadow text-lg">
-                ${Number(item.price).toFixed(2)}
-              </div>
+              {item.price != null && (
+                <div className="absolute top-0 left-0 bg-white dark:bg-gray-800 px-1 py-1 font-bold rounded shadow text-lg">
+                  ${Number(item.price).toFixed(2)}
+                </div>
+              )}
 
               {/* Availability LED in upper-right */}
               <div
@@ -703,9 +706,8 @@ export default function MenuManagement() {
                       name="price"
                       value={menuForm.price || ""}
                       onChange={handleChange(menuForm, setMenuForm)}
-                      placeholder="Price"
+                      placeholder="Price (optional)"
                       className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
-                      required
                     />
                     <input
                       type="number"

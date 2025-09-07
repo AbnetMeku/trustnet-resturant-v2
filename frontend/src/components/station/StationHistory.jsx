@@ -1,132 +1,260 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import toast from "react-hot-toast";
-import { fetchReadyOrdersHistory, fetchKDSOrders } from "@/api/kds"; // ✅ fetchKDSOrders for pending
+import { fetchReadyOrdersHistory } from "@/api/kds";
 
-export default function StationReportTable() {
+export default function StationHistory() {
   const { stationToken } = useAuth();
-  const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
-  const [pendingCount, setPendingCount] = useState(0);
+  const [filterWaiter, setFilterWaiter] = useState("");
+  const [filterDate, setFilterDate] = useState("");
+  const [filterTable, setFilterTable] = useState("");
+  const [showItemsModal, setShowItemsModal] = useState(false);
+
+  const fetchOrders = async () => {
+    if (!stationToken) return;
+    try {
+      const res = await fetchReadyOrdersHistory(stationToken);
+      res.sort(
+        (a, b) =>
+          new Date(a.order_updated_at).getTime() -
+          new Date(b.order_updated_at).getTime()
+      );
+      setOrders(res);
+    } catch (err) {
+      console.error("Failed to fetch ready orders:", err);
+    }
+  };
 
   useEffect(() => {
-    if (!stationToken) return;
-
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const readyOrders = await fetchReadyOrdersHistory(stationToken);
-        setOrders(readyOrders || []);
-
-        // Fetch pending orders for the card
-        const pendingOrders = await fetchKDSOrders(stationToken);
-        let count = 0;
-        pendingOrders.forEach(order => {
-          count += order.items.length;
-        });
-        setPendingCount(count);
-      } catch (err) {
-        toast.error(err.message || "Failed to load orders");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
+    fetchOrders();
+    const interval = setInterval(fetchOrders, 6000);
+    return () => clearInterval(interval);
   }, [stationToken]);
 
-  // Aggregate items for ready orders
-  const itemSummary = {};
-  let totalRevenue = 0;
-  let totalItems = 0;
+  // Filter orders with ready items
+  const readyOrders = orders
+    .map((order) => ({
+      ...order,
+      items: order.items.filter((item) => item.status === "ready"),
+    }))
+    .filter((order) => order.items.length > 0)
+    .filter((order) =>
+      filterWaiter ? order.waiter_id.toString() === filterWaiter : true
+    )
+    .filter((order) =>
+      filterTable ? order.table_number?.toString() === filterTable : true
+    )
+    .filter((order) =>
+      filterDate
+        ? new Date(order.order_updated_at).toISOString().startsWith(filterDate)
+        : true
+    );
 
-  orders.forEach(order => {
-    order.items.forEach(item => {
-      if (!itemSummary[item.name]) {
-        itemSummary[item.name] = { name: item.name, quantity: 0, subtotal: 0 };
-      }
-      itemSummary[item.name].quantity += item.quantity;
-      const subtotal = item.quantity * item.price;
-      itemSummary[item.name].subtotal += subtotal;
-
-      totalItems += item.quantity;
-      totalRevenue += subtotal;
-    });
+  // Unique waiters and tables
+  const waitersMap = new Map();
+  orders.forEach((o) => {
+    if (!waitersMap.has(o.waiter_id)) waitersMap.set(o.waiter_id, o.waiter_name);
   });
+  const waiters = Array.from(waitersMap, ([id, name]) => ({ id, name }));
 
-  const items = Object.values(itemSummary);
+  const tablesSet = new Set();
+  orders.forEach((o) => {
+    if (o.table_number) tablesSet.add(o.table_number);
+  });
+  const tables = Array.from(tablesSet);
+
+  // Stats
+  const totalOrders = readyOrders.length;
+  const totalItems = readyOrders.reduce(
+    (sum, order) => sum + order.items.reduce((s, i) => s + i.quantity, 0),
+    0
+  );
+  const totalSales = readyOrders.reduce(
+    (sum, order) => sum + order.items.reduce((s, i) => s + i.price * i.quantity, 0),
+    0
+  );
+
+  // Aggregate items by name properly with subtotal
+  const aggregatedItems = readyOrders
+    .flatMap((o) => o.items)
+    .reduce((acc, item) => {
+      if (!acc[item.name]) {
+        acc[item.name] = {
+          name: item.name,
+          totalQuantity: item.quantity,
+          subtotal: (item.price || 0) * item.quantity,
+        };
+      } else {
+        acc[item.name].totalQuantity += item.quantity;
+        acc[item.name].subtotal += (item.price || 0) * item.quantity;
+      }
+      return acc;
+    }, {});
+  const aggregatedItemsArray = Object.values(aggregatedItems);
 
   return (
-    <div className="p-4 dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100">
-      <h1 className="text-3xl font-bold mb-6">የተዘጋጀ ትዕዛዞች - ዛሬ (Station Report)</h1>
+    <div className="overflow-y-auto h-screen p-4">
+      {/* Filters */}
+      <div className="flex gap-4 mb-6 flex-wrap">
+        <select
+          value={filterWaiter}
+          onChange={(e) => setFilterWaiter(e.target.value)}
+          className="p-2 rounded-lg border text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700"
+        >
+          <option value="">All Waiters</option>
+          {waiters.map((w) => (
+            <option key={w.id} value={w.id.toString()}>
+              {w.name || "N/A"}
+            </option>
+          ))}
+        </select>
 
-      {/* Summary Cards */}
-      <div className="flex flex-wrap gap-4 mb-6">
-        <div className="bg-blue-800 dark:bg-blue-800 p-4 rounded-lg shadow flex-1 min-w-[150px]">
-          <p className="text-sm font-semibold">አጠቃላይ ትዕዛዞች</p>
-          <p className="text-xl font-bold">{orders.length}</p>
-        </div>
-                <div className="bg-red-800 dark:bg-red-800 p-4 rounded-lg shadow flex-1 min-w-[150px]">
-          <p className="text-sm font-semibold">አጠቃላይ ትዕዛዞች ቀጥ ላይ</p>
-          <p className="text-xl font-bold">{pendingCount}</p>
-        </div>
-        <div className="bg-yellow-800 dark:bg-yellow-800 p-4 rounded-lg shadow flex-1 min-w-[150px]">
-          <p className="text-sm font-semibold">አጠቃላይ የተሸጡ አይነቶች</p>
-          <p className="text-xl font-bold">{totalItems}</p>
-        </div>
-        <div className="bg-green-800 dark:bg-green-800 p-4 rounded-lg shadow flex-1 min-w-[150px]">
-          <p className="text-sm font-semibold">አጠቃላይ ሽያጭ</p>
-          <p className="text-xl font-bold">${totalRevenue.toFixed(2)}</p>
-        </div>
+        <select
+          value={filterTable}
+          onChange={(e) => setFilterTable(e.target.value)}
+          className="p-2 rounded-lg border text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700"
+        >
+          <option value="">All Tables</option>
+          {tables.map((t) => (
+            <option key={t} value={t.toString()}>
+              {t}
+            </option>
+          ))}
+        </select>
 
+        <input
+          type="date"
+          value={filterDate}
+          onChange={(e) => setFilterDate(e.target.value)}
+          className="p-2 rounded-lg border text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700"
+        />
       </div>
 
-      {/* Table */}
-      {loading ? (
-        <p>Loading ready items...</p>
-      ) : items.length === 0 ? (
-        <p>የተዘጋጀ እቃ የለም</p>
-      ) : (
-        <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow-lg">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900 dark:text-gray-100 uppercase tracking-wider">
-                  Item
-                </th>
-                <th className="px-6 py-3 text-right text-sm font-medium text-gray-900 dark:text-gray-100 uppercase tracking-wider">
-                  Quantity Sold
-                </th>
-                <th className="px-6 py-3 text-right text-sm font-medium text-gray-900 dark:text-gray-100 uppercase tracking-wider">
-                  Price per Item
-                </th>
-                <th className="px-6 py-3 text-right text-sm font-medium text-gray-900 dark:text-gray-100 uppercase tracking-wider">
-                  Subtotal
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {items.map((item, index) => (
-                <tr
-                  key={item.name}
-                  className={index % 2 === 0 ? "bg-white dark:bg-gray-800" : "bg-gray-50 dark:bg-gray-900"}
+      {/* Stat cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow flex flex-col justify-between">
+          <p className="text-gray-600 dark:text-gray-300">አጠቃላይ ትዕዛዝ</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{totalOrders}</h2>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow flex flex-col justify-between">
+          <p className="text-gray-600 dark:text-gray-300 flex justify-between items-center">
+            አጠቃላይ የተሸጡ
+            <button
+              className="text-blue-500 text-sm underline ml-2"
+              onClick={() => setShowItemsModal(true)}
+            >
+              ሙሉ ዝርዝር
+            </button>
+          </p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{totalItems}</h2>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow flex flex-col justify-between">
+          <p className="text-gray-600 dark:text-gray-300">አጠቃላይ ሽይጭ</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            ${totalSales.toFixed(2)}
+          </h2>
+        </div>
+      </div>
+
+      {readyOrders.length === 0 && (
+        <p className="text-center mt-10 text-gray-500 dark:text-gray-400">
+          የተዘጋባ እቃዎች የሉም
+        </p>
+      )}
+
+      {/* Orders */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+        {readyOrders.map((order) => (
+          <div
+            key={order.order_id}
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 flex flex-col space-y-4 transform hover:scale-[1.02] transition-transform duration-200"
+          >
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                  ትዕዛዝ #{order.order_id}
+                </h2>
+                <p className="text-sm text-gray-700 dark:text-gray-300">
+                  ጠረጴዛ ቁጥር: {order.table_number || "N/A"} | አስተናጋጅ: {order.waiter_name || "N/A"}
+                </p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  ዝግጅት ሰዓት:{" "}
+                  {new Date(order.order_updated_at).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+              <span className="px-3 py-1 rounded-full text-gray-900 dark:text-gray-100 font-semibold bg-gray-100 dark:bg-gray-700 text-sm">
+                {order.items.length} ትዕዛዝ
+              </span>
+            </div>
+
+            <ul className="flex flex-col space-y-3">
+              {order.items.map((item) => (
+                <li
+                  key={`${order.order_id}-${item.item_id}`}
+                  className="flex justify-between items-center bg-green-100 dark:bg-green-700 p-4 rounded-lg shadow-sm"
                 >
-                  <td className="px-6 py-4 whitespace-nowrap">{item.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">{item.quantity}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">${(item.subtotal / item.quantity).toFixed(2)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">${item.subtotal.toFixed(2)}</td>
-                </tr>
+                  <div>
+                    <span className="font-medium text-lg text-gray-900 dark:text-gray-100">
+                      {item.name}
+                    </span>{" "}
+                    x{item.quantity}
+                    {item.notes && (
+                      <em className="text-xs ml-1 text-gray-700 dark:text-gray-300">
+                        ({item.notes})
+                      </em>
+                    )}
+                  </div>
+                  <span className="px-4 py-2 rounded-full font-semibold text-white bg-green-500">
+                    ወቷል
+                  </span>
+                </li>
               ))}
-            </tbody>
-            <tfoot className="bg-gray-100 dark:bg-gray-700 font-bold">
-              <tr>
-                <td className="px-6 py-3 text-left">Totals</td>
-                <td className="px-6 py-3 text-right">{totalItems}</td>
-                <td className="px-6 py-3 text-right">—</td>
-                <td className="px-6 py-3 text-right">${totalRevenue.toFixed(2)}</td>
-              </tr>
-            </tfoot>
-          </table>
+            </ul>
+          </div>
+        ))}
+      </div>
+
+      {/* Aggregated Items Modal */}
+      {showItemsModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg w-full max-w-lg p-6 overflow-y-auto max-h-[80vh]">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                አጠቃላይ የተሸጡ አይነቶች
+              </h3>
+              <button
+                className="text-red-500 font-bold"
+                onClick={() => setShowItemsModal(false)}
+              >
+                X
+              </button>
+            </div>
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-gray-200 dark:border-gray-700">
+                  <th className="py-2 text-gray-700 dark:text-gray-300">ትዕዛዝ</th>
+                  <th className="py-2 text-gray-700 dark:text-gray-300">ብዛት</th>
+                  <th className="py-2 text-gray-700 dark:text-gray-300">አጠቃላይ ዋጋ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {aggregatedItemsArray.map((item, idx) => (
+                  <tr key={idx} className="border-b border-gray-200 dark:border-gray-700">
+                    <td className="py-2 text-gray-900 dark:text-gray-100">{item.name}</td>
+                    <td className="py-2 text-gray-900 dark:text-gray-100">{item.totalQuantity}</td>
+                    <td className="py-2 text-gray-900 dark:text-gray-100">
+                      ${item.subtotal.toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

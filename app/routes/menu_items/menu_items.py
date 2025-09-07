@@ -97,8 +97,8 @@ def create_menu_item():
     name = name.strip()
     if len(name) > 120:
         return error_response("Name exceeds 120 characters", 400)
-    if price is None or not isinstance(price, (int, float, Decimal)) or price < 0:
-        return error_response("Price is required and must be a non-negative number", 400)
+    if price is not None and (not isinstance(price, (int, float, Decimal)) or price < 0):
+        return error_response("Price must be a non-negative number or null", 400)
     if vip_price is not None and (not isinstance(vip_price, (int, float, Decimal)) or vip_price < 0):
         return error_response("VIP price must be a non-negative number or null", 400)
     if not isinstance(station_id, int):
@@ -127,7 +127,7 @@ def create_menu_item():
     item = MenuItem(
         name=name,
         description=description,
-        price=Decimal(str(price)),
+        price=Decimal(str(price)) if price is not None else None,
         vip_price=Decimal(str(vip_price)) if vip_price is not None else None,
         station_id=station_id,
         subcategory_id=subcategory_id,
@@ -193,9 +193,9 @@ def update_menu_item(item_id):
         item.subcategory_id = subcategory.id
 
     if "price" in data:
-        if not isinstance(data["price"], (int, float, Decimal)) or data["price"] < 0:
-            return error_response("Price must be a non-negative number", 400)
-        item.price = Decimal(str(data["price"]))
+        if data["price"] is not None and (not isinstance(data["price"], (int, float, Decimal)) or data["price"] < 0):
+            return error_response("Price must be a non-negative number or null", 400)
+        item.price = Decimal(str(data["price"])) if data["price"] is not None else None
 
     if "vip_price" in data:
         if data["vip_price"] is not None and (not isinstance(data["vip_price"], (int, float, Decimal)) or data["vip_price"] < 0):

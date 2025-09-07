@@ -41,8 +41,8 @@ class MenuItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False, unique=True)
     description = db.Column(db.Text, nullable=True)
-    price = db.Column(db.Numeric(10, 2), nullable=False)
-    vip_price = db.Column(db.Numeric, nullable=True)   # NEW
+    price = db.Column(db.Numeric(10, 2), nullable=True) #Nullable to allow VIP-only items
+    vip_price = db.Column(db.Numeric, nullable=True)   # NEW 
     is_available = db.Column(db.Boolean, default=True)
     image_url = db.Column(db.Text, nullable=True)  # Changed to Text
 
@@ -66,6 +66,8 @@ class Order(db.Model):
     table = db.relationship("Table", back_populates="orders")
     user = db.relationship("User")
     items = db.relationship("OrderItem", back_populates="order")
+    # ✅ Cascade delete for print jobs — automatically deleted if order deleted
+    print_jobs = db.relationship("PrintJob", back_populates="order", cascade="all, delete-orphan")
 
 class OrderItem(db.Model):
     __tablename__ = "order_items"
@@ -96,30 +98,25 @@ class KitchenTagCounter(db.Model):
     last_number = db.Column(db.Integer, default=0)
 
 # ---------------------- Print JObs ---------------------- #
-
 class PrintJob(db.Model):
     __tablename__ = "print_jobs"
     id = db.Column(db.Integer, primary_key=True)
-
     order_id = db.Column(db.Integer, db.ForeignKey("orders.id"), nullable=False)
-    station_id = db.Column(db.Integer, db.ForeignKey("stations.id"), nullable=True)  # nullable for cashier
+    station_id = db.Column(db.Integer, db.ForeignKey("stations.id"), nullable=True)
 
     type = db.Column(db.String(20), default="station")  # "station" or "cashier"
-
     items_data = db.Column(db.JSON, nullable=False)
 
-    status = db.Column(db.String(20), default="pending")  # pending, printed, failed
+    status = db.Column(db.String(20), default="pending")
     error_message = db.Column(db.Text, nullable=True)
     printed_at = db.Column(db.DateTime, nullable=True)
     attempts = db.Column(db.Integer, default=0)
-
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # relationships
-    order = db.relationship("Order", backref="print_jobs")
+    order = db.relationship("Order", back_populates="print_jobs")  # ✅ matches Order.print_jobs
     station = db.relationship("Station", backref="print_jobs")
-
 
 # ---------------------- Categories and Subcategories ---------------------- #
 # This table structure allows for a flexible menu organization

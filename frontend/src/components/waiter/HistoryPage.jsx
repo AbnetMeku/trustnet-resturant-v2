@@ -21,34 +21,37 @@ export default function HistoryPage() {
       return;
     }
 
-    const fetchOrdersToday = async () => {
-      setLoading(true);
-      try {
-        const todayISO = new Date().toISOString().slice(0, 10);
-        const [tables, closedOrders, paidOrders] = await Promise.all([
-          getTables(authToken),
-          fetchOrders(authToken, { status: "closed" }),
-          fetchOrders(authToken, { status: "paid" }),
-        ]);
+const fetchOrdersToday = async () => {
+  setLoading(true);
+  try {
+    const todayISO = new Date().toISOString().slice(0, 10);
+    const [tables, openOrders, closedOrders, paidOrders] = await Promise.all([
+      getTables(authToken),
+      fetchOrders(authToken, { status: "open" }),
+      fetchOrders(authToken, { status: "closed" }),
+      fetchOrders(authToken, { status: "paid" }),
+    ]);
 
-        const assignedTableIds = tables
-          .filter(t => t.waiters?.some(w => w.id === user.id))
-          .map(t => t.id);
+    const assignedTableIds = tables
+      .filter(t => t.waiters?.some(w => w.id === user.id))
+      .map(t => t.id);
 
-        const filteredOrders = [...closedOrders, ...paidOrders].filter(
-          o =>
-            assignedTableIds.includes(o.table_id) &&
-            o.created_at.startsWith(todayISO) &&
-            ["closed", "paid"].includes(o.status)
-        );
+    // Merge all three statuses
+    const filteredOrders = [...openOrders, ...closedOrders, ...paidOrders].filter(
+      o =>
+        assignedTableIds.includes(o.table_id) &&
+        o.created_at.startsWith(todayISO) &&
+        ["open", "closed", "paid"].includes(o.status)
+    );
 
-        setOrders(filteredOrders);
-      } catch (err) {
-        toast.error(err.message || "Failed to load orders");
-      } finally {
-        setLoading(false);
-      }
-    };
+    setOrders(filteredOrders);
+  } catch (err) {
+    toast.error(err.message || "Failed to load orders");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
     fetchOrdersToday();
   }, [authToken, user]);
@@ -130,41 +133,52 @@ export default function HistoryPage() {
         ) : orders.length === 0 ? (
           <p>ዛሬ የተዘጉ ወይም የተከፈሉ ትዕዛዞች የሉም</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {orders.map(order => {
-              const statusText = order.status === "paid" ? "የተከፈለ" : "ይልተከፈለ";
-              const statusColor = order.status === "paid"
-                ? "text-green-600 dark:text-green-400"
-                : "text-red-600 dark:text-red-400";
+<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+  {orders.map(order => {
+    let statusText, statusColor;
 
-              return (
-                <Card
-                  key={order.id}
-                  className="shadow-lg rounded-lg border border-gray-300 dark:border-gray-700 p-4 hover:scale-[1.02] transition-transform"
-                >
-                  <CardHeader>
-                    <CardTitle className="text-lg font-semibold truncate">
-                      Table {order.table.number} - ትዕዛዝ #{order.id}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p><strong>አጠቃላይ:</strong> ${order.total_amount.toFixed(2)}</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                      <strong>ጊዜ:</strong> {new Date(order.created_at).toLocaleTimeString()}
-                    </p>
-                    <p className={`mt-2 font-semibold ${statusColor}`}>{statusText}</p>
-                    <Button
-                      variant="outline"
-                      className="mt-3 w-full"
-                      onClick={() => setSelectedOrder(order)}
-                    >
-                      ዝርዝር እይ
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+    if (order.status === "paid") {
+      statusText = "የተከፈለ"; // Paid
+      statusColor = "text-green-600 dark:text-green-400";
+    } else if (order.status === "closed") {
+      statusText = "ይልተከፈለ"; // Not yet paid
+      statusColor = "text-red-600 dark:text-red-400";
+    } else if (order.status === "open") {
+      statusText = "ክፍት ትዕዛዝ"; // Open order
+      statusColor = "text-yellow-600 dark:text-yellow-400";
+    } else {
+      statusText = order.status; // fallback
+      statusColor = "text-gray-600 dark:text-gray-400";
+    }
+
+    return (
+      <Card
+        key={order.id}
+        className="shadow-lg rounded-lg border border-gray-300 dark:border-gray-700 p-4 hover:scale-[1.02] transition-transform"
+      >
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold truncate">
+            Table {order.table.number} - ትዕዛዝ #{order.id}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p><strong>አጠቃላይ:</strong> ${order.total_amount.toFixed(2)}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
+            <strong>ጊዜ:</strong> {new Date(order.created_at).toLocaleTimeString()}
+          </p>
+          <p className={`mt-2 font-semibold ${statusColor}`}>{statusText}</p>
+          <Button
+            variant="outline"
+            className="mt-3 w-full"
+            onClick={() => setSelectedOrder(order)}
+          >
+            ዝርዝር እይ
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  })}
+</div>
         )}
       </div>
 

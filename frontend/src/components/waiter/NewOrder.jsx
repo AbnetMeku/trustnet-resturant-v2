@@ -2,10 +2,8 @@ import React, { useState, useEffect } from "react";
 import TableSelection from "./TableSelection";
 import MenuSelection from "./MenuSelection";
 import OrderSummary from "./OrderSummary";
-import { updateTable } from "@/api/tables";
 import { createOrder } from "@/api/orders";
 import { Button } from "@/components/ui/button";
-import { motion, AnimatePresence } from "framer-motion";
 
 export default function NewOrder({ goBack, setError }) {
   const [step, setStep] = useState("table"); // table | menu | review
@@ -124,9 +122,8 @@ export default function NewOrder({ goBack, setError }) {
       }
 
       await createOrder(token, selectedTable.id, items);
-      await updateTable(selectedTable.id, { status: "occupied" }, token);
 
-      // Show modal instead of toast
+      // Show success modal
       setSuccessVisible(true);
 
       setTimeout(() => {
@@ -137,31 +134,36 @@ export default function NewOrder({ goBack, setError }) {
         goBack();
       }, 2000);
     } catch (err) {
-      const errorMessage = err.message || "Failed to submit order.";
-      console.error("Order submission error:", errorMessage);
-      setLocalError(errorMessage);
-      setError(errorMessage);
+      if (err.response && err.response.status === 409) {
+        setLocalError("This table already has an active order.");
+        setError("This table already has an active order.");
+      } else {
+        const errorMessage = err.message || "Failed to submit order.";
+        setLocalError(errorMessage);
+        setError(errorMessage);
+      }
+      console.error("Order submission error:", err);
     }
     setLoading(false);
   };
 
   // ✅ Full-screen success modal component
-
-const SuccessModal = ({ visible }) => {
-  if (!visible) return null;
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-[9999]">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm text-center">
-        <h2 className="text-xl font-semibold mb-4 text-green-600">
-          ✅ ትዕዛዙ ተሳክቷል!
-        </h2>
-        <p className="text-gray-600 dark:text-gray-300">
-          ትዕዛዝ በተሳካ ሁኔታ ተልኳል 🚀
-        </p>
+  const SuccessModal = ({ visible }) => {
+    if (!visible) return null;
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-[9999]">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm text-center">
+          <h2 className="text-xl font-semibold mb-4 text-green-600">
+            ✅ ትዕዛዙ ተሳክቷል!
+          </h2>
+          <p className="text-gray-600 dark:text-gray-300">
+            ትዕዛዝ በተሳካ ሁኔታ ተልኳል 🚀
+          </p>
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
+
   if (!token) {
     return (
       <div className="flex flex-col h-full p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
@@ -209,6 +211,7 @@ const SuccessModal = ({ visible }) => {
           onPlaceOrder={handlePlaceOrder}
           onBack={prevStep}
           setError={setError}
+          disabled={loading} // ✅ disable button while submitting
         />
       )}
 

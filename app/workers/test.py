@@ -16,13 +16,14 @@ from app.models.models import PrintJob, OrderItem, Station
 # -----------------------------
 DATABASE_URI = os.environ.get(
     "DATABASE_URI"
-) or "postgresql://trustnet_pos:trustnet_pos_password@localhost:5432/trustnet_pos_db"
+ # ) or "postgresql://trustnet_pos:trustnet_pos_password@localhost:5432/trustnet_pos_db"  
+  ) or "postgresql://postgres:abnet@localhost:5433/postgres"
 
 FONT_PATH = os.path.join(os.path.dirname(__file__), "NotoSansEthiopic.ttf")
 LOGO_PATH = os.path.join(os.path.dirname(__file__), "TNS.png")
 PRINTER_WIDTH_PX = 576  # 80mm printer resolution
-CHECK_INTERVAL = 10     # seconds between polling for new jobs
-MAX_RETRIES = 3
+CHECK_INTERVAL = 2     # seconds between polling for new jobs
+MAX_RETRIES = 2
 
 # -----------------------------
 # DB Setup
@@ -164,8 +165,15 @@ def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="stat
             except Exception as e:
                 print(f"[WARN] Failed to load logo: {e}")
     else:
-        # Original station job format (unchanged)
+        # Original station job format (with Amharic copy labels)
         lines = []
+
+        # 🔹 Add Amharic headers depending on copy_type
+        if copy_type == "customer":
+            lines.append("ለደንበንኛ")   # Customer Copy
+        elif copy_type == "kitchen":
+            lines.append("ለኩሽና")       # Kitchen Copy
+
         # Header
         for item in items:
             if item.get("prep_tag"):
@@ -234,7 +242,7 @@ def print_ticket_image(printer_ip, img):
             continue
         printer = None
         try:
-            printer = Network(printer_ip, port=9100, timeout=30)
+            printer = Network(printer_ip, port=9100, timeout=10)
             printer.profile.profile_data["media"] = {
                 "width": {"pixel": PRINTER_WIDTH_PX},
                 "height": {"pixel": img.height},
@@ -281,7 +289,7 @@ def print_job(job: PrintJob):
     session = Session()
     try:
         station = session.get(Station, job.station_id) if job.station_id else None
-        printer_ip = station.printer_identifier if station else "192.168.0.111"
+        printer_ip = station.printer_identifier if station else "192.168.8.222"
         copy_type = job.items_data.get("copy", "station")
         if copy_type == "customer":
             items = job.items_data.get("items", [])
@@ -291,10 +299,10 @@ def print_job(job: PrintJob):
         else:
             items = job.items_data.get("items", []) or [job.items_data.get("item")]
         img = render_ticket(job, items, station.name if station else "CASHIER", copy_type)
-        try:
-            img.show(title=f"Job {job.id} Preview")
-        except Exception as e:
-            print(f"[WARN] Could not preview image: {e}")
+        # try:
+        #     img.show(title=f"Job {job.id} Preview")
+        # except Exception as e:
+        #     print(f"[WARN] Could not preview image: {e}")
         success = print_ticket_image(printer_ip, img)
         job_db = session.get(PrintJob, job.id)
         if job_db.status != "in_progress":

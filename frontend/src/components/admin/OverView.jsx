@@ -1,18 +1,34 @@
 import React, { useEffect, useState } from "react";
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-} from "recharts";
-
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { fetchOrders } from "@/api/orders";
 import { getUsers } from "@/api/users";
-import { getSalesSummary } from "@/api/reportApi";
 
 export default function AdminDashboard() {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [filter, setFilter] = useState("today"); // today | last7 | last30
 
   const token = localStorage.getItem("auth_token");
+
+  function getDateRange(filter) {
+    const today = new Date();
+    let startDate, endDate;
+    endDate = today.toISOString().slice(0, 10);
+
+    if (filter === "today") {
+      startDate = endDate;
+    } else if (filter === "last7") {
+      const d = new Date();
+      d.setDate(today.getDate() - 6);
+      startDate = d.toISOString().slice(0, 10);
+    } else if (filter === "last30") {
+      const d = new Date();
+      d.setDate(today.getDate() - 29);
+      startDate = d.toISOString().slice(0, 10);
+    }
+    return { startDate, endDate };
+  }
 
   useEffect(() => {
     if (!token) {
@@ -24,17 +40,23 @@ export default function AdminDashboard() {
     async function loadData() {
       try {
         setLoading(true);
+        const { startDate, endDate } = getDateRange(filter);
+        const allOrders = await fetchOrders(token, startDate, endDate);
 
-        const allOrders = await fetchOrders(token);
+        // Filter by status
+        const filteredOrders = allOrders.filter(order => {
+          const orderDate = order.created_at?.slice(0, 10) || order.order_updated_at?.slice(0, 10);
+          return orderDate >= startDate && orderDate <= endDate;
+        });
 
-        const openOrders = allOrders.filter(o => o.status === "open").length;
-        const closedOrders = allOrders.filter(o => o.status === "closed").length;
-        const paidOrders = allOrders.filter(o => o.status === "paid").length;
+        const openOrders = filteredOrders.filter(o => o.status === "open").length;
+        const closedOrders = filteredOrders.filter(o => o.status === "closed").length;
+        const paidOrders = filteredOrders.filter(o => o.status === "paid").length;
 
         const waiters = await getUsers("waiter", token);
 
         const waiterSalesMap = {};
-        allOrders.forEach(order => {
+        filteredOrders.forEach(order => {
           const waiterId = order.user_id || order.waiter_id || order.user?.id;
           if (waiterId) {
             waiterSalesMap[waiterId] = (waiterSalesMap[waiterId] || 0) + (parseFloat(order.total_amount) || 0);
@@ -52,12 +74,8 @@ export default function AdminDashboard() {
           .sort((a, b) => b.salesCount - a.salesCount)
           .slice(0, 5);
 
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const salesSummary = await getSalesSummary(todayStr, todayStr, null, null, token);
-        const todayTotalSales = salesSummary?.grand_totals?.total_amount || 0;
-
         const itemSalesMap = {};
-        allOrders.forEach(order => {
+        filteredOrders.forEach(order => {
           order.items?.forEach(item => {
             const key = `${item.menu_item_id}-${item.name || ""}`;
             if (!itemSalesMap[key]) {
@@ -71,12 +89,17 @@ export default function AdminDashboard() {
           .sort((a, b) => b.count - a.count)
           .slice(0, 5);
 
+        const totalSales = filteredOrders.reduce(
+          (sum, order) => sum + (parseFloat(order.total_amount) || 0),
+          0
+        );
+
         setMetrics({
           openOrders,
           closedOrders,
           paidOrders,
-          todayTotalSales,
-          grandTotalSales: todayTotalSales,
+          todayTotalSales: totalSales,
+          grandTotalSales: totalSales, // you can optionally keep a separate overall grand total
           orderStatusData: [
             { status: "Open", count: openOrders },
             { status: "Closed", count: closedOrders },
@@ -85,7 +108,6 @@ export default function AdminDashboard() {
           topItems,
           topWaiters,
         });
-
       } catch (e) {
         console.error(e);
         setError(e.message || "Could not load dashboard data");
@@ -95,7 +117,7 @@ export default function AdminDashboard() {
     }
 
     loadData();
-  }, [token]);
+  }, [token, filter]);
 
   if (loading) return <p className="p-4">Loading dashboard...</p>;
   if (error) return <p className="p-4 text-red-600">{error}</p>;
@@ -103,6 +125,20 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-4 space-y-8 dark:bg-gray-900 dark:text-gray-100 min-h-screen">
+      {/* Filter */}
+      <div className="mb-4">
+        <label className="mr-2 font-semibold">Filter:</label>
+        <select
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+          className="border rounded px-2 py-1 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600"
+        >
+          <option value="today">Today</option>
+          <option value="last7">Last 7 Days</option>
+          <option value="last30">Last 30 Days</option>
+        </select>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <Card bgColor="bg-indigo-700" title="Open Orders" value={metrics.openOrders} />
@@ -112,10 +148,8 @@ export default function AdminDashboard() {
 
       {/* Sales Totals */}
       <div className="bg-yellow-500 text-white rounded-lg shadow p-6">
-        <h3 className="text-xl font-semibold mb-2">Today's Total Sales</h3>
+        <h3 className="text-xl font-semibold mb-2">Total Sales</h3>
         <p className="text-5xl font-extrabold">${metrics.todayTotalSales.toLocaleString()}</p>
-        <h4 className="mt-4 font-semibold">Grand Total Sales</h4>
-        <p className="text-3xl">${metrics.grandTotalSales.toLocaleString()}</p>
       </div>
 
       {/* Order Status Bar Chart */}

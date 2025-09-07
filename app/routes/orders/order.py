@@ -9,6 +9,7 @@ from app.routes.orders.kitchen_tag import generate_kitchen_tag
 from collections import defaultdict
 import logging
 from app.routes.print.print_jobs import create_station_print_jobs, create_cashier_print_job 
+from sqlalchemy.exc import IntegrityError
 
 orders_bp = Blueprint("orders_bp", __name__, url_prefix="/orders")
 
@@ -119,62 +120,6 @@ def recalc_order_total(order: Order) -> None:
         total += Decimal(price) * Decimal(i.quantity)
     order.total_amount = total
 
-# # ---------------- Print Job Utilities ----------------
-# def group_items_by_station_id(items):
-#     grouped = defaultdict(list)
-#     for item in items:
-#         station_id = item.menu_item.station_id if item.menu_item else None
-#         if station_id is not None:
-#             grouped[station_id].append(item)
-#     return dict(grouped)
-
-# def create_station_print_jobs(order: Order, only_new_items=False):
-#     items = [
-#     item for item in order.items
-#     if ( (item.status == "pending" and (item.quantity - item.printed_quantity) > 0) if only_new_items else True )
-# ]
-
-
-#     """
-#     Creates print jobs per station.
-#     If only_new_items=True, only includes items with status "pending".
-#     """
-    
-
-#     # items = [i for i in order.items if (i.status == "pending" if only_new_items else True)]
-#     grouped = group_items_by_station_id(items)
-#     for station_id, items_group in grouped.items():
-#         job_data = {
-#             "order_id": order.id,
-#             "station_id": station_id,
-#             "items_data": [order_item_to_dict(i) for i in items_group],
-#             "status": "pending",
-#         }
-#         print_job = PrintJob(**job_data)
-#         db.session.add(print_job)
-#     db.session.commit()
-#     logger.info(f"Created print jobs for order {order.id}")
-
-# def create_cashier_print_job(order: Order):
-#     """
-#     Creates a print job for the cashier with full order summary.
-#     """
-#     items_data = [order_item_to_dict(i) for i in order.items]
-#     cashier_station = db.session.query(Station).filter_by(name="Cashier").first()
-#     if not cashier_station:
-#         logger.warning("No Cashier station found, skipping cashier print job.")
-#         return
-#     print_job = PrintJob(
-#         order_id=order.id,
-#         station_id=cashier_station.id,
-#         items_data=items_data,
-#         status="pending"
-#     )
-#     db.session.add(print_job)
-#     db.session.commit()
-#     logger.info(f"Created cashier print job for order {order.id}")
-
-
 # ---------------- Orders: Create ----------------
 @orders_bp.route("/", methods=["POST"])
 @jwt_required()
@@ -187,9 +132,23 @@ def create_order():
     if not table_id or not isinstance(items_data, list):
         return error_response("Table ID and items (as a list) are required.", 400)
 
-    table = db.session.get(Table, table_id)
+    # Lock the table row to prevent race conditions
+    try:
+        table = db.session.query(Table).filter(Table.id == table_id).with_for_update().one_or_none()
+    except Exception as e:
+        return error_response(f"Database error locking table: {str(e)}", 500)
+
     if not table:
         return error_response(f"Table {table_id} not found.", 404)
+
+    # 🚨 Prevent duplicate open orders
+    existing_order = (
+        db.session.query(Order)
+        .filter(Order.table_id == table_id, Order.status == "open")
+        .first()
+    )
+    if existing_order:
+        return error_response(f"Table {table.number} already has an active order.", 409)
 
     user_id = safe_int_identity()
     if "waiter" in get_jwt().get("roles", []):
@@ -197,12 +156,19 @@ def create_order():
         if table not in user.tables:
             return error_response("You are not assigned to this table.", 403)
 
+    # Mark the table as occupied immediately
+    table.status = "occupied"
+
+    # Create the order
     order = Order(table_id=table_id, user_id=user_id, status="open", total_amount=Decimal("0.00"))
     db.session.add(order)
     db.session.flush()
 
+    # Prepare menu items
     menu_item_ids = [payload.get("menu_item_id") for payload in items_data]
-    menu_items = {mi.id: mi for mi in db.session.query(MenuItem).filter(MenuItem.id.in_(menu_item_ids)).all()}
+    menu_items = {
+        mi.id: mi for mi in db.session.query(MenuItem).filter(MenuItem.id.in_(menu_item_ids)).all()
+    }
 
     for payload in items_data:
         menu_item_id = payload.get("menu_item_id")
@@ -215,22 +181,25 @@ def create_order():
         if not menu_item.station_rel:
             return error_response(f"Menu item {menu_item_id} is not assigned to a station.", 400)
 
-        price_to_use = Decimal(str(menu_item.vip_price)) if table.is_vip and menu_item.vip_price is not None else menu_item.price
+        price_to_use = (
+            Decimal(str(menu_item.vip_price))
+            if table.is_vip and menu_item.vip_price is not None
+            else menu_item.price
+        )
         category_name = menu_item.subcategory.category.name if menu_item.subcategory and menu_item.subcategory.category else ""
         subcategory_name = menu_item.subcategory.name if menu_item.subcategory else ""
         station = menu_item.station_rel.name
         if len(station) > 20:
             return error_response(f"Station name '{station}' exceeds 20 characters.", 400)
 
-        default_increment = Decimal("0.5") if category_name.lower() == "alcohol" or subcategory_name.lower() == "butchery" else Decimal("1.0")
+        default_increment = Decimal("0.5") if category_name.lower() in {"alcohol", "butchery"} else Decimal("1.0")
         quantity_to_add = Decimal(str(payload.get("quantity", default_increment)))
 
-        # Always create a new OrderItem row here   
         try:
             prep_tag = generate_kitchen_tag() if category_name.lower() == "food" else None
         except Exception as e:
             return error_response(f"Failed to generate kitchen tag: {str(e)}", 500)
-        status = "pending"
+
         order_item = OrderItem(
             order_id=order.id,
             menu_item_id=menu_item.id,
@@ -240,7 +209,7 @@ def create_order():
             notes=payload.get("notes"),
             station=station,
             prep_tag=prep_tag,
-            status=status,
+            status="pending",
         )
         db.session.add(order_item)
 
@@ -249,11 +218,14 @@ def create_order():
         db.session.commit()
         create_station_print_jobs(order)  # enqueue print jobs per station
         logger.info(f"Created order {order.id} for table {table_id} by user {user_id}")
+    except IntegrityError:
+        db.session.rollback()
+        return error_response("Table already has an active order (race condition).", 409)
     except Exception as e:
         db.session.rollback()
         return error_response(f"Database error: {str(e)}", 500)
-    return jsonify(order_to_dict(order)), 201
 
+    return jsonify(order_to_dict(order)), 201
 
 # ---------------- OrderItems: Add to existing order ----------------
 @orders_bp.route("/<int:order_id>/items", methods=["POST"])

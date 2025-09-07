@@ -77,39 +77,52 @@ useEffect(() => {
       setLoading(true);
       const items = await getMenuItems({});
 
-      const updatedItems = items
-        .filter((item) => {
-          // Hide unavailable items
-          if (!item.is_available) return false;
+const updatedItems = items
+  .filter((item) => {
+    if (!item.is_available) return false;
 
-          // If table is VIP, hide items without vip_price
-          if (selectedTable?.is_vip && (item.vip_price == null)) return false;
+    const hasNormal = item.price != null;
+    const hasVip = item.vip_price != null;
 
-          return true;
-        })
-        .map((item) => {
-          const category = categories.find((c) => c.id === item.category_id) || {};
-          const subcategory = subcategories.find((s) => s.id === item.subcategory_id) || {};
-          const categoryName = (category.name || "Unknown").trim();
-          const subcategoryName = (subcategory.name || "Unknown").trim();
+    // Hide items with no price at all
+    if (!hasNormal && !hasVip) return false;
 
-          const increment =
-            categoryName.toLowerCase() === "alcohols" || subcategoryName.toLowerCase() === "butchery"
-              ? 0.5
-              : 1;
+    // VIP table logic
+    if (selectedTable?.is_vip) {
+      // Must have vip price
+      if (!hasVip) return false;
+    } else {
+      // Normal table logic
+      // Must have normal price
+      if (!hasNormal) return false;
+    }
 
-          const usingVip = selectedTable?.is_vip && item.vip_price != null;
-          const price = Number(usingVip ? item.vip_price : item.price) || 0;
+    return true;
+  })
+  .map((item) => {
+    const category = categories.find((c) => c.id === item.category_id) || {};
+    const subcategory = subcategories.find((s) => s.id === item.subcategory_id) || {};
+    const categoryName = (category.name || "Unknown").trim();
+    const subcategoryName = (subcategory.name || "Unknown").trim();
 
-          return {
-            ...item,
-            category_name: categoryName,
-            subcategory_name: subcategoryName,
-            price,
-            increment,
-            usingVip, // mark if VIP pricing is active
-          };
-        });
+    const increment =
+      categoryName.toLowerCase() === "alcohols" || subcategoryName.toLowerCase() === "butchery"
+        ? 0.5
+        : 1;
+
+    const usingVip = selectedTable?.is_vip && item.vip_price != null;
+    const price = Number(usingVip ? item.vip_price : item.price) || 0;
+
+    return {
+      ...item,
+      category_name: categoryName,
+      subcategory_name: subcategoryName,
+      price,
+      increment,
+      usingVip,
+    };
+  });
+
 
       setMenuItems(updatedItems);
     } catch (err) {
