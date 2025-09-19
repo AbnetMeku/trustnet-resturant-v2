@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import TableSelection from "./TableSelection";
 import MenuSelection from "./MenuSelection";
 import OrderSummary from "./OrderSummary";
-import { createOrder } from "@/api/orders"; // From orders.js (artifact version 1e61e1c9-364b-4f45-891e-0a063fe99dae)
+import { createOrder } from "@/api/orders";
+import { Button } from "@/components/ui/button";
 
 export default function NewOrder({ goBack, setError }) {
   const [step, setStep] = useState("table"); // table | menu | review
@@ -10,10 +11,10 @@ export default function NewOrder({ goBack, setError }) {
   const [orderItems, setOrderItems] = useState([]);
   const [localError, setLocalError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [successVisible, setSuccessVisible] = useState(false); // ✅ modal visibility
 
-  const token = localStorage.getItem("auth_token"); // JWT token
+  const token = localStorage.getItem("auth_token");
 
-  // Check token on mount
   useEffect(() => {
     if (!token) {
       setLocalError("You are not logged in.");
@@ -21,7 +22,6 @@ export default function NewOrder({ goBack, setError }) {
     }
   }, [token, setError]);
 
-  // Add item with quantity rule
   const addItem = (item) => {
     if (!item.id || !Number.isInteger(item.id)) {
       setLocalError("Invalid menu item selected.");
@@ -66,27 +66,29 @@ export default function NewOrder({ goBack, setError }) {
     );
     setLocalError("");
   };
-const nextStep = (tableArg) => {
-  if (step === "table") {
-    const tableToCheck = tableArg || selectedTable;
-    if (!tableToCheck) {
-      setLocalError("Please select a table.");
-      setError("Please select a table.");
-      return;
+
+  const nextStep = (tableArg) => {
+    if (step === "table") {
+      const tableToCheck = tableArg || selectedTable;
+      if (!tableToCheck) {
+        setLocalError("Please select a table.");
+        setError("Please select a table.");
+        return;
+      }
+      if (tableArg) setSelectedTable(tableArg);
+      setStep("menu");
+    } else if (step === "menu") {
+      if (orderItems.length === 0) {
+        setLocalError("Please add at least one item to the order.");
+        setError("Please add at least one item to the order.");
+        return;
+      }
+      setStep("review");
     }
-    if (tableArg) setSelectedTable(tableArg);
-    setStep("menu");
-  } else if (step === "menu") {
-    if (orderItems.length === 0) {
-      setLocalError("Please add at least one item to the order.");
-      setError("Please add at least one item to the order.");
-      return;
-    }
-    setStep("review");
-  }
-  setLocalError("");
-  setError("");
-};
+    setLocalError("");
+    setError("");
+  };
+
   const prevStep = () => {
     setLocalError("");
     setError("");
@@ -106,33 +108,68 @@ const nextStep = (tableArg) => {
       const items = orderItems.map((item) => ({
         menu_item_id: item.id,
         quantity: item.quantity,
-        notes: item.notes && typeof item.notes === "string" ? item.notes.slice(0, 255) : "",
+        notes:
+          item.notes && typeof item.notes === "string"
+            ? item.notes.slice(0, 255)
+            : "",
       }));
-      if (items.some(item => !Number.isFinite(item.quantity) || item.quantity <= 0)) {
+
+      if (items.some((item) => !Number.isFinite(item.quantity) || item.quantity <= 0)) {
         setLocalError("All items must have a positive quantity.");
         setError("All items must have a positive quantity.");
         setLoading(false);
         return;
       }
+
       await createOrder(token, selectedTable.id, items);
-      alert("Order placed successfully!");
-      setStep("table");
-      setSelectedTable(null);
-      setOrderItems([]);
-      goBack();
+
+      // Show success modal
+      setSuccessVisible(true);
+
+      setTimeout(() => {
+        setSuccessVisible(false);
+        setStep("table");
+        setSelectedTable(null);
+        setOrderItems([]);
+        goBack();
+      }, 2000);
     } catch (err) {
-      const errorMessage = err.message || "Failed to submit order.";
-      console.error("Order submission error:", errorMessage);
-      setLocalError(errorMessage);
-      setError(errorMessage);
+      if (err.response && err.response.status === 409) {
+        setLocalError("This table already has an active order.");
+        setError("This table already has an active order.");
+      } else {
+        const errorMessage = err.message || "Failed to submit order.";
+        setLocalError(errorMessage);
+        setError(errorMessage);
+      }
+      console.error("Order submission error:", err);
     }
     setLoading(false);
+  };
+
+  // ✅ Full-screen success modal component
+  const SuccessModal = ({ visible }) => {
+    if (!visible) return null;
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-[9999]">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm text-center">
+          <h2 className="text-xl font-semibold mb-4 text-green-600">
+            ✅ ትዕዛዙ ተሳክቷል!
+          </h2>
+          <p className="text-gray-600 dark:text-gray-300">
+            ትዕዛዝ በተሳካ ሁኔታ ተልኳል 🚀
+          </p>
+        </div>
+      </div>
+    );
   };
 
   if (!token) {
     return (
       <div className="flex flex-col h-full p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
-        <p className="text-red-500 mb-4 text-sm">You must be logged in to create an order.</p>
+        <p className="text-red-500 mb-4 text-sm">
+          You must be logged in to create an order.
+        </p>
         <Button variant="outline" onClick={goBack}>
           Back to Hub
         </Button>
@@ -141,7 +178,7 @@ const nextStep = (tableArg) => {
   }
 
   return (
-    <div className="flex flex-col h-full p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
+    <div className="flex flex-col h-full p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg relative">
       {localError && <p className="text-red-500 mb-4 text-sm">{localError}</p>}
       {loading && <p className="text-center py-4">Submitting order...</p>}
 
@@ -174,8 +211,12 @@ const nextStep = (tableArg) => {
           onPlaceOrder={handlePlaceOrder}
           onBack={prevStep}
           setError={setError}
+          disabled={loading} // ✅ disable button while submitting
         />
       )}
+
+      {/* ✅ Success Modal */}
+      <SuccessModal visible={successVisible} onClose={() => setSuccessVisible(false)} />
     </div>
   );
 }

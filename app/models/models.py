@@ -35,15 +35,17 @@ class Station(db.Model):
     menu_items = db.relationship("MenuItem", back_populates="station_rel")
 
 # ---------------------- Menu Items ---------------------- #
+  
 class MenuItem(db.Model):
     __tablename__ = "menu_items"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False, unique=True)
     description = db.Column(db.Text, nullable=True)
-    price = db.Column(db.Numeric(10, 2), nullable=False)
-    vip_price = db.Column(db.Numeric, nullable=True)   # NEW
+    price = db.Column(db.Numeric(10, 2), nullable=True) #Nullable to allow VIP-only items
+    vip_price = db.Column(db.Numeric, nullable=True)   # NEW 
     is_available = db.Column(db.Boolean, default=True)
-    image_url = db.Column(db.String(255), nullable=True)
+    image_url = db.Column(db.Text, nullable=True)  # Changed to Text
+
 
     station_id = db.Column(db.Integer, db.ForeignKey("stations.id"), nullable=False)
     station_rel = db.relationship("Station", back_populates="menu_items")
@@ -64,6 +66,8 @@ class Order(db.Model):
     table = db.relationship("Table", back_populates="orders")
     user = db.relationship("User")
     items = db.relationship("OrderItem", back_populates="order")
+    # ✅ Cascade delete for print jobs — automatically deleted if order deleted
+    print_jobs = db.relationship("PrintJob", back_populates="order", cascade="all, delete-orphan")
 
 class OrderItem(db.Model):
     __tablename__ = "order_items"
@@ -71,8 +75,9 @@ class OrderItem(db.Model):
     order_id = db.Column(db.Integer, db.ForeignKey("orders.id"), nullable=False)
     menu_item_id = db.Column(db.Integer, db.ForeignKey("menu_items.id"), nullable=False)
     quantity = db.Column(db.Numeric(5, 2))
+    printed_quantity = db.Column(db.Numeric(5, 2), default=0)  # NEW: Add this line
     price = db.Column(db.Numeric(10, 2), nullable=False)
-    vip_price = db.Column(db.Numeric(10, 2))  # VIP price support
+    vip_price = db.Column(db.Numeric(10, 2))
     notes = db.Column(db.Text)
     prep_tag = db.Column(db.String(20))
     status = db.Column(db.String(20), default="pending")
@@ -82,6 +87,7 @@ class OrderItem(db.Model):
 
     order = db.relationship("Order", back_populates="items")
     menu_item = db.relationship("MenuItem")
+
 # ---------------------- Kitchen Tag Counter ---------------------- #
 # This table tracks the last used tag number for each day    
 
@@ -91,24 +97,25 @@ class KitchenTagCounter(db.Model):
     date = db.Column(db.Date, nullable=False, unique=True)
     last_number = db.Column(db.Integer, default=0)
 
-# ---------------------- Print Queue ---------------------- #
-# Stores pending print jobs for each station (e.g., Kitchen, Bar, Butchery)
+# ---------------------- Print JObs ---------------------- #
 class PrintJob(db.Model):
     __tablename__ = "print_jobs"
     id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey("orders.id"), nullable=False)
+    station_id = db.Column(db.Integer, db.ForeignKey("stations.id"), nullable=True)
+
+    type = db.Column(db.String(20), default="station")  # "station" or "cashier"
+    items_data = db.Column(db.JSON, nullable=False)
+
+    status = db.Column(db.String(20), default="pending")
+    error_message = db.Column(db.Text, nullable=True)
+    printed_at = db.Column(db.DateTime, nullable=True)
+    attempts = db.Column(db.Integer, default=0)
     
-    order_id = db.Column(db.Integer, db.ForeignKey("orders.id"), nullable=False)  
-    station_id = db.Column(db.Integer, db.ForeignKey("stations.id"), nullable=False)
-    
-    # store grouped items per station as JSON for flexibility
-    items_data = db.Column(db.JSON, nullable=False)  
-    
-    status = db.Column(db.String(20), default="pending")  # pending, printed, failed
-    attempts = db.Column(db.Integer, default=0)  # retry tracking
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    order = db.relationship("Order", backref="print_jobs")
+    order = db.relationship("Order", back_populates="print_jobs")  # ✅ matches Order.print_jobs
     station = db.relationship("Station", backref="print_jobs")
 
 # ---------------------- Categories and Subcategories ---------------------- #

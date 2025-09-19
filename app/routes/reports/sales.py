@@ -10,7 +10,7 @@ reports_bp = Blueprint('reports_bp', __name__, url_prefix='/reports')
 
 @reports_bp.route('/sales-summary', methods=['GET', 'OPTIONS'])
 @jwt_required()
-@roles_required("admin", "manager")
+@roles_required("admin", "manager", "cashier")
 def sales_summary():
     if request.method == "OPTIONS":
         return jsonify({"status": "ok"}), 200
@@ -58,7 +58,7 @@ def sales_summary():
         and_(
             Order.created_at >= start_dt,
             Order.created_at < end_dt,
-            Order.status == 'closed',
+            Order.status == 'paid',
         )
     )
     # apply filters and group_by etc.

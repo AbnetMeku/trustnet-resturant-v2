@@ -9,7 +9,7 @@ import WaiterLogin from './pages/WaiterLogin';
 import StationLogin from './pages/StationLogin';
 import KDS from './pages/KDS';
 import { AuthProvider, useAuth } from './context/AuthContext';
-
+import { Toaster } from "react-hot-toast";
 // ----------------- Protected Route for normal users ----------------- //
 function ProtectedRoute({ children, roles }) {
   const { user } = useAuth();
@@ -38,6 +38,11 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+        {/* ----------------- Toaster for global toast notifications ----------------- */}
+      <Toaster
+        position="top-center"   // position doesn’t matter for custom, but good practice
+        containerStyle={{ top: 0, left: 0, right: 0, bottom: 0 }} // ensure full screen
+      />
         <Routes>
           {/* ----------------- Login Pages ----------------- */}
           <Route path="/login" element={<Login />} />

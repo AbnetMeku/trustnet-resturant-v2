@@ -71,11 +71,12 @@ export default function MenuManagement() {
     name: "",
     description: "",
     price: "",
-    vip_price: "", // NEW
+    vip_price: "",
     station_id: "",
     subcategory_id: "",
     is_available: true,
     image_url: "",
+    image_file: null,
   });
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -92,41 +93,90 @@ export default function MenuManagement() {
     fetchAll();
   }, []);
 
-const fetchAll = async () => {
-  try {
-    const [cats, subs, sts, items] = await Promise.all([
-      getCategories(),
-      getSubcategories(),
-      getStations(),
-      getMenuItems(),
-    ]);
+  const fetchAll = async () => {
+    try {
+      const [cats, subs, sts, items] = await Promise.all([
+        getCategories(),
+        getSubcategories(),
+        getStations(),
+        getMenuItems(),
+      ]);
 
-    // Convert price and vip_price to numbers
-    const normalizedItems = items.map((item) => ({
-      ...item,
-      price: Number(item.price),
-      vip_price: item.vip_price != null ? Number(item.vip_price) : null,
-    }));
+      // Convert price and vip_price to numbers or keep as null
+      const normalizedItems = items.map((item) => ({
+        ...item,
+        price: item.price != null ? Number(item.price) : null,
+        vip_price: item.vip_price != null ? Number(item.vip_price) : null,
+      }));
 
-    setCategories(cats);
-    setSubcategories(subs);
-    setStations(sts);
-    setMenuItems(normalizedItems);
-  } catch (e) {
-    console.error(e);
-    toast.error("Failed to load data", {
-      style: { background: "#ffeded", color: "#d32f2f" },
-    });
-  }
-};
-
-  const handleChange = (form, setForm) => (e) => {
-    const { name, value, type, checked } = e.target;
-    if (type === "checkbox") setForm({ ...form, [name]: checked });
-    else setForm({ ...form, [name]: value });
+      setCategories(cats);
+      setSubcategories(subs);
+      setStations(sts);
+      setMenuItems(normalizedItems);
+    } catch (e) {
+      console.error("Failed to fetch data:", e);
+      toast.error("Failed to load data", {
+        style: { background: "#ffeded", color: "#d32f2f" },
+      });
+    }
   };
 
-  // ---------------- CREATE / UPDATE ----------------
+  const handleChange = (form, setForm) => (e) => {
+    const { name, value, type, checked, files } = e.target;
+    if (type === "checkbox") {
+      setForm({ ...form, [name]: checked });
+    } else if (type === "file" && files[0]) {
+      // Validate file size (5MB limit) and type
+      if (files[0].size > 5 * 1024 * 1024) {
+        toast.error("Image size must be less than 5MB", {
+          style: { background: "#ffeded", color: "#d32f2f" },
+        });
+        return;
+      }
+      if (!["image/jpeg", "image/png"].includes(files[0].type)) {
+        toast.error("Only JPG and PNG images are allowed", {
+          style: { background: "#ffeded", color: "#d32f2f" },
+        });
+        return;
+      }
+      // Resize image and convert to base64
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 200;
+          const MAX_HEIGHT = 200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+          const base64 = canvas.toDataURL(files[0].type, 0.85);
+          setForm({ ...form, image_file: files[0], image_url: base64 });
+        };
+      };
+      reader.readAsDataURL(files[0]);
+    } else {
+      setForm({ ...form, [name]: value });
+    }
+  };
+
   const handleSubmitCategory = async () => {
     try {
       if (categoryForm.id)
@@ -143,7 +193,7 @@ const fetchAll = async () => {
         err?.response?.data?.error || "Failed to save category",
         { style: { background: "#ffeded", color: "#d32f2f" } }
       );
-      console.error(err);
+      console.error("Category submit error:", err);
     }
   };
 
@@ -168,7 +218,7 @@ const fetchAll = async () => {
         err?.response?.data?.error || "Failed to save subcategory",
         { style: { background: "#ffeded", color: "#d32f2f" } }
       );
-      console.error(err);
+      console.error("Subcategory submit error:", err);
     }
   };
 
@@ -177,10 +227,12 @@ const fetchAll = async () => {
       const payload = {
         name: menuForm.name,
         description: menuForm.description,
-        price: parseFloat(menuForm.price),
-        ...(menuForm.vip_price !== "" && {
-          vip_price: parseFloat(menuForm.vip_price),
-        }),
+        price: menuForm.price !== "" && !isNaN(parseFloat(menuForm.price))
+          ? parseFloat(menuForm.price)
+          : null,
+        vip_price: menuForm.vip_price !== "" && !isNaN(parseFloat(menuForm.vip_price))
+          ? parseFloat(menuForm.vip_price)
+          : null,
         station_id: parseInt(menuForm.station_id),
         subcategory_id: parseInt(menuForm.subcategory_id),
         is_available: menuForm.is_available,
@@ -204,20 +256,20 @@ const fetchAll = async () => {
         subcategory_id: "",
         is_available: true,
         image_url: "",
+        image_file: null,
       });
       setModalOpen(false);
       setCurrentItem(null);
       fetchAll();
     } catch (err) {
       toast.error(
-        err?.response?.data?.error || "Failed to save menu item",
+        err?.response?.data?.error || err.message || "Failed to save menu item",
         { style: { background: "#ffeded", color: "#d32f2f" } }
       );
-      console.error(err);
+      console.error("Menu item submit error:", err);
     }
   };
 
-  // ---------------- EDIT ----------------
   const handleEdit = (item, setForm, type) => {
     if (type === "category") setForm({ id: item.id, name: item.name });
     if (type === "subcategory")
@@ -227,53 +279,48 @@ const fetchAll = async () => {
         id: item.id,
         name: item.name,
         description: item.description,
-        price: item.price,
-        vip_price: item.vip_price ?? "", // NEW
+        price: item.price != null ? item.price : "",
+        vip_price: item.vip_price != null ? item.vip_price : "",
         station_id: item.station_id,
         subcategory_id: item.subcategory_id,
         is_available: item.is_available,
         image_url: item.image_url || "",
+        image_file: null,
       });
     setCurrentItem(item);
     setModalOpen(true);
   };
 
-  // ---------------- DELETE ----------------
   const confirmDelete = (id, deleteFunc, name, type) => {
     setDeleteTarget({ id, deleteFunc, name, type });
     setConfirmOpen(true);
   };
 
   const handleDeleteConfirmed = async () => {
-  if (!deleteTarget) return;
-  try {
-    await deleteTarget.deleteFunc(deleteTarget.id);
-    toast.success(`${deleteTarget.type} "${deleteTarget.name}" deleted`, {
-      style: { background: "#e0f7fa", color: "#006064" },
-    });
-    setConfirmOpen(false);
-    setDeleteTarget(null);
-    fetchAll();
-  } catch (err) {
-  const message =
-    err?.response?.data?.error ||
-    err?.response?.data?.message ||
-    `Failed to delete ${deleteTarget.type.toLowerCase()}`;
-  toast.error(message, { style: { background: "#ffeded", color: "#d32f2f" } });
-  setConfirmOpen(false);
-  setDeleteTarget(null);
-  console.error(err);
-}
-
-};
-
+    if (!deleteTarget) return;
+    try {
+      await deleteTarget.deleteFunc(deleteTarget.id);
+      toast.success(`${deleteTarget.type} "${deleteTarget.name}" deleted`, {
+        style: { background: "#e0f7fa", color: "#006064" },
+      });
+      setConfirmOpen(false);
+      setDeleteTarget(null);
+      fetchAll();
+    } catch (err) {
+      const message =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        `Failed to delete ${deleteTarget.type.toLowerCase()}`;
+      toast.error(message, { style: { background: "#ffeded", color: "#d32f2f" } });
+      console.error("Delete error:", err);
+    }
+  };
 
   const cancelDelete = () => {
     setConfirmOpen(false);
     setDeleteTarget(null);
   };
 
-  // ---------------- FILTERS ----------------
   const filteredMenuItems = menuItems.filter((item) => {
     const itemCategoryId = subcategories.find(
       (sc) => sc.id === item.subcategory_id
@@ -297,7 +344,6 @@ const fetchAll = async () => {
       sc.category_id === parseInt(subcategoryCatFilter)
   );
 
-  // ---------------- RENDER ----------------
   const openAddModal = () => {
     setCurrentItem(null);
     if (tab === "categories") setCategoryForm({ id: null, name: "" });
@@ -314,6 +360,7 @@ const fetchAll = async () => {
         subcategory_id: "",
         is_available: true,
         image_url: "",
+        image_file: null,
       });
     setModalOpen(true);
   };
@@ -511,11 +558,12 @@ const fetchAll = async () => {
                 </div>
               )}
 
-              {/* Base price in upper-left (shifted down to avoid overlap) */}
-              <div className="absolute top-0 left-0 bg-white dark:bg-gray-800 px-1 py-1 font-bold rounded shadow text-lg">
-                ${Number(item.price).toFixed(2)}
-              </div>
-
+              {/* Base price in upper-left */}
+              {item.price != null && (
+                <div className="absolute top-0 left-0 bg-white dark:bg-gray-800 px-1 py-1 font-bold rounded shadow text-lg">
+                  ${Number(item.price).toFixed(2)}
+                </div>
+              )}
 
               {/* Availability LED in upper-right */}
               <div
@@ -525,11 +573,22 @@ const fetchAll = async () => {
               />
 
               {/* Image / placeholder */}
-              {item.image_url ? (
+              {item.image_url && item.image_url.startsWith("data:image/") ? (
                 <img
                   src={item.image_url}
                   alt={item.name}
                   className="w-full h-32 object-cover"
+                  onError={(e) => {
+                    console.error(
+                      `Failed to load image for menu item ${item.id} (${item.name})`
+                    );
+                    toast.error(`Failed to load image for ${item.name}`, {
+                      style: { background: "#ffeded", color: "#d32f2f" },
+                      id: `image-error-${item.id}`,
+                    });
+                    e.target.src = "/placeholder.png";
+                    e.target.onerror = null;
+                  }}
                 />
               ) : (
                 <div className="w-full h-32 bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-300 text-sm">
@@ -647,9 +706,8 @@ const fetchAll = async () => {
                       name="price"
                       value={menuForm.price || ""}
                       onChange={handleChange(menuForm, setMenuForm)}
-                      placeholder="Price"
+                      placeholder="Price (optional)"
                       className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
-                      required
                     />
                     <input
                       type="number"
@@ -693,18 +751,28 @@ const fetchAll = async () => {
                   </select>
 
                   <input
-                    type="text"
-                    name="image_url"
-                    value={menuForm.image_url || ""}
+                    type="file"
+                    name="image_file"
+                    accept="image/*"
                     onChange={handleChange(menuForm, setMenuForm)}
-                    placeholder="Image URL"
                     className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
                   />
-                  {menuForm.image_url && (
+                  {menuForm.image_url && menuForm.image_url.startsWith("data:image/") && (
                     <img
                       src={menuForm.image_url}
                       alt="Preview"
                       className="w-32 h-32 object-cover my-2"
+                      onError={(e) => {
+                        console.error(
+                          `Failed to load image preview for menu item ${menuForm.id || 'new'} (${menuForm.name})`
+                        );
+                        toast.error("Failed to load image preview", {
+                          style: { background: "#ffeded", color: "#d32f2f" },
+                          id: "image-preview-error",
+                        });
+                        e.target.src = "/placeholder.png";
+                        e.target.onerror = null;
+                      }}
                     />
                   )}
 

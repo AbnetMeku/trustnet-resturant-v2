@@ -1,49 +1,63 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react"; 
 import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
 import { fetchOrders, addOrderItems, updateOrderStatus } from "@/api/orders";
+import { getTables, updateTable } from "@/api/tables";
 import ActiveMenuSelection from "./ActiveMenuSelection";
 import ActiveOrderSummary from "./ActiveOrderSummary";
 import { Button } from "@/components/ui/button";
 
 export default function ActiveOrders({ goBack }) {
-  const { authToken } = useAuth();
+  const { authToken, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [openOrders, setOpenOrders] = useState([]);
-  const [step, setStep] = useState("list"); // list | menu | summary
+  const [step, setStep] = useState("list");
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
-
-  // New state to track order ID pending close confirmation
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(null);
   const [confirmCloseId, setConfirmCloseId] = useState(null);
+  const [detailsOrder, setDetailsOrder] = useState(null);
 
-  // Load open orders
   useEffect(() => {
-    if (!authToken) return;
+    if (!authToken || !user) return;
 
-    const loadOpenOrders = async () => {
+    const loadOrdersAndTables = async () => {
       try {
         setLoading(true);
-        const orders = await fetchOrders(authToken, { status: "open" });
-        setOpenOrders(orders);
+
+        // Fetch all tables and open orders in parallel
+        const [tables, orders] = await Promise.all([
+          getTables(authToken),
+          fetchOrders(authToken, { status: "open" })
+        ]);
+
+        // Get table IDs assigned to this waiter
+        const assignedTableIds = tables
+          .filter(t => t.waiters?.some(w => w.id === user.id))
+          .map(t => t.id);
+
+        // Filter orders to only include assigned tables
+        const myOrders = orders.filter(o => assignedTableIds.includes(o.table_id));
+
+        setOpenOrders(myOrders);
       } catch (err) {
-        toast.error(err.message || "Failed to fetch orders");
+        toast.error(err.message || "Failed to load orders");
       } finally {
         setLoading(false);
       }
     };
 
-    loadOpenOrders();
-  }, [authToken]);
+    loadOrdersAndTables();
+  }, [authToken, user]);
 
-  // Select an order to update
+  // --- Order manipulation ---
   const selectOrder = (order) => {
     setSelectedOrder(order);
-    setOrderItems([]); // start with empty cart for new additions
+    setOrderItems([]);
     setStep("menu");
   };
 
-  // Add item handler
   const addItem = (item) => {
     const increment = item.increment || 1;
     setOrderItems((prev) => {
@@ -57,8 +71,9 @@ export default function ActiveOrders({ goBack }) {
     });
   };
 
-  // Remove or update quantity
-  const removeItem = (itemId) => setOrderItems((prev) => prev.filter((i) => i.menu_item_id !== itemId));
+  const removeItem = (itemId) =>
+    setOrderItems((prev) => prev.filter((i) => i.menu_item_id !== itemId));
+
   const updateQuantity = (itemId, delta) => {
     setOrderItems((prev) =>
       prev
@@ -73,45 +88,61 @@ export default function ActiveOrders({ goBack }) {
     );
   };
 
-  // Go to summary
   const nextStep = () => setStep("summary");
-  const prevStep = () => {
-    if (step === "summary") setStep("menu");
-    else if (step === "menu") setStep("list");
-  };
+  const prevStep = () => setStep(step === "summary" ? "menu" : "list");
 
-  // Save updated items to backend
-  const handleSave = async () => {
-    if (!authToken) return;
+  const refreshOrders = async () => {
     try {
-      const itemsToSend = orderItems.map((i) => ({
-        menu_item_id: i.menu_item_id,
-        quantity: i.quantity,
-        notes: i.notes || "",
-      }));
-      await addOrderItems(authToken, selectedOrder.id, itemsToSend);
-      toast.success("Order updated successfully!");
-      setStep("list");
-      setSelectedOrder(null);
-      setOrderItems([]);
-      // Reload orders
-      const orders = await fetchOrders(authToken, { status: "open" });
-      setOpenOrders(orders);
-    } catch (err) {
-      toast.error(err.message || "Failed to update order");
+      const [tables, orders] = await Promise.all([
+        getTables(authToken),
+        fetchOrders(authToken, { status: "open" })
+      ]);
+      const assignedTableIds = tables
+        .filter(t => t.waiters?.some(w => w.id === user.id))
+        .map(t => t.id);
+      setOpenOrders(orders.filter(o => assignedTableIds.includes(o.table_id)));
+    } catch {
+      // ignore
     }
   };
 
-  // Close order handler after confirmation
+  const handleSave = async () => {
+    if (!authToken || !selectedOrder) return;
+    try {
+      const itemsToSend = orderItems.map(i => ({
+        menu_item_id: i.menu_item_id,
+        quantity: i.quantity,
+        notes: i.notes || ""
+      }));
+
+      await addOrderItems(authToken, selectedOrder.id, itemsToSend);
+      setShowSuccessModal(true);
+      await refreshOrders();
+
+      setTimeout(() => {
+        setShowSuccessModal(false);
+        setStep("list");
+        setSelectedOrder(null);
+        setOrderItems([]);
+      }, 2000);
+    } catch (err) {
+      setShowErrorModal(err.message || "Failed to update order");
+    }
+  };
+
   const handleCloseOrder = async (orderId) => {
     if (!authToken) return;
     try {
       await updateOrderStatus(authToken, orderId, "closed");
-      toast.success("Order closed successfully!");
-      // Reload open orders
-      const orders = await fetchOrders(authToken, { status: "open" });
-      setOpenOrders(orders);
-      // Reset selection if closing currently selected order
+
+      const order = openOrders.find(o => o.id === orderId);
+      if (order?.table_id) {
+        await updateTable(order.table_id, { status: "available" }, authToken);
+      }
+
+      toast.success("ትዕዛዙ ተዘግቷል!");
+      await refreshOrders();
+
       if (selectedOrder?.id === orderId) {
         setSelectedOrder(null);
         setOrderItems([]);
@@ -120,11 +151,11 @@ export default function ActiveOrders({ goBack }) {
     } catch (err) {
       toast.error(err.message || "Failed to close order");
     } finally {
-      setConfirmCloseId(null); // Reset confirmation popup state
+      setConfirmCloseId(null);
     }
   };
 
-  // Render logic
+  // --- Step rendering ---
   if (step === "menu" && selectedOrder)
     return (
       <ActiveMenuSelection
@@ -150,68 +181,99 @@ export default function ActiveOrders({ goBack }) {
       />
     );
 
-// Default: list view
-return (
-  <div className="p-4">
-    <div className="flex items-center justify-between mb-4">
-      <h2 className="text-2xl font-bold">Open Orders</h2>
-      <Button variant="outline" onClick={goBack}>
-        ← Back
-      </Button>
-    </div>
-
-    {loading ? (
-      <p>Loading orders...</p>
-    ) : openOrders.length === 0 ? (
-      <p>No open orders</p>
-    ) : (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {openOrders.map((order) => (
-          <div
-            key={order.id}
-            className="border rounded-lg p-4 shadow cursor-pointer hover:shadow-lg transition flex flex-col justify-between"
-          >
-            <div onClick={() => selectOrder(order)}>
-              <h3 className="font-bold text-lg mb-2">Table {order.table_id}</h3>
-              <p>Total: ${order.total_amount.toFixed(2)}</p>
-              <p>Items: {order.items.length}</p>
-              <p>Status: {order.status}</p>
-            </div>
-            {confirmCloseId === order.id ? (
-              <div className="flex space-x-2 mt-2">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleCloseOrder(order.id)}
-                  aria-label={`Confirm close order ${order.id}`}
-                >
-                  Confirm Close
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setConfirmCloseId(null)}
-                  aria-label="Cancel close order"
-                >
-                  Cancel
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setConfirmCloseId(order.id)}
-                className="mt-2 self-start"
-                aria-label={`Close order ${order.id}`}
-              >
-                Close Order
-              </Button>
-            )}
-          </div>
-        ))}
+  // --- Default list ---
+  return (
+    <div className="p-4">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold">የተከፈተ ትዕዛዝ</h2>
+        <Button variant="outline" onClick={goBack}>← Back</Button>
       </div>
-    )}
-  </div>
-);
 
+      {loading ? (
+        <p>Loading orders...</p>
+      ) : openOrders.length === 0 ? (
+        <p className="text-gray-500">ምንም የተከፈተ ትዕዛዝ የለም</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          
+          {openOrders.map(order => (
+            <div key={order.id} className="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border rounded-2xl p-5 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all flex flex-col justify-between">
+              {/* <button
+                onClick={e => { e.stopPropagation(); setConfirmCloseId(order.id); }}
+                className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-red-500 hover:text-white transition"
+              >
+                ዝጋ
+              </button> */}
+
+              <div onClick={() => selectOrder(order)} className="cursor-pointer">
+                <h3 className="font-bold text-xl mb-2 text-gray-900 dark:text-white">Table {order.table.number}</h3>
+                <span className="inline-block px-3 py-1 text-sm font-semibold bg-blue-100 text-blue-700 rounded-full dark:bg-blue-900 dark:text-blue-200">
+                  ጠቅላላ ዋጋ: ${order.total_amount.toFixed(2)}
+                </span>
+              </div>
+              <Button className="mt-4" variant="outline" onClick={() => setDetailsOrder(order)}>
+                ዝርዝር ይመልከቱ
+              </Button>
+              { <Button
+                className="mt-3"
+                variant="destructive"
+                onClick={() => setConfirmCloseId(order.id)}
+              >
+                ትዕዛዝ ዝጋ
+              </Button> }
+
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Confirm Close Modal */}
+      {confirmCloseId && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-11/12 max-w-md">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">እርግጠኛ ነዎት ይህ ትዕዛዝ ይዘጋ?</h3>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setConfirmCloseId(null)}>አይ</Button>
+              <Button variant="destructive" onClick={() => handleCloseOrder(confirmCloseId)}>አዎ ዝጋ</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Details Modal */}
+      {detailsOrder && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-11/12 max-w-lg">
+            <h3 className="text-xl font-bold mb-4">Table {detailsOrder.table.number} - ትዕዛዝ #{detailsOrder.id}</h3>
+            <div className="max-h-80 overflow-y-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b dark:border-gray-600">
+                    <th className="pb-2">ትዛዝ</th>
+                    <th className="pb-2">ብዛት</th>
+                    <th className="pb-2">ዋጋ</th>
+                    <th className="pb-2">አጠቃላይ ዋጋ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detailsOrder.items.map(item => (
+                    <tr key={item.id} className="border-b dark:border-gray-700">
+                      <td>{item.name}</td>
+                      <td>{item.quantity}</td>
+                      <td>${item.price.toFixed(2)}</td>
+                      <td>${(item.price * item.quantity).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-4 font-bold text-right">አጠቃላይ: ${detailsOrder.total_amount.toFixed(2)}</p>
+            <div className="flex justify-end mt-4">
+              <Button onClick={() => setDetailsOrder(null)}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

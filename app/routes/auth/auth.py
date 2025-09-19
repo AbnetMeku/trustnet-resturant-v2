@@ -66,8 +66,6 @@ def login_waiter_pin():
         access_token=access_token,
         user={"id": user.id, "username": user.username, "role": user.role}
     ), 200
-
-
 # ----------------- Station PIN Login ----------------- #
 @auth_bp.route('/pin/station', methods=['POST'])
 def login_station_pin():
@@ -84,10 +82,15 @@ def login_station_pin():
         return jsonify({"msg": "Invalid PIN"}), 401
 
     access_token = create_access_token(
-        identity=str(station.id),
-        additional_claims={"role": "station", "station_name": station.name},
+        identity=str(station.id),   # ✅ clean station ID
+        additional_claims={
+            "role": "station",
+            "station_id": station.id,
+            "station_name": station.name
+        },
         expires_delta=timedelta(hours=12)
     )
+
     return jsonify(
         access_token=access_token,
         station={"id": station.id, "name": station.name, "role": "station"}

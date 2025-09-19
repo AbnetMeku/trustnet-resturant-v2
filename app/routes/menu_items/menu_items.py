@@ -26,8 +26,8 @@ def menu_item_to_dict(item: MenuItem):
         "id": item.id,
         "name": item.name,
         "description": item.description,
-        "price": Decimal(item.price) if item.price is not None else None,
-        "vip_price": Decimal(item.vip_price) if item.vip_price is not None else None,
+        "price": float(item.price) if item.price is not None else None,
+        "vip_price": float(item.vip_price) if item.vip_price is not None else None,
         "is_available": item.is_available,
         "image_url": item.image_url,
         "station_id": item.station_id,
@@ -89,7 +89,7 @@ def create_menu_item():
     station_id = data.get("station_id")
     subcategory_id = data.get("subcategory_id")
     is_available = data.get("is_available", True)
-    image_url = data.get("image_url")
+    image_url = data.get("image_url", "")
 
     # Validate required fields
     if not name or not isinstance(name, str) or not name.strip():
@@ -97,9 +97,9 @@ def create_menu_item():
     name = name.strip()
     if len(name) > 120:
         return error_response("Name exceeds 120 characters", 400)
-    if price is None or not isinstance(price, (int, Decimal)) or price < 0:
-        return error_response("Price is required and must be a non-negative number", 400)
-    if vip_price is not None and not isinstance(vip_price, (int, Decimal)) or vip_price < 0:
+    if price is not None and (not isinstance(price, (int, float, Decimal)) or price < 0):
+        return error_response("Price must be a non-negative number or null", 400)
+    if vip_price is not None and (not isinstance(vip_price, (int, float, Decimal)) or vip_price < 0):
         return error_response("VIP price must be a non-negative number or null", 400)
     if not isinstance(station_id, int):
         return error_response("Station ID must be an integer", 400)
@@ -107,8 +107,8 @@ def create_menu_item():
         return error_response("Subcategory ID must be an integer", 400)
     if not isinstance(is_available, bool):
         return error_response("is_available must be a boolean", 400)
-    if image_url is not None and (not isinstance(image_url, str) or len(image_url) > 255):
-        return error_response("Image URL must be a string up to 255 characters or null", 400)
+    if image_url and not image_url.startswith("data:image/"):
+        return error_response("Image URL must be a base64 data URL or empty", 400)
 
     station = db.session.get(Station, station_id)
     if not station:
@@ -127,8 +127,8 @@ def create_menu_item():
     item = MenuItem(
         name=name,
         description=description,
-        price=Decimal(str(price)),
-        vip_price=Decimal(vip_price) if vip_price is not None else None,
+        price=Decimal(str(price)) if price is not None else None,
+        vip_price=Decimal(str(vip_price)) if vip_price is not None else None,
         station_id=station_id,
         subcategory_id=subcategory_id,
         is_available=is_available,
@@ -193,14 +193,14 @@ def update_menu_item(item_id):
         item.subcategory_id = subcategory.id
 
     if "price" in data:
-        if not isinstance(data["price"], (int, Decimal)) or data["price"] < 0:
-            return error_response("Price must be a non-negative number", 400)
-        item.price = Decimal(str(data["price"]))
+        if data["price"] is not None and (not isinstance(data["price"], (int, float, Decimal)) or data["price"] < 0):
+            return error_response("Price must be a non-negative number or null", 400)
+        item.price = Decimal(str(data["price"])) if data["price"] is not None else None
 
     if "vip_price" in data:
-        if data["vip_price"] is not None and (not isinstance(data["vip_price"], (int, Decimal)) or data["vip_price"] < 0):
+        if data["vip_price"] is not None and (not isinstance(data["vip_price"], (int, float, Decimal)) or data["vip_price"] < 0):
             return error_response("VIP price must be a non-negative number or null", 400)
-        item.vip_price = Decimal(data["vip_price"]) if data["vip_price"] is not None else None
+        item.vip_price = Decimal(str(data["vip_price"])) if data["vip_price"] is not None else None
 
     if "is_available" in data:
         if not isinstance(data["is_available"], bool):
@@ -213,9 +213,10 @@ def update_menu_item(item_id):
         item.description = data["description"]
 
     if "image_url" in data:
-        if data["image_url"] is not None and (not isinstance(data["image_url"], str) or len(data["image_url"]) > 255):
-            return error_response("Image URL must be a string up to 255 characters or null", 400)
-        item.image_url = data["image_url"]
+        image_url = data["image_url"]
+        if image_url and not image_url.startswith("data:image/"):
+            return error_response("Image URL must be a base64 data URL or empty", 400)
+        item.image_url = image_url if image_url else None
 
     try:
         db.session.commit()

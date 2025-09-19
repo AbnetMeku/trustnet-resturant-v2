@@ -1,86 +1,93 @@
 import React, { useEffect, useState } from "react";
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-} from "recharts";
-
-import { fetchOrders } from "@/api/orders";
-import { getUsers } from "@/api/users";
-import { getSalesSummary } from "@/api/reportApi";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 export default function AdminDashboard() {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  // Get token from localStorage or adjust as needed
+  const [dateFilter, setDateFilter] = useState("today"); // today | last7 | last30
   const token = localStorage.getItem("auth_token");
 
+  function getDateRange(filter) {
+    const today = new Date();
+    let startDate, endDate;
+    endDate = today.toISOString().slice(0, 10);
+
+    if (filter === "today") startDate = endDate;
+    else if (filter === "last7") {
+      const d = new Date();
+      d.setDate(today.getDate() - 6);
+      startDate = d.toISOString().slice(0, 10);
+    } else if (filter === "last30") {
+      const d = new Date();
+      d.setDate(today.getDate() - 29);
+      startDate = d.toISOString().slice(0, 10);
+    }
+    return { startDate, endDate };
+  }
+
   useEffect(() => {
+    if (!token) {
+      setError("Authentication token missing.");
+      setLoading(false);
+      return;
+    }
+
     async function loadData() {
       try {
         setLoading(true);
+        const { startDate, endDate } = getDateRange(dateFilter);
 
-        // 1. Fetch all orders
-        const allOrders = await fetchOrders(token);
+        const res = await fetch(
+          `/api/order-history/summary-range?start_date=${startDate}&end_date=${endDate}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
 
-        // 2. Count orders by status
-        const orderStatusCounts = { open: 0, closed: 0, paid: 0 };
-        allOrders.forEach(o => {
-          const status = (o.status || "").toLowerCase();
-          if (orderStatusCounts[status] !== undefined) {
-            orderStatusCounts[status]++;
-          }
-        });
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.message || "Failed to fetch summary");
+        }
 
-        // 3. Fetch all waiters
-        const waiters = await getUsers("waiter", token);
+        const summary = await res.json();
 
-        // 4. Aggregate waiters sales count from orders
-        const waiterSalesMap = {};
-        allOrders.forEach(o => {
-          if (o.waiter_id) {
-            waiterSalesMap[o.waiter_id] = (waiterSalesMap[o.waiter_id] || 0) + (o.total_amount || 0);
-          }
-        });
-        const topWaiters = waiters.map(w => ({
-          id: w.id,
-          name: w.username || w.name,
-          salesCount: waiterSalesMap[w.id] || 0,
-        })).sort((a, b) => b.salesCount - a.salesCount).slice(0, 5);
+        // ✅ Fixed status counts
+        const openOrders = summary.waiterSummary.reduce((sum, w) => sum + w.openOrders, 0);
+        const closedOrders = summary.waiterSummary.reduce((sum, w) => sum + w.closedOrders, 0);
+        const paidOrders = summary.waiterSummary.reduce((sum, w) => sum + w.paidOrders, 0);
 
-        // 5. Fetch today's sales summary
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const salesSummary = await getSalesSummary(todayStr, todayStr, null, null, token);
+        const orderStatusData = [
+          { status: "Open", count: openOrders },
+          { status: "Closed", count: closedOrders },
+          { status: "Paid", count: paidOrders },
+        ];
 
-        // 6. Calculate top selling items from all orders' items
-        const itemSalesMap = {};
-        allOrders.forEach(order => {
-          if (order.items) {
-            order.items.forEach(item => {
-              const key = `${item.menu_item_id}-${item.name || ""}`;
-              if (!itemSalesMap[key]) {
-                itemSalesMap[key] = { id: item.menu_item_id, name: item.name, count: 0 };
-              }
-              itemSalesMap[key].count += item.quantity || 0;
-            });
-          }
-        });
-        const topItems = Object.values(itemSalesMap)
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 5);
+        // Top items
+        const topItems = summary.dailyItemsSummary
+          .sort((a, b) => b.quantity - a.quantity)
+          .slice(0, 5)
+          .map(item => ({ id: item.name, name: item.name, count: item.quantity }));
 
-        // 7. Set all collected metrics into state
+        // Top waiters by total money
+        const topWaiters = summary.waiterSummary
+          .sort(
+            (a, b) =>
+              b.paidAmount + b.closedAmount + b.openAmount -
+              (a.paidAmount + a.closedAmount + a.openAmount)
+          )
+          .slice(0, 5)
+          .map(w => ({
+            id: w.waiterId,
+            name: w.waiterName,
+            salesCount: (w.paidAmount + w.closedAmount + w.openAmount).toFixed(2),
+          }));
+
         setMetrics({
-          openOrders: orderStatusCounts.open,
-          closedOrders: orderStatusCounts.closed,
-          paidOrders: orderStatusCounts.paid,
-          todayTotalSales: salesSummary ? salesSummary.grand_totals.total_amount : 0,
-          grandTotalSales: salesSummary ? salesSummary.grand_totals.total_amount : 0,
-          orderStatusData: [
-            { status: "Open", count: orderStatusCounts.open },
-            { status: "Closed", count: orderStatusCounts.closed },
-            { status: "Paid", count: orderStatusCounts.paid },
-          ],
+          openOrders,
+          closedOrders,
+          paidOrders,
+          todayTotalSales: summary.paidAmount + summary.closedAmount + summary.openAmount,
+          grandTotalSales: summary.paidAmount + summary.closedAmount + summary.openAmount,
+          orderStatusData,
           topItems,
           topWaiters,
         });
@@ -91,9 +98,9 @@ export default function AdminDashboard() {
         setLoading(false);
       }
     }
-    if (token) loadData();
-    else setError("Authentication token missing.");
-  }, [token]);
+
+    loadData();
+  }, [token, dateFilter]);
 
   if (loading) return <p className="p-4">Loading dashboard...</p>;
   if (error) return <p className="p-4 text-red-600">{error}</p>;
@@ -101,6 +108,20 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-4 space-y-8 dark:bg-gray-900 dark:text-gray-100 min-h-screen">
+      {/* Date Range Filter */}
+      <div className="mb-4">
+        <label className="mr-2 font-semibold">Date Range:</label>
+        <select
+          value={dateFilter}
+          onChange={e => setDateFilter(e.target.value)}
+          className="border rounded px-2 py-1 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600"
+        >
+          <option value="today">Today</option>
+          <option value="last7">Last 7 Days</option>
+          <option value="last30">Last 30 Days</option>
+        </select>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <Card bgColor="bg-indigo-700" title="Open Orders" value={metrics.openOrders} />
@@ -110,13 +131,13 @@ export default function AdminDashboard() {
 
       {/* Sales Totals */}
       <div className="bg-yellow-500 text-white rounded-lg shadow p-6">
-        <h3 className="text-xl font-semibold mb-2">Today's Total Sales</h3>
-        <p className="text-5xl font-extrabold">${metrics.todayTotalSales.toLocaleString()}</p>
-        <h4 className="mt-4 font-semibold">Grand Total Sales</h4>
-        <p className="text-3xl">${metrics.grandTotalSales.toLocaleString()}</p>
+        <h3 className="text-xl font-semibold mb-2">Total Sales</h3>
+        <p className="text-5xl font-extrabold">
+          ${metrics.todayTotalSales.toLocaleString()}
+        </p>
       </div>
 
-      {/* Order Status Bar Chart
+      {/* Order Status Chart */}
       <div className="bg-white rounded-lg shadow p-6 dark:bg-gray-800">
         <h3 className="text-lg font-semibold mb-4">Order Status Breakdown</h3>
         <ResponsiveContainer width="100%" height={250}>
@@ -127,12 +148,12 @@ export default function AdminDashboard() {
             <Bar dataKey="count" fill="#3b82f6" />
           </BarChart>
         </ResponsiveContainer>
-      </div> */}
+      </div>
 
       {/* Top Items and Waiters */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ListBlock title="Top Selling Items" items={metrics.topItems} />
-        <ListBlock title="Top Waiters" items={metrics.topWaiters} />
+        <ListBlock title="Top Waiters" items={metrics.topWaiters} money />
       </div>
     </div>
   );
@@ -147,14 +168,15 @@ function Card({ bgColor, title, value }) {
   );
 }
 
-function ListBlock({ title, items }) {
+function ListBlock({ title, items, money }) {
   return (
     <div className="bg-white rounded-lg shadow p-6 dark:bg-gray-800">
       <h3 className="text-lg font-semibold mb-4">{title}</h3>
       <ul className="list-disc list-inside space-y-1">
-        {items.map(({ id, name, salesCount }) => (
+        {items.map(({ id, name, salesCount, count }) => (
           <li key={id}>
-            {name} - {(salesCount ?? 0).toLocaleString()} sales
+            {name} -{" "}
+            {money ? `$${salesCount}` : (salesCount ?? count ?? 0).toLocaleString()} sales
           </li>
         ))}
       </ul>

@@ -33,7 +33,7 @@ export default function WaiterLogin() {
     }
     setError('');
     try {
-      const res = await axios.post('http://localhost:5000/auth/pin/waiter', { pin: submittedPin });
+      const res = await axios.post('/api/auth/pin/waiter', { pin: submittedPin });
       login(res.data.user, res.data.access_token); // use updated AuthContext login
     } catch (err) {
       setError(err.response?.data?.msg || 'Invalid PIN');
@@ -48,7 +48,7 @@ export default function WaiterLogin() {
 
       <div className="relative z-10 bg-white/20 backdrop-blur-md shadow-2xl rounded-xl p-6 md:p-10 w-full max-w-xs md:max-w-sm flex flex-col items-center">
         <img src="/logo.png" alt="TrustNet Logo" className="w-20 md:w-24 mx-auto mb-6" />
-        <h2 className="text-2xl md:text-3xl font-bold mb-4 text-center text-white">Waiter Sign In</h2>
+        <h2 className="text-2xl md:text-3xl font-bold mb-4 text-center text-white">አስተናጋጅ ቁጥር</h2>
         {error && <p className="text-red-500 text-center mb-4 text-sm md:text-base">{error}</p>}
 
         {/* PIN display */}

@@ -65,7 +65,7 @@ def get_table(table_id):
 # ---- UPDATE TABLE ----
 @tables_bp.route("/<int:table_id>", methods=["PUT"])
 @jwt_required()
-@roles_required("admin", "manager")
+@roles_required("admin", "manager", "waiter")
 def update_table(table_id):
     table = db.session.get(Table, table_id)
     if not table:
