@@ -1,17 +1,9 @@
 import React, { useState, useEffect } from "react";
-import {
-  FaUserPlus,
-  FaTable,
-  FaStore,
-  FaUtensils,
-  FaBars,
-  FaChartBar,
-  FaUser, 
-  FaUsers, 
-  FaReceipt, 
-  FaPrint, 
-  FaFileAlt 
+import { 
+  FaUserPlus, FaTable, FaStore, FaUtensils, FaBars, FaChartBar,
+  FaUser, FaUsers, FaReceipt, FaPrint, FaFileAlt, FaBoxes
 } from "react-icons/fa";
+
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "../context/AuthContext";
@@ -21,6 +13,7 @@ import TableManagement from "@/components/admin/TableManagement";
 import StationManagement from "@/components/admin/StationManagement";
 import MenuManagement from "@/components/admin/MenuManagement";
 import SalesSummaryReport from "@/components/admin/SalesSummaryReport";
+import InventoryManagement from "@/components/admin/InventoryManagement";
 import OverView from "@/components/admin/OverView";
 import OrderTracker from "@/components/admin/OrderTracker"; 
 import PrintJobs from "@/components/admin/PrintJobs"; 
@@ -73,7 +66,7 @@ export default function AdminDashboard() {
     { id: "order", icon: FaReceipt, label: "Order Tracker" },
     { id: "print", icon: FaPrint, label: "Print Jobs" },
     { id: "reports", icon: FaFileAlt, label: "Reports" },
-
+    { id: "inventory", icon: FaBoxes, label: "Inventory" },
   ];
 
   return (
@@ -190,21 +183,27 @@ export default function AdminDashboard() {
               </Card>
             )}
 
-{active === "reports" && (
-  <Card className="p-6 w-full overflow-auto max-h-[80vh]">
-    <SalesSummaryReport />
-  </Card>
-)}
-{active === "order" && (
-  <Card className="p-6 w-full overflow-auto max-h-[80vh]">
-    <OrderTracker />
-  </Card>
-)}
-{active === "print" && (
-  <Card className="p-6 w-full overflow-auto max-h-[80vh]">
-    <PrintJobs />
-  </Card>
-)}
+            {active === "reports" && (
+              <Card className="p-6 w-full overflow-auto max-h-[80vh]">
+                <SalesSummaryReport />
+              </Card>
+            )}
+            {active === "order" && (
+              <Card className="p-6 w-full overflow-auto max-h-[80vh]">
+                <OrderTracker />
+              </Card>
+            )}
+            {active === "print" && (
+              <Card className="p-6 w-full overflow-auto max-h-[80vh]">
+                <PrintJobs />
+              </Card>
+            )}
+            {active === "inventory" && (
+              <Card className="p-6 w-full">
+                <InventoryManagement />
+              </Card>
+            )}
+
           </main>
         </div>
       </div>

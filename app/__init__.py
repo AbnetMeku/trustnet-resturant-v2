@@ -28,6 +28,8 @@ def create_app(config_name="development"):
     
     # Ensure models are imported
     from . import models
+    from .models import inventory_models
+
 
     # Helper function to register blueprints under /api
     def register_api(bp):
@@ -76,7 +78,9 @@ def create_app(config_name="development"):
 
     from .routes.orders.order_history import order_history_bp
     register_api(order_history_bp)
-    # from .routes.menu_items.upload import upload_bp
-    # register_api(upload_bp) 
+ 
+# ------------------- Inventory Blueprint ------------------- #
+    from .routes.inventory.inventory import inventory_bp
+    register_api(inventory_bp)
 
     return app
