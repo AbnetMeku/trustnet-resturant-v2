@@ -7,6 +7,20 @@ const axiosInstance = axios.create({
   timeout: 10000,
 });
 
+// Fetch all orders for a single day (raw, non-aggregated)
+export const fetchOrderHistoryRaw = async (token, filters = {}) => {
+  if (!filters.date) {
+    throw new Error("date filter is required for daily order history");
+  }
+
+  const params = new URLSearchParams(filters);
+  const res = await axiosInstance.get(`/order-history/raw?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
+};
+
+// Existing handlers
 export const fetchOrderHistory = async (token, filters = {}) => {
   const params = new URLSearchParams(filters);
   const res = await axiosInstance.get(`/order-history/?${params.toString()}`, {

@@ -13,10 +13,11 @@ import TableManagement from "@/components/admin/TableManagement";
 import StationManagement from "@/components/admin/StationManagement";
 import MenuManagement from "@/components/admin/MenuManagement";
 import SalesSummaryReport from "@/components/admin/SalesSummaryReport";
-import InventoryManagement from "@/components/admin/InventoryManagement";
 import OverView from "@/components/admin/OverView";
 import OrderTracker from "@/components/admin/OrderTracker"; 
 import PrintJobs from "@/components/admin/PrintJobs"; 
+import PurchaseTransfer from "@/components/admin/PurchaseTransfer";
+import StoreStationView from "@/components/admin/StoreStationView";
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
@@ -26,6 +27,7 @@ export default function AdminDashboard() {
   const [darkMode, setDarkMode] = useState(
     localStorage.getItem("darkMode") === "true" || false
   );
+  const [expandedMenu, setExpandedMenu] = useState(null);
 
   // ---------------- Handle resize ----------------
   useEffect(() => {
@@ -56,6 +58,10 @@ export default function AdminDashboard() {
     if (isMobile) setSidebarOpen(false);
   };
 
+  const toggleExpand = (id) => {
+    setExpandedMenu(expandedMenu === id ? null : id);
+  };
+
   // ---------------- Sidebar Items ----------------
   const menuItems = [
     { id: "overview", icon: FaChartBar, label: "Overview" },
@@ -66,7 +72,17 @@ export default function AdminDashboard() {
     { id: "order", icon: FaReceipt, label: "Order Tracker" },
     { id: "print", icon: FaPrint, label: "Print Jobs" },
     { id: "reports", icon: FaFileAlt, label: "Reports" },
-    { id: "inventory", icon: FaBoxes, label: "Inventory" },
+
+    // Inventory as parent with submenus
+    {
+      id: "inventory",
+      icon: FaBoxes,
+      label: "Inventory",
+      children: [
+        { id: "inventory-purchase-transfer", label: "Purchases & Transfers" },
+        { id: "inventory-store-station", label: "Store & Station Stock" },
+      ],
+    },
   ];
 
   return (
@@ -94,19 +110,63 @@ export default function AdminDashboard() {
 
           {/* Sidebar Menu */}
           <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar">
-            {menuItems.map((item) => (
-              <div
-                key={item.id}
-                className={`flex items-center cursor-pointer px-4 py-3 rounded-md mx-2 mb-2
-                  hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors
-                  ${active === item.id ? "bg-gray-300 dark:bg-gray-700 font-semibold" : ""}
-                `}
-                onClick={() => handleSelect(item.id)}
-              >
-                <item.icon className="text-lg" />
-                {sidebarOpen && <span className="ml-3">{item.label}</span>}
-              </div>
-            ))}
+            {menuItems.map((item) => {
+              if (item.children) {
+                return (
+                  <div key={item.id}>
+                    {/* Parent item */}
+                    <div
+                      className={`flex items-center justify-between cursor-pointer px-4 py-3 rounded-md mx-2 mb-2
+                        hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors
+                        ${expandedMenu === item.id ? "bg-gray-300 dark:bg-gray-700 font-semibold" : ""}
+                      `}
+                      onClick={() => toggleExpand(item.id)}
+                    >
+                      <div className="flex items-center">
+                        <item.icon className="text-lg" />
+                        {sidebarOpen && <span className="ml-3">{item.label}</span>}
+                      </div>
+                      {sidebarOpen && (
+                        <span className="text-sm">{expandedMenu === item.id ? "▾" : "▸"}</span>
+                      )}
+                    </div>
+
+                    {/* Children items */}
+                    {expandedMenu === item.id && sidebarOpen && (
+                      <div className="ml-8">
+                        {item.children.map((child) => (
+                          <div
+                            key={child.id}
+                            className={`cursor-pointer px-4 py-2 rounded-md mb-1
+                              hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors
+                              ${active === child.id ? "bg-gray-300 dark:bg-gray-700 font-semibold" : ""}
+                            `}
+                            onClick={() => handleSelect(child.id)}
+                          >
+                            {child.label}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // Regular item
+              return (
+                <div
+                  key={item.id}
+                  className={`flex items-center cursor-pointer px-4 py-3 rounded-md mx-2 mb-2
+                    hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors
+                    ${active === item.id ? "bg-gray-300 dark:bg-gray-700 font-semibold" : ""}
+                  `}
+                  onClick={() => handleSelect(item.id)}
+                >
+                  <item.icon className="text-lg" />
+                  {sidebarOpen && <span className="ml-3">{item.label}</span>}
+                </div>
+              );
+            })}
           </nav>
         </aside>
 
@@ -123,14 +183,12 @@ export default function AdminDashboard() {
           {/* Topbar */}
           <header className="flex justify-between items-center bg-white dark:bg-gray-800 shadow px-4 py-3">
             <div className="flex items-center space-x-4">
-              {/* Single toggle button for all screen sizes */}
               <button
                 onClick={toggleSidebar}
                 className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
               >
                 <FaBars />
               </button>
-
               <span>
                 Welcome, <strong>{user?.username || "Admin"}</strong>
               </span>
@@ -188,22 +246,32 @@ export default function AdminDashboard() {
                 <SalesSummaryReport />
               </Card>
             )}
+
             {active === "order" && (
               <Card className="p-6 w-full overflow-auto max-h-[80vh]">
                 <OrderTracker />
               </Card>
             )}
+
             {active === "print" && (
               <Card className="p-6 w-full overflow-auto max-h-[80vh]">
                 <PrintJobs />
               </Card>
             )}
-            {active === "inventory" && (
+
+            {active === "inventory-purchase-transfer" && (
               <Card className="p-6 w-full">
-                <InventoryManagement />
+                <h2 className="text-xl font-bold mb-4">Inventory Management</h2>
+                <PurchaseTransfer />
               </Card>
             )}
 
+            {active === "inventory-store-station" && (
+              <Card className="p-6 w-full">
+                <h2 className="text-xl font-bold mb-4">Inventory Management</h2>
+                <StoreStationView />
+              </Card>
+            )}
           </main>
         </div>
       </div>

@@ -249,3 +249,83 @@ def get_order_summary_range():
     }
 
     return jsonify(summary), 200
+
+# ---------------------- GET /order-history/raw ---------------------- #
+@order_history_bp.route("/raw", methods=["GET"])
+@jwt_required()
+@roles_required("admin", "manager", "waiter", "cashier")
+def get_order_history_raw():
+    """
+    Returns all orders with each OrderItem separately (no aggregation),
+    preserving OrderItem IDs for frontend edits/deletes.
+    Optional filters: date, status, user_id
+    """
+    query = Order.query
+
+    # --- Date filter (required for day view) ---
+    date_str = request.args.get("date")
+    if date_str:
+        try:
+            day = datetime.strptime(date_str, "%Y-%m-%d").date()
+            query = query.filter(db.func.date(Order.created_at) == day)
+        except ValueError:
+            return error_response("Invalid date format. Use YYYY-MM-DD.", 400)
+    else:
+        return error_response("date query param is required", 400)
+
+    # --- Status filter (optional) ---
+    status = request.args.get("status")
+    if status:
+        if status not in {"open", "closed", "paid"}:
+            return error_response("Invalid status filter.", 400)
+        query = query.filter(Order.status == status)
+
+    # --- User filter (optional) ---
+    user_id = request.args.get("user_id")
+    if user_id:
+        try:
+            query = query.filter(Order.user_id == int(user_id))
+        except ValueError:
+            return error_response("Invalid user_id.", 400)
+
+    # --- Waiter restriction (if role is waiter) ---
+    jwt_data = get_jwt()
+    roles = jwt_data.get("roles", [])
+    if "waiter" in roles:
+        query = query.filter(Order.user_id == int(jwt_data["sub"]))
+
+    # --- Fetch orders ---
+    orders = query.order_by(Order.created_at.desc()).all()
+
+    # --- Serialize orders without aggregating items ---
+    def order_to_dict_raw(order: Order):
+        return {
+            "id": order.id,
+            "table_id": order.table_id,
+            "table": {
+                "id": order.table.id,
+                "number": order.table.number,
+                "is_vip": order.table.is_vip,
+            },
+            "user_id": order.user_id,
+            "user": {
+                "id": order.user.id if order.user else None,
+                "username": order.user.username if order.user else None,
+                "role": order.user.role if order.user else None,
+            },
+            "status": order.status,
+            "total_amount": float(order.total_amount or 0.0),
+            "created_at": order.created_at.isoformat(),
+            "updated_at": order.updated_at.isoformat(),
+            "items": [
+                {
+                    "id": item.id,
+                    "name": item.menu_item.name if item.menu_item else None,
+                    "quantity": float(item.quantity or 0),
+                    "price": float(item.price or 0.0),
+                }
+                for item in order.items
+            ],
+        }
+
+    return jsonify([order_to_dict_raw(o) for o in orders]), 200

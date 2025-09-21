@@ -23,23 +23,30 @@ export default function HistoryPage() {
 
     const todayISO = new Date().toISOString().slice(0, 10);
 
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // fetch orders and summary from new backend
-        const [ordersData, summaryData] = await Promise.all([
-          fetchOrderHistory(authToken, { date: todayISO }),
-          fetchOrderSummary(authToken, { date: todayISO }),
-        ]);
+const fetchData = async () => {
+  setLoading(true);
+  try {
+    const todayISO = new Date().toISOString().slice(0, 10);
 
-        setOrders(ordersData);
-        setSummary(summaryData);
-      } catch (err) {
-        toast.error(err.message || "Failed to load orders");
-      } finally {
-        setLoading(false);
-      }
+    const filters = {
+      date: todayISO,
+      user_id: user?.id, // ✅ This is the only thing you need to add
     };
+
+    const [ordersData, summaryData] = await Promise.all([
+      fetchOrderHistory(authToken, filters),
+      fetchOrderSummary(authToken, filters),
+    ]);
+
+    setOrders(ordersData);
+    setSummary(summaryData);
+  } catch (err) {
+    toast.error(err.message || "Failed to load orders");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
     fetchData();
   }, [authToken, user]);
