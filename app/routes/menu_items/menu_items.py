@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from app.extensions import db
-from app.models.models import MenuItem, Station, SubCategory
+from app.models.models import MenuItem, Station, SubCategory, Category
 from app.utils.decorators import roles_required
 from sqlalchemy import func
 import logging
@@ -242,3 +242,20 @@ def delete_menu_item(item_id):
     except Exception as e:
         db.session.rollback()
         return error_response(f"Failed to delete menu item: {str(e)}", 500)
+
+# ------------------ GET MENU ITEMS BY CATEGORY ------------------ #
+@menu_items_bp.route("/by-category/<int:category_id>", methods=["GET"])
+@jwt_required()
+@roles_required("admin", "manager", "waiter", "kitchen", "butcher", "bar", "cashier")
+def get_menu_items_by_category(category_id):
+    query = (
+        MenuItem.query
+        .join(SubCategory, MenuItem.subcategory_id == SubCategory.id, isouter=True)
+        .join(Category, SubCategory.category_id == Category.id, isouter=True)
+        .filter(Category.id == category_id)
+    )
+
+    items = query.all()
+    return jsonify([menu_item_to_dict(i) for i in items]), 200
+
+    

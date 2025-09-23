@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { 
+import {
   FaUserPlus, FaTable, FaStore, FaUtensils, FaBars, FaChartBar,
   FaUser, FaUsers, FaReceipt, FaPrint, FaFileAlt, FaBoxes
 } from "react-icons/fa";
@@ -16,7 +16,8 @@ import SalesSummaryReport from "@/components/admin/SalesSummaryReport";
 import OverView from "@/components/admin/OverView";
 import OrderTracker from "@/components/admin/OrderTracker"; 
 import PrintJobs from "@/components/admin/PrintJobs"; 
-import PurchaseTransfer from "@/components/admin/PurchaseTransfer";
+import PurchaseManagement from "@/components/admin/PurchaseManagement";
+import TransferManagement from "@/components/admin/TransferManagement";
 import StoreStationView from "@/components/admin/StoreStationView";
 
 export default function AdminDashboard() {
@@ -73,13 +74,14 @@ export default function AdminDashboard() {
     { id: "print", icon: FaPrint, label: "Print Jobs" },
     { id: "reports", icon: FaFileAlt, label: "Reports" },
 
-    // Inventory as parent with submenus
+    // Inventory with submenus
     {
       id: "inventory",
       icon: FaBoxes,
       label: "Inventory",
       children: [
-        { id: "inventory-purchase-transfer", label: "Purchases & Transfers" },
+        { id: "inventory-purchase", label: "Purchases" },
+        { id: "inventory-transfer", label: "Transfers" },
         { id: "inventory-store-station", label: "Store & Station Stock" },
       ],
     },
@@ -259,16 +261,23 @@ export default function AdminDashboard() {
               </Card>
             )}
 
-            {active === "inventory-purchase-transfer" && (
+            {active === "inventory-purchase" && (
               <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Inventory Management</h2>
-                <PurchaseTransfer />
+                <h2 className="text-xl font-bold mb-4">Purchase Management</h2>
+                <PurchaseManagement />
+              </Card>
+            )}
+
+            {active === "inventory-transfer" && (
+              <Card className="p-6 w-full">
+                <h2 className="text-xl font-bold mb-4">Transfer Management</h2>
+                <TransferManagement />
               </Card>
             )}
 
             {active === "inventory-store-station" && (
               <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Inventory Management</h2>
+                <h2 className="text-xl font-bold mb-4">Store & Station Stock</h2>
                 <StoreStationView />
               </Card>
             )}
