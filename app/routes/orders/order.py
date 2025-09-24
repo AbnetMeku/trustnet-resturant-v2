@@ -10,6 +10,7 @@ from collections import defaultdict
 import logging
 from app.routes.print.print_jobs import create_station_print_jobs, create_cashier_print_job 
 from sqlalchemy.exc import IntegrityError
+from app.routes.inventory.inventory import deduct_station_stock
 
 orders_bp = Blueprint("orders_bp", __name__, url_prefix="/orders")
 
@@ -440,8 +441,14 @@ def update_order_item(order_id, item_id):
     if "status" in data:
         if data["status"] not in {"pending", "ready"}:
             return error_response("Invalid item status. Allowed: pending, ready.", 400)
+        
+        prev_status = order_item.status
         order_item.status = data["status"]
 
+        # ---------------- Deduct stock if status changed to ready ----------------
+        # Deduct stock if status changed to ready (allow negative / ignore errors)
+        if prev_status != "ready" and data["status"] == "ready":
+            deduct_station_stock(order_item)  # just deduct; don't block status update
     # ---------------- Commit ----------------
     recalc_order_total(order)
     try:

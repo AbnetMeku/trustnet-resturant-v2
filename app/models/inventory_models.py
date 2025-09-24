@@ -50,6 +50,9 @@ class StockPurchase(db.Model):
     quantity = db.Column(db.Float, nullable=False)
     unit_price = db.Column(db.Float, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # NEW: status column
+    status = db.Column(db.String(20), default="Purchased")  # Possible: Purchased, Updated, Deleted
 
     inventory_item = db.relationship("InventoryItem", back_populates="purchases")
 
@@ -62,6 +65,9 @@ class StockTransfer(db.Model):
     station_id = db.Column(db.Integer, db.ForeignKey("stations.id"), nullable=False)
     quantity = db.Column(db.Float, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # NEW: status column
+    status = db.Column(db.String(20), default="Transferred")  # Possible: Transferred, Updated, Deleted
 
     inventory_item = db.relationship("InventoryItem", back_populates="transfers")
     station = db.relationship("Station", backref="stock_transfers")

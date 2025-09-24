@@ -6,6 +6,11 @@ const getAuthHeader = (token) => ({
   Authorization: `Bearer ${token || localStorage.getItem("auth_token")}`,
 });
 
+// ------------------ HELPER ------------------
+const handleError = (error, fallback = "Request failed") => {
+  throw new Error(error.response?.data?.msg || fallback);
+};
+
 // ------------------ STORE STOCK ------------------
 export const getStoreStock = async (token = null) => {
   try {
@@ -14,7 +19,7 @@ export const getStoreStock = async (token = null) => {
     });
     return res.data;
   } catch (error) {
-    throw new Error(error.response?.data?.msg || "Failed to fetch store stock");
+    handleError(error, "Failed to fetch store stock");
   }
 };
 
@@ -26,7 +31,7 @@ export const getStationStock = async (stationId, token = null) => {
     });
     return res.data;
   } catch (error) {
-    throw new Error(error.response?.data?.msg || "Failed to fetch station stock");
+    handleError(error, "Failed to fetch station stock");
   }
 };
 
@@ -41,18 +46,18 @@ export const createPurchase = async (purchaseData, token = null) => {
     });
     return res.data;
   } catch (error) {
-    throw new Error(error.response?.data?.msg || "Failed to create purchase");
+    handleError(error, "Failed to create purchase");
   }
 };
 
-export const getPurchases = async (token = null) => {
+export const getPurchases = async (token = null, includeDeleted = false) => {
   try {
     const res = await axios.get(`${BASE_URL}/inventory/purchases`, {
       headers: getAuthHeader(token),
     });
-    return res.data;
+    return includeDeleted ? res.data : res.data.filter(p => p.status !== "Deleted");
   } catch (error) {
-    throw new Error(error.response?.data?.msg || "Failed to fetch purchases");
+    handleError(error, "Failed to fetch purchases");
   }
 };
 
@@ -66,7 +71,7 @@ export const updatePurchase = async (purchaseId, updateData, token = null) => {
     });
     return res.data;
   } catch (error) {
-    throw new Error(error.response?.data?.msg || "Failed to update purchase");
+    handleError(error, "Failed to update purchase");
   }
 };
 
@@ -77,7 +82,7 @@ export const deletePurchase = async (purchaseId, token = null) => {
     });
     return res.data;
   } catch (error) {
-    throw new Error(error.response?.data?.msg || "Failed to delete purchase");
+    handleError(error, "Failed to delete purchase");
   }
 };
 
@@ -92,18 +97,18 @@ export const createTransfer = async (transferData, token = null) => {
     });
     return res.data;
   } catch (error) {
-    throw new Error(error.response?.data?.msg || "Failed to create transfer");
+    handleError(error, "Failed to create transfer");
   }
 };
 
-export const getTransfers = async (token = null) => {
+export const getTransfers = async (token = null, includeDeleted = false) => {
   try {
     const res = await axios.get(`${BASE_URL}/inventory/transfers`, {
       headers: getAuthHeader(token),
     });
-    return res.data;
+    return includeDeleted ? res.data : res.data.filter(t => t.status !== "Deleted");
   } catch (error) {
-    throw new Error(error.response?.data?.msg || "Failed to fetch transfers");
+    handleError(error, "Failed to fetch transfers");
   }
 };
 
@@ -117,7 +122,7 @@ export const updateTransfer = async (transferId, updateData, token = null) => {
     });
     return res.data;
   } catch (error) {
-    throw new Error(error.response?.data?.msg || "Failed to update transfer");
+    handleError(error, "Failed to update transfer");
   }
 };
 
@@ -128,7 +133,7 @@ export const deleteTransfer = async (transferId, token = null) => {
     });
     return res.data;
   } catch (error) {
-    throw new Error(error.response?.data?.msg || "Failed to delete transfer");
+    handleError(error, "Failed to delete transfer");
   }
 };
 
@@ -140,7 +145,7 @@ export const getMenuItems = async (token = null) => {
     });
     return res.data;
   } catch (error) {
-    throw new Error(error.response?.data?.msg || "Failed to fetch menu items");
+    handleError(error, "Failed to fetch menu items");
   }
 };
 
@@ -152,7 +157,7 @@ export const getStations = async (token = null) => {
     });
     return res.data;
   } catch (error) {
-    throw new Error(error.response?.data?.msg || "Failed to fetch stations");
+    handleError(error, "Failed to fetch stations");
   }
 };
 
@@ -162,10 +167,8 @@ export const getAvailableItems = async (token = null) => {
     const res = await axios.get(`${BASE_URL}/inventory/available-items`, {
       headers: getAuthHeader(token),
     });
-    return res.data; // expected: [{ menu_item_id, menu_item, available_quantity }, ...]
+    return res.data;
   } catch (error) {
-    throw new Error(
-      error.response?.data?.msg || "Failed to fetch available items"
-    );
+    handleError(error, "Failed to fetch available items");
   }
 };

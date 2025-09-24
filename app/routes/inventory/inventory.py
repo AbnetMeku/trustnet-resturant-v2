@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from app.extensions import db
 from app.models import InventoryItem, StoreStock, StationStock, StockPurchase, StockTransfer
-from app.models import MenuItem, Station
+from app.models import MenuItem, Station , OrderItem
 
 inventory_bp = Blueprint("inventory_bp", __name__, url_prefix="/inventory")
 
@@ -11,10 +11,6 @@ inventory_bp = Blueprint("inventory_bp", __name__, url_prefix="/inventory")
 @inventory_bp.route("/purchase", methods=["POST"])
 @jwt_required()
 def add_purchase():
-    """
-    Add new stock to the store.
-    Payload: { "menu_item_id": int, "quantity": float, "unit_price": float (optional) }
-    """
     data = request.get_json()
     menu_item_id = data.get("menu_item_id")
     quantity = data.get("quantity")
@@ -31,7 +27,7 @@ def add_purchase():
     if not inventory_item:
         inventory_item = InventoryItem(menu_item_id=menu_item_id)
         db.session.add(inventory_item)
-        db.session.commit()  # Commit to get inventory_item.id for store stock
+        db.session.commit()  # Get inventory_item.id
 
     if inventory_item.store_stock:
         inventory_item.store_stock.quantity += quantity
@@ -42,7 +38,8 @@ def add_purchase():
     purchase = StockPurchase(
         inventory_item_id=inventory_item.id,
         quantity=quantity,
-        unit_price=unit_price
+        unit_price=unit_price,
+        status="Purchased"
     )
     db.session.add(purchase)
     db.session.commit()
@@ -53,13 +50,9 @@ def add_purchase():
 @inventory_bp.route("/purchase/<int:purchase_id>", methods=["PUT"])
 @jwt_required()
 def update_purchase(purchase_id):
-    """
-    Update an existing stock purchase
-    Payload: { "quantity": float, "unit_price": float (optional) }
-    """
     data = request.get_json()
-    quantity = data.get("quantity")
-    unit_price = data.get("unit_price", None)
+    new_quantity = data.get("quantity")
+    new_unit_price = data.get("unit_price", None)
 
     purchase = StockPurchase.query.get(purchase_id)
     if not purchase:
@@ -69,14 +62,18 @@ def update_purchase(purchase_id):
     if not inventory_item.store_stock:
         return jsonify({"msg": "Store stock not found"}), 404
 
-    if quantity is not None:
-        inventory_item.store_stock.quantity -= purchase.quantity
-        inventory_item.store_stock.quantity += quantity
-        purchase.quantity = quantity
+    # Reverse old purchase
+    inventory_item.store_stock.quantity -= purchase.quantity
 
-    if unit_price is not None:
-        purchase.unit_price = unit_price
+    # Apply new values
+    quantity = new_quantity if new_quantity is not None else purchase.quantity
+    inventory_item.store_stock.quantity += quantity
+    purchase.quantity = quantity
 
+    if new_unit_price is not None:
+        purchase.unit_price = new_unit_price
+
+    purchase.status = "Updated"
     db.session.commit()
     return jsonify({"msg": "Purchase updated successfully"}), 200
 
@@ -90,8 +87,11 @@ def delete_purchase(purchase_id):
 
     if purchase.inventory_item.store_stock:
         purchase.inventory_item.store_stock.quantity -= purchase.quantity
+        if purchase.inventory_item.store_stock.quantity < 0:
+            purchase.inventory_item.store_stock.quantity = 0
 
-    db.session.delete(purchase)
+    # Soft delete: update status instead of removing row
+    purchase.status = "Deleted"
     db.session.commit()
     return jsonify({"msg": "Purchase deleted successfully"}), 200
 
@@ -99,10 +99,6 @@ def delete_purchase(purchase_id):
 @inventory_bp.route("/transfer", methods=["POST"])
 @jwt_required()
 def transfer_stock():
-    """
-    Transfer stock from store to station.
-    Payload: { "menu_item_id": int, "station_id": int, "quantity": float }
-    """
     data = request.get_json()
     menu_item_id = data.get("menu_item_id")
     station_id = data.get("station_id")
@@ -135,7 +131,8 @@ def transfer_stock():
     transfer = StockTransfer(
         inventory_item_id=inventory_item.id,
         station_id=station.id,
-        quantity=quantity
+        quantity=quantity,
+        status="Transferred"
     )
     db.session.add(transfer)
     db.session.commit()
@@ -146,58 +143,61 @@ def transfer_stock():
 @inventory_bp.route("/transfer/<int:transfer_id>", methods=["PUT"])
 @jwt_required()
 def update_transfer(transfer_id):
-    """
-    Update an existing stock transfer
-    Payload: { "quantity": float, "station_id": int (optional) }
-    """
     data = request.get_json()
-    quantity = data.get("quantity")
-    station_id = data.get("station_id")
+    new_quantity = data.get("quantity")
+    new_station_id = data.get("station_id")
 
     transfer = StockTransfer.query.get(transfer_id)
     if not transfer:
         return jsonify({"msg": "Transfer not found"}), 404
 
     inventory_item = transfer.inventory_item
-    old_quantity = transfer.quantity
-    old_station = transfer.station
 
-    if quantity is not None:
-        if old_station.id == (station_id or old_station.id):
-            diff = quantity - old_quantity
-            if inventory_item.store_stock.quantity < max(diff, 0):
-                return jsonify({"msg": "Insufficient store stock"}), 400
-            inventory_item.store_stock.quantity -= diff
-            station_stock = StationStock.query.filter_by(
-                inventory_item_id=inventory_item.id, station_id=old_station.id
-            ).first()
-            station_stock.quantity += diff
-            transfer.quantity = quantity
-        else:
-            old_station_stock = StationStock.query.filter_by(
-                inventory_item_id=inventory_item.id, station_id=old_station.id
-            ).first()
-            if old_station_stock.quantity < old_quantity:
-                return jsonify({"msg": "Insufficient stock at old station"}), 400
-            old_station_stock.quantity -= old_quantity
+    # Reverse old transfer
+    if inventory_item.store_stock:
+        inventory_item.store_stock.quantity += transfer.quantity
+    else:
+        store_stock = StoreStock(inventory_item_id=inventory_item.id, quantity=transfer.quantity)
+        db.session.add(store_stock)
 
-            new_station = Station.query.get(station_id)
-            if not new_station:
-                return jsonify({"msg": "New station not found"}), 404
+    old_station_stock = StationStock.query.filter_by(
+        station_id=transfer.station_id,
+        inventory_item_id=inventory_item.id
+    ).first()
+    if old_station_stock:
+        old_station_stock.quantity -= transfer.quantity
+        if old_station_stock.quantity < 0:
+            old_station_stock.quantity = 0
 
-            new_station_stock = StationStock.query.filter_by(
-                inventory_item_id=inventory_item.id, station_id=new_station.id
-            ).first()
-            if new_station_stock:
-                new_station_stock.quantity += quantity
-            else:
-                new_station_stock = StationStock(
-                    inventory_item_id=inventory_item.id, station_id=new_station.id, quantity=quantity
-                )
-                db.session.add(new_station_stock)
-            transfer.station_id = station_id
-            transfer.quantity = quantity
+    # Apply new transfer
+    quantity = new_quantity if new_quantity is not None else transfer.quantity
+    station_id = new_station_id if new_station_id is not None else transfer.station_id
 
+    if not inventory_item.store_stock or inventory_item.store_stock.quantity < quantity:
+        db.session.rollback()
+        return jsonify({"msg": "Insufficient store stock"}), 400
+
+    inventory_item.store_stock.quantity -= quantity
+
+    new_station = Station.query.get(station_id)
+    if not new_station:
+        db.session.rollback()
+        return jsonify({"msg": "New station not found"}), 404
+
+    new_station_stock = StationStock.query.filter_by(
+        inventory_item_id=inventory_item.id, station_id=station_id
+    ).first()
+    if new_station_stock:
+        new_station_stock.quantity += quantity
+    else:
+        new_station_stock = StationStock(
+            inventory_item_id=inventory_item.id, station_id=station_id, quantity=quantity
+        )
+        db.session.add(new_station_stock)
+
+    transfer.quantity = quantity
+    transfer.station_id = station_id
+    transfer.status = "Updated"
     db.session.commit()
     return jsonify({"msg": "Transfer updated successfully"}), 200
 
@@ -209,14 +209,27 @@ def delete_transfer(transfer_id):
     if not transfer:
         return jsonify({"msg": "Transfer not found"}), 404
 
+    inventory_item = transfer.inventory_item
+
+    # Restore to store
+    if inventory_item.store_stock:
+        inventory_item.store_stock.quantity += transfer.quantity
+    else:
+        store_stock = StoreStock(inventory_item_id=inventory_item.id, quantity=transfer.quantity)
+        db.session.add(store_stock)
+
+    # Remove from station
     station_stock = StationStock.query.filter_by(
         station_id=transfer.station_id,
         inventory_item_id=transfer.inventory_item_id
     ).first()
     if station_stock:
         station_stock.quantity -= transfer.quantity
+        if station_stock.quantity < 0:
+            station_stock.quantity = 0
 
-    db.session.delete(transfer)
+    # Soft delete
+    transfer.status = "Deleted"
     db.session.commit()
     return jsonify({"msg": "Transfer deleted successfully"}), 200
 
@@ -233,7 +246,8 @@ def get_all_purchases():
             "menu_item": p.inventory_item.menu_item.name,
             "quantity": p.quantity,
             "unit_price": p.unit_price,
-            "created_at": p.created_at.isoformat() if p.created_at else None
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "status": p.status
         })
     return jsonify(result), 200
 
@@ -251,7 +265,8 @@ def get_all_transfers():
             "station_id": t.station.id,
             "station": t.station.name,
             "quantity": t.quantity,
-            "created_at": t.created_at.isoformat() if t.created_at else None
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "status": t.status
         })
     return jsonify(result), 200
 
@@ -259,9 +274,6 @@ def get_all_transfers():
 @inventory_bp.route("/available-items", methods=["GET"])
 @jwt_required()
 def get_available_items():
-    """
-    Returns all menu items that currently have positive stock in the store.
-    """
     items = (
         InventoryItem.query
         .join(StoreStock)
@@ -279,3 +291,44 @@ def get_available_items():
         })
 
     return jsonify(result), 200
+
+def deduct_station_stock(order_item: OrderItem):
+    """Deduct inventory when an order item is ready. Allows negative stock and never blocks status change."""
+    try:
+        station_name = order_item.station
+        menu_item_id = order_item.menu_item_id
+
+        # Get the inventory item (log if missing, but don't block)
+        inventory_item = InventoryItem.query.filter_by(menu_item_id=menu_item_id).first()
+        if not inventory_item:
+            # Optional: log warning
+            print(f"Warning: Inventory not found for menu_item_id {menu_item_id}")
+            return {"msg": "Inventory not found, skipping stock deduction"}, 200
+
+        # Get the station
+        station = Station.query.filter_by(name=station_name).first()
+        if not station:
+            print(f"Warning: Station '{station_name}' not found")
+            return {"msg": "Station not found, skipping stock deduction"}, 200
+
+        # Get the station stock
+        station_stock = StationStock.query.filter_by(
+            station_id=station.id,
+            inventory_item_id=inventory_item.id
+        ).first()
+
+        if not station_stock:
+            print(f"Warning: StationStock missing for menu_item_id {menu_item_id} at station '{station_name}'")
+            return {"msg": "Station stock missing, skipping deduction"}, 200
+
+        # Deduct quantity (allow negative)
+        station_stock.quantity -= float(order_item.quantity)
+        db.session.commit()
+        return {"msg": "Stock deducted successfully"}, 200
+
+    except Exception as e:
+        # Never block; just log errors
+        print(f"Error deducting stock: {str(e)}")
+        db.session.rollback()
+        return {"msg": "Error during stock deduction, skipping"}, 200
+

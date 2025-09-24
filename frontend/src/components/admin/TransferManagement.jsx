@@ -8,10 +8,11 @@ import { useAuth } from "@/context/AuthContext";
 import {
   getTransfers,
   createTransfer,
+  updateTransfer,
   deleteTransfer,
+  getAvailableItems,
 } from "@/api/inventory";
 import { getStations } from "@/api/stations";
-import { getAvailableItems } from "@/api/inventory"; // new endpoint
 
 import {
   Dialog,
@@ -21,7 +22,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-import { toast } from "react-hot-toast"; // modern error & success messages
+import { toast } from "react-hot-toast";
 
 const PAGE_SIZE = 10;
 
@@ -52,34 +53,49 @@ export default function TransferManagement() {
     station_id: "",
     quantity: "",
   });
+  const [editId, setEditId] = useState(null); // track editing
 
-  // Load available items and stations
-  useEffect(() => {
-    (async () => {
-      try {
-        setAvailableItems(await getAvailableItems(token));
-        setStations(await getStations(token));
-      } catch (err) {
-        toast.error("Failed to load dropdowns");
-        console.error(err);
-      }
-    })();
-  }, [token]);
+  // Load available items
+  const loadAvailableItems = async () => {
+    try {
+      const items = await getAvailableItems(token);
+      setAvailableItems(items);
+    } catch (err) {
+      toast.error("Failed to load available items");
+      console.error(err);
+    }
+  };
+
+  // Load stations
+  const loadStations = async () => {
+    try {
+      const s = await getStations(token);
+      setStations(s);
+    } catch (err) {
+      toast.error("Failed to load stations");
+      console.error(err);
+    }
+  };
 
   // Load transfers
   const loadTransfers = async () => {
     try {
-      setTransfers(await getTransfers(token));
+      const t = await getTransfers(token);
+      setTransfers(t);
     } catch (err) {
       toast.error("Failed to load transfers");
       console.error(err);
     }
   };
-  useEffect(() => {
-    loadTransfers();
-  }, []);
 
-  // Handle transfer submit
+  // Initial load
+  useEffect(() => {
+    loadAvailableItems();
+    loadStations();
+    loadTransfers();
+  }, [token]);
+
+  // Handle transfer submit (create or update)
   const handleTransferSubmit = async () => {
     if (!transferForm.menu_item_id || !transferForm.station_id || !transferForm.quantity) {
       toast.error("Please fill in all required fields.");
@@ -87,21 +103,29 @@ export default function TransferManagement() {
     }
 
     try {
-      await createTransfer(
-        {
-          menu_item_id: parseInt(transferForm.menu_item_id),
-          station_id: parseInt(transferForm.station_id),
-          quantity: parseFloat(transferForm.quantity),
-        },
-        token
-      );
+      const payload = {
+        menu_item_id: parseInt(transferForm.menu_item_id),
+        station_id: parseInt(transferForm.station_id),
+        quantity: parseFloat(transferForm.quantity),
+      };
 
-      toast.success("Transfer successful!");
+      if (editId) {
+        await updateTransfer(editId, payload, token);
+        toast.success("Transfer updated!");
+      } else {
+        await createTransfer(payload, token);
+        toast.success("Transfer successful!");
+      }
+
       setTransferForm({ menu_item_id: "", station_id: "", quantity: "" });
+      setEditId(null);
       setShowTransferDialog(false);
-      loadTransfers();
+
+      // Refresh both transfers and available items
+      await loadTransfers();
+      await loadAvailableItems();
     } catch (err) {
-      toast.error(err.message || "Transfer failed. Check stock.");
+      toast.error(err.message || "Operation failed.");
       console.error(err);
     }
   };
@@ -112,7 +136,11 @@ export default function TransferManagement() {
       await deleteTransfer(deleteId, token);
       toast.success("Transfer deleted successfully!");
       setShowDeleteDialog(false);
-      loadTransfers();
+      setDeleteId(null);
+
+      // Refresh both transfers and available items
+      await loadTransfers();
+      await loadAvailableItems();
     } catch (err) {
       toast.error("Failed to delete transfer.");
       console.error(err);
@@ -134,7 +162,15 @@ export default function TransferManagement() {
         <TabsContent value="transfers">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold">Transfers</h3>
-            <Button onClick={() => setShowTransferDialog(true)}>+ Transfer Item</Button>
+            <Button
+              onClick={() => {
+                setTransferForm({ menu_item_id: "", station_id: "", quantity: "" });
+                setEditId(null);
+                setShowTransferDialog(true);
+              }}
+            >
+              + Transfer Item
+            </Button>
           </div>
 
           <div className="overflow-x-auto">
@@ -146,7 +182,7 @@ export default function TransferManagement() {
                   <th className="p-2 border">Station</th>
                   <th className="p-2 border">Quantity</th>
                   <th className="p-2 border">Date</th>
-                  {user?.is_admin && <th className="p-2 border">Actions</th>}
+                  {user?.role === "admin" && <th className="p-2 border">Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -157,13 +193,20 @@ export default function TransferManagement() {
                     <td className="p-2 border">{t.station}</td>
                     <td className="p-2 border">{t.quantity}</td>
                     <td className="p-2 border">{t.created_at?.split("T")[0] ?? "-"}</td>
-                    {user?.is_admin && (
+                    {user?.role === "admin" && (
                       <td className="p-2 border flex gap-2">
-                        {/* Edit could open same dialog in edit mode */}
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => toast("Edit functionality here")}
+                          onClick={() => {
+                            setEditId(t.id);
+                            setTransferForm({
+                              menu_item_id: t.menu_item_id,
+                              station_id: t.station_id,
+                              quantity: t.quantity,
+                            });
+                            setShowTransferDialog(true);
+                          }}
                         >
                           Edit
                         </Button>
@@ -205,55 +248,59 @@ export default function TransferManagement() {
         </TabsContent>
       </Tabs>
 
-      {/* Transfer Dialog */}
-      <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Transfer Item</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-3">
-            <select
-              value={transferForm.menu_item_id}
-              onChange={(e) =>
-                setTransferForm({ ...transferForm, menu_item_id: e.target.value })
-              }
-              className="border rounded p-2 bg-white dark:bg-gray-800"
-            >
-              <option value="">Select Item</option>
-              {availableItems.map((item) => (
-                <option key={item.menu_item_id} value={item.menu_item_id}>
-                  {item.menu_item} (Available: {item.available_quantity})
-                </option>
-              ))}
-            </select>
+{/* Transfer Dialog */}
+<Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>{editId ? "Edit Transfer" : "Transfer Item"}</DialogTitle>
+    </DialogHeader>
+    <div className="flex flex-col gap-3">
+      <select
+        value={transferForm.menu_item_id}
+        onChange={(e) =>
+          setTransferForm({ ...transferForm, menu_item_id: e.target.value })
+        }
+        className="border rounded p-2 bg-white dark:bg-gray-800"
+        disabled={!!editId} // ✅ disable if editing
+      >
+        <option value="">Select Item</option>
+        {availableItems.map((item) => (
+          <option key={item.menu_item_id} value={item.menu_item_id}>
+            {item.menu_item} (Available: {item.available_quantity})
+          </option>
+        ))}
+      </select>
 
-            <select
-              value={transferForm.station_id}
-              onChange={(e) =>
-                setTransferForm({ ...transferForm, station_id: e.target.value })
-              }
-              className="border rounded p-2 bg-white dark:bg-gray-800"
-            >
-              <option value="">Select Station</option>
-              {stations.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+      <select
+        value={transferForm.station_id}
+        onChange={(e) =>
+          setTransferForm({ ...transferForm, station_id: e.target.value })
+        }
+        className="border rounded p-2 bg-white dark:bg-gray-800"
+      >
+        <option value="">Select Station</option>
+        {stations.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name}
+          </option>
+        ))}
+      </select>
 
-            <Input
-              placeholder="Quantity"
-              value={transferForm.quantity}
-              onChange={(e) =>
-                setTransferForm({ ...transferForm, quantity: e.target.value })
-              }
-            />
+      <Input
+        placeholder="Quantity"
+        value={transferForm.quantity}
+        onChange={(e) =>
+          setTransferForm({ ...transferForm, quantity: e.target.value })
+        }
+      />
 
-            <Button onClick={handleTransferSubmit}>Transfer</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <Button onClick={handleTransferSubmit}>
+        {editId ? "Update Transfer" : "Transfer"}
+      </Button>
+    </div>
+  </DialogContent>
+</Dialog>
+
 
       {/* Delete Confirmation */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
