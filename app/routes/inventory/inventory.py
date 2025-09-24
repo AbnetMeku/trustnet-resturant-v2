@@ -254,3 +254,28 @@ def get_all_transfers():
             "created_at": t.created_at.isoformat() if t.created_at else None
         })
     return jsonify(result), 200
+
+# --------------------- GET AVAILABLE ITEMS (WITH STOCK) --------------------- #
+@inventory_bp.route("/available-items", methods=["GET"])
+@jwt_required()
+def get_available_items():
+    """
+    Returns all menu items that currently have positive stock in the store.
+    """
+    items = (
+        InventoryItem.query
+        .join(StoreStock)
+        .join(MenuItem)
+        .filter(StoreStock.quantity > 0)
+        .all()
+    )
+
+    result = []
+    for i in items:
+        result.append({
+            "menu_item_id": i.menu_item.id,
+            "menu_item": i.menu_item.name,
+            "available_quantity": i.store_stock.quantity
+        })
+
+    return jsonify(result), 200

@@ -155,3 +155,17 @@ export const getStations = async (token = null) => {
     throw new Error(error.response?.data?.msg || "Failed to fetch stations");
   }
 };
+
+// ------------------ AVAILABLE ITEMS (for transfer) ------------------
+export const getAvailableItems = async (token = null) => {
+  try {
+    const res = await axios.get(`${BASE_URL}/inventory/available-items`, {
+      headers: getAuthHeader(token),
+    });
+    return res.data; // expected: [{ menu_item_id, menu_item, available_quantity }, ...]
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.msg || "Failed to fetch available items"
+    );
+  }
+};
