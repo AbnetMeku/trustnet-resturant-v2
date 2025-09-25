@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { getStoreStock, getStationStock } from "@/api/inventory";
+import { getStoreStock, getStationStock, getStations } from "@/api/inventory";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "react-hot-toast";
 
@@ -15,8 +15,11 @@ export default function StockManagement() {
   const [storeStock, setStoreStock] = useState([]);
   const [stationStock, setStationStock] = useState([]);
   const [overallStock, setOverallStock] = useState([]);
+  const [stations, setStations] = useState([]);
+  const [selectedStation, setSelectedStation] = useState("");
   const [page, setPage] = useState(1);
 
+  // ---------------- Load Data ----------------
   const loadStoreStock = async () => {
     try {
       const data = await getStoreStock(token);
@@ -26,34 +29,55 @@ export default function StockManagement() {
     }
   };
 
-  const loadStationStock = async () => {
+  const loadStations = async () => {
+    try {
+      const data = await getStations(token);
+      setStations(data);
+      if (data.length > 0) setSelectedStation(data[0].name);
+    } catch (err) {
+      toast.error(err.message || "Failed to load stations");
+    }
+  };
+
+  const loadStationStock = async (stationName = null) => {
     try {
       const data = await getStationStock(token);
-      setStationStock(data);
+      if (stationName) {
+        setStationStock(data.filter((s) => s.station === stationName));
+      } else {
+        setStationStock(data);
+      }
     } catch (err) {
       toast.error(err.message || "Failed to load station stock");
     }
   };
 
-  // For now, overall stock = store + station merged
+  // ---------------- Build Overall Stock ----------------
   const buildOverallStock = () => {
     const all = [...storeStock, ...stationStock];
     setOverallStock(all);
   };
 
+  // ---------------- Effects ----------------
   useEffect(() => {
     loadStoreStock();
-    loadStationStock();
+    loadStations();
   }, [token]);
+
+  useEffect(() => {
+    if (selectedStation) loadStationStock(selectedStation);
+  }, [token, selectedStation]);
 
   useEffect(() => {
     buildOverallStock();
   }, [storeStock, stationStock]);
 
+  // ---------------- Pagination ----------------
   const paginate = (data) => data.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  // ---------------- Render Table ----------------
   const renderTable = (data) => (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto mt-2">
       <table className="w-full border rounded-lg shadow-sm">
         <thead>
           <tr className="bg-gray-100 dark:bg-gray-700">
@@ -65,19 +89,17 @@ export default function StockManagement() {
         </thead>
         <tbody>
           {paginate(data).map((row, i) => (
-            <tr key={i}>
+            <tr key={i} className="even:bg-gray-50 dark:even:bg-gray-800">
               <td className="p-2 border">{(page - 1) * PAGE_SIZE + i + 1}</td>
               <td className="p-2 border">{row.menu_item || row.item_name}</td>
               <td className="p-2 border">{row.quantity}</td>
-              <td className="p-2 border">
-                {row.station ? row.station : "Store"}
-              </td>
+              <td className="p-2 border">{row.station || "Store"}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      <div className="flex justify-between mt-3">
+      <div className="flex justify-between items-center mt-4">
         <Button disabled={page === 1} onClick={() => setPage(page - 1)}>
           Prev
         </Button>
@@ -95,10 +117,10 @@ export default function StockManagement() {
   );
 
   return (
-    <Card className="p-6 w-full">
-      <h2 className="text-xl font-bold mb-4">Stock Management</h2>
+    <Card className="p-6 w-full space-y-4">
+      <h2 className="text-xl font-bold">Stock Management</h2>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val)}>
         <TabsList>
           <TabsTrigger value="store">Store Stock</TabsTrigger>
           <TabsTrigger value="station">Station Stock</TabsTrigger>
@@ -106,7 +128,28 @@ export default function StockManagement() {
         </TabsList>
 
         <TabsContent value="store">{renderTable(storeStock)}</TabsContent>
-        <TabsContent value="station">{renderTable(stationStock)}</TabsContent>
+
+        <TabsContent value="station">
+          <div className="mt-3 mb-2 flex items-center gap-3">
+            <label className="font-medium">Select Station:</label>
+            <select
+              className="border p-1 rounded bg-white text-black dark:bg-gray-800 dark:text-white"
+              value={selectedStation || ""}
+              onChange={(e) => {
+                setSelectedStation(e.target.value);
+                setPage(1); // reset pagination
+              }}
+            >
+              {stations.map((s) => (
+                <option key={s.id} value={s.name}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {renderTable(stationStock)}
+        </TabsContent>
+
         <TabsContent value="overall">{renderTable(overallStock)}</TabsContent>
       </Tabs>
     </Card>
