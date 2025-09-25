@@ -55,7 +55,17 @@ export default function StockManagement() {
   // ---------------- Build Overall Stock ----------------
   const buildOverallStock = () => {
     const all = [...storeStock, ...stationStock];
-    setOverallStock(all);
+    const totals = {};
+
+    all.forEach((row) => {
+      const key = row.menu_item || row.item_name;
+      if (!totals[key]) {
+        totals[key] = { item: key, total_quantity: 0 };
+      }
+      totals[key].total_quantity += row.quantity || 0;
+    });
+
+    setOverallStock(Object.values(totals));
   };
 
   // ---------------- Effects ----------------
@@ -75,7 +85,7 @@ export default function StockManagement() {
   // ---------------- Pagination ----------------
   const paginate = (data) => data.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  // ---------------- Render Table ----------------
+  // ---------------- Render Tables ----------------
   const renderTable = (data) => (
     <div className="overflow-x-auto mt-2">
       <table className="w-full border rounded-lg shadow-sm">
@@ -99,26 +109,56 @@ export default function StockManagement() {
         </tbody>
       </table>
 
-      <div className="flex justify-between items-center mt-4">
-        <Button disabled={page === 1} onClick={() => setPage(page - 1)}>
-          Prev
-        </Button>
-        <span>
-          Page {page} of {Math.ceil(data.length / PAGE_SIZE) || 1}
-        </span>
-        <Button
-          disabled={page * PAGE_SIZE >= data.length}
-          onClick={() => setPage(page + 1)}
-        >
-          Next
-        </Button>
-      </div>
+      <Pagination data={data} />
+    </div>
+  );
+
+  const renderOverallTable = (data) => (
+    <div className="overflow-x-auto mt-2">
+      <table className="w-full border rounded-lg shadow-sm">
+        <thead>
+          <tr className="bg-gray-100 dark:bg-gray-700">
+            <th className="p-2 border">#</th>
+            <th className="p-2 border">Item</th>
+            <th className="p-2 border">Total Quantity</th>
+          </tr>
+        </thead>
+        <tbody>
+          {paginate(data).map((row, i) => (
+            <tr key={i} className="even:bg-gray-50 dark:even:bg-gray-800">
+              <td className="p-2 border">{(page - 1) * PAGE_SIZE + i + 1}</td>
+              <td className="p-2 border">{row.item}</td>
+              <td className="p-2 border">{row.total_quantity}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <Pagination data={data} />
+    </div>
+  );
+
+  // ---------------- Pagination Component ----------------
+  const Pagination = ({ data }) => (
+    <div className="flex justify-between items-center mt-4">
+      <Button disabled={page === 1} onClick={() => setPage(page - 1)}>
+        Prev
+      </Button>
+      <span>
+        Page {page} of {Math.ceil(data.length / PAGE_SIZE) || 1}
+      </span>
+      <Button
+        disabled={page * PAGE_SIZE >= data.length}
+        onClick={() => setPage(page + 1)}
+      >
+        Next
+      </Button>
     </div>
   );
 
   return (
     <Card className="p-6 w-full space-y-4">
-      <h2 className="text-xl font-bold">Stock Management</h2>
+      {/* <h2 className="text-xl font-bold">Stock Management</h2> */}
 
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val)}>
         <TabsList>
@@ -150,7 +190,7 @@ export default function StockManagement() {
           {renderTable(stationStock)}
         </TabsContent>
 
-        <TabsContent value="overall">{renderTable(overallStock)}</TabsContent>
+        <TabsContent value="overall">{renderOverallTable(overallStock)}</TabsContent>
       </Tabs>
     </Card>
   );

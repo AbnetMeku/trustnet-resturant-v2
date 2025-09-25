@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 
@@ -81,7 +81,11 @@ export default function TransferManagement() {
   const loadTransfers = async () => {
     try {
       const t = await getTransfers(token);
-      setTransfers(t);
+      // ✅ sort by created_at descending (latest first)
+      const sorted = [...t].sort(
+        (a, b) => new Date(b.created_at) - new Date(a.created_at)
+      );
+      setTransfers(sorted);
     } catch (err) {
       toast.error("Failed to load transfers");
       console.error(err);
@@ -148,20 +152,14 @@ export default function TransferManagement() {
   };
 
   // Pagination helper
-  const paginate = (data, page) => data.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paginate = (data, page) =>
+    data.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <Card className="p-6 w-full">
-      {/* <h2 className="text-xl font-bold mb-4">Transfers</h2> */}
-
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        {/* <TabsList>
-          <TabsTrigger value="transfers">Transfers</TabsTrigger>
-        </TabsList> */}
-
         <TabsContent value="transfers">
           <div className="flex justify-between items-center mb-4">
-            {/* <h3 className="font-semibold">Transfers</h3> */}
             <Button
               onClick={() => {
                 setTransferForm({ menu_item_id: "", station_id: "", quantity: "" });
@@ -188,11 +186,23 @@ export default function TransferManagement() {
               <tbody>
                 {paginate(transfers, transferPage).map((t, i) => (
                   <tr key={t.id}>
-                    <td className="p-2 border">{(transferPage - 1) * PAGE_SIZE + i + 1}</td>
+                    <td className="p-2 border">
+                      {(transferPage - 1) * PAGE_SIZE + i + 1}
+                    </td>
                     <td className="p-2 border">{t.menu_item}</td>
                     <td className="p-2 border">{t.station}</td>
                     <td className="p-2 border">{t.quantity}</td>
-                    <td className="p-2 border">{t.created_at?.split("T")[0] ?? "-"}</td>
+                    <td className="p-2 border">
+                      {t.created_at
+                        ? new Date(t.created_at).toLocaleString("en-GB", {
+                            year: "numeric",
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "-"}
+                    </td>
                     {user?.role === "admin" && (
                       <td className="p-2 border flex gap-2">
                         <Button
@@ -248,59 +258,58 @@ export default function TransferManagement() {
         </TabsContent>
       </Tabs>
 
-{/* Transfer Dialog */}
-<Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>{editId ? "Edit Transfer" : "Transfer Item"}</DialogTitle>
-    </DialogHeader>
-    <div className="flex flex-col gap-3">
-      <select
-        value={transferForm.menu_item_id}
-        onChange={(e) =>
-          setTransferForm({ ...transferForm, menu_item_id: e.target.value })
-        }
-        className="border rounded p-2 bg-white dark:bg-gray-800"
-        disabled={!!editId} // ✅ disable if editing
-      >
-        <option value="">Select Item</option>
-        {availableItems.map((item) => (
-          <option key={item.menu_item_id} value={item.menu_item_id}>
-            {item.menu_item} (Available: {item.available_quantity})
-          </option>
-        ))}
-      </select>
+      {/* Transfer Dialog */}
+      <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editId ? "Edit Transfer" : "Transfer Item"}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <select
+              value={transferForm.menu_item_id}
+              onChange={(e) =>
+                setTransferForm({ ...transferForm, menu_item_id: e.target.value })
+              }
+              className="border rounded p-2 bg-white dark:bg-gray-800"
+              disabled={!!editId} // ✅ disable if editing
+            >
+              <option value="">Select Item</option>
+              {availableItems.map((item) => (
+                <option key={item.menu_item_id} value={item.menu_item_id}>
+                  {item.menu_item} (Available: {item.available_quantity})
+                </option>
+              ))}
+            </select>
 
-      <select
-        value={transferForm.station_id}
-        onChange={(e) =>
-          setTransferForm({ ...transferForm, station_id: e.target.value })
-        }
-        className="border rounded p-2 bg-white dark:bg-gray-800"
-      >
-        <option value="">Select Station</option>
-        {stations.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.name}
-          </option>
-        ))}
-      </select>
+            <select
+              value={transferForm.station_id}
+              onChange={(e) =>
+                setTransferForm({ ...transferForm, station_id: e.target.value })
+              }
+              className="border rounded p-2 bg-white dark:bg-gray-800"
+            >
+              <option value="">Select Station</option>
+              {stations.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
 
-      <Input
-        placeholder="Quantity"
-        value={transferForm.quantity}
-        onChange={(e) =>
-          setTransferForm({ ...transferForm, quantity: e.target.value })
-        }
-      />
+            <Input
+              placeholder="Quantity"
+              value={transferForm.quantity}
+              onChange={(e) =>
+                setTransferForm({ ...transferForm, quantity: e.target.value })
+              }
+            />
 
-      <Button onClick={handleTransferSubmit}>
-        {editId ? "Update Transfer" : "Transfer"}
-      </Button>
-    </div>
-  </DialogContent>
-</Dialog>
-
+            <Button onClick={handleTransferSubmit}>
+              {editId ? "Update Transfer" : "Transfer"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
