@@ -332,3 +332,51 @@ def deduct_station_stock(order_item: OrderItem):
         db.session.rollback()
         return {"msg": "Error during stock deduction, skipping"}, 200
 
+# --------------------- GET OVERALL STOCK --------------------- #
+
+@inventory_bp.route("/overall-stock", methods=["GET"])
+@jwt_required()
+def get_overall_stock():
+    inventory_items = InventoryItem.query.join(MenuItem).all()
+    result = []
+    for i in inventory_items:
+        store_qty = i.store_stock.quantity if i.store_stock else 0
+        station_qty = sum(s.quantity for s in i.station_stocks)
+        result.append({
+            "menu_item": i.menu_item.name,
+            "store_quantity": store_qty,
+            "station_quantity": station_qty,
+            "total_quantity": store_qty + station_qty
+        })
+    return jsonify(result), 200
+
+# --------------------- GET STATION STOCK --------------------- #
+
+@inventory_bp.route("/station-stock", methods=["GET"])
+@jwt_required()
+def get_station_stock():
+    items = StationStock.query.join(InventoryItem).join(MenuItem).join(Station).all()
+    result = []
+    for s in items:
+        result.append({
+            "menu_item": s.inventory_item.menu_item.name,
+            "menu_item_id": s.inventory_item.menu_item.id,
+            "station": s.station.name,
+            "quantity": s.quantity
+        })
+    return jsonify(result), 200
+
+# --------------------- GET STORE STOCK --------------------- #
+
+@inventory_bp.route("/store-stock", methods=["GET"])
+@jwt_required()
+def get_store_stock():
+    items = StoreStock.query.join(InventoryItem).join(MenuItem).all()
+    result = []
+    for s in items:
+        result.append({
+            "menu_item_id": s.inventory_item.menu_item.id,
+            "menu_item": s.inventory_item.menu_item.name,
+            "quantity": s.quantity
+        })
+    return jsonify(result), 200

@@ -152,16 +152,16 @@ export default function TransferManagement() {
 
   return (
     <Card className="p-6 w-full">
-      <h2 className="text-xl font-bold mb-4">Transfers</h2>
+      {/* <h2 className="text-xl font-bold mb-4">Transfers</h2> */}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        {/* <TabsList>
           <TabsTrigger value="transfers">Transfers</TabsTrigger>
-        </TabsList>
+        </TabsList> */}
 
         <TabsContent value="transfers">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-semibold">Transfers</h3>
+            {/* <h3 className="font-semibold">Transfers</h3> */}
             <Button
               onClick={() => {
                 setTransferForm({ menu_item_id: "", station_id: "", quantity: "" });

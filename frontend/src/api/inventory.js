@@ -14,7 +14,7 @@ const handleError = (error, fallback = "Request failed") => {
 // ------------------ STORE STOCK ------------------
 export const getStoreStock = async (token = null) => {
   try {
-    const res = await axios.get(`${BASE_URL}/inventory/stock`, {
+    const res = await axios.get(`${BASE_URL}/inventory/store-stock`, {
       headers: getAuthHeader(token),
     });
     return res.data;
@@ -24,9 +24,9 @@ export const getStoreStock = async (token = null) => {
 };
 
 // ------------------ STATION STOCK ------------------
-export const getStationStock = async (stationId, token = null) => {
+export const getStationStock = async (token = null) => {
   try {
-    const res = await axios.get(`${BASE_URL}/inventory/stock?station_id=${stationId}`, {
+    const res = await axios.get(`${BASE_URL}/inventory/station-stock`, {
       headers: getAuthHeader(token),
     });
     return res.data;
