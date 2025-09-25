@@ -293,23 +293,26 @@ def get_available_items():
     return jsonify(result), 200
 
 def deduct_station_stock(order_item: OrderItem):
-    """Deduct inventory when an order item is ready. Allows negative stock and never blocks status change."""
+    """Deduct inventory when an order item is ready.
+    - Allows negative stock
+    - Skips silently if StationStock missing
+    - Never blocks status updates
+    """
     try:
         station_name = order_item.station
         menu_item_id = order_item.menu_item_id
 
-        # Get the inventory item (log if missing, but don't block)
+        # Get the inventory item
         inventory_item = InventoryItem.query.filter_by(menu_item_id=menu_item_id).first()
         if not inventory_item:
-            # Optional: log warning
-            print(f"Warning: Inventory not found for menu_item_id {menu_item_id}")
-            return {"msg": "Inventory not found, skipping stock deduction"}, 200
+            print(f"[WARN] Inventory not found for menu_item_id={menu_item_id}")
+            return
 
         # Get the station
         station = Station.query.filter_by(name=station_name).first()
         if not station:
-            print(f"Warning: Station '{station_name}' not found")
-            return {"msg": "Station not found, skipping stock deduction"}, 200
+            print(f"[WARN] Station '{station_name}' not found")
+            return
 
         # Get the station stock
         station_stock = StationStock.query.filter_by(
@@ -318,19 +321,19 @@ def deduct_station_stock(order_item: OrderItem):
         ).first()
 
         if not station_stock:
-            print(f"Warning: StationStock missing for menu_item_id {menu_item_id} at station '{station_name}'")
-            return {"msg": "Station stock missing, skipping deduction"}, 200
+            print(f"[WARN] StationStock missing for menu_item_id={menu_item_id} at station='{station_name}'")
+            return
 
         # Deduct quantity (allow negative)
         station_stock.quantity -= float(order_item.quantity)
         db.session.commit()
-        return {"msg": "Stock deducted successfully"}, 200
+        print(f"[INFO] Deducted {order_item.quantity} from {station_name} for menu_item_id={menu_item_id}")
 
     except Exception as e:
-        # Never block; just log errors
-        print(f"Error deducting stock: {str(e)}")
+        # Never block; just log errors and rollback
+        print(f"[ERROR] Error deducting stock for order_item_id={order_item.id}: {str(e)}")
         db.session.rollback()
-        return {"msg": "Error during stock deduction, skipping"}, 200
+
 
 # --------------------- GET OVERALL STOCK --------------------- #
 

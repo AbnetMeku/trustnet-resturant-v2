@@ -92,7 +92,7 @@ def get_pending_orders():
 
     return jsonify(list(orders_dict.values())), 200
 
-# ---- UPDATE ORDER ITEM STATUS TO READY ----
+# ---- UPDATE ORDER ITEM STATUS TO READY (with silent stock deduction) ----
 @stations_kds_bp.route("/orders/<int:order_item_id>/status", methods=["PUT"])
 @jwt_required()
 def update_order_item_status(order_item_id):
@@ -110,13 +110,19 @@ def update_order_item_status(order_item_id):
         abort(404, "Order item not found")
 
     # Ensure this order item belongs to this station
-    # You store station as name on OrderItem; check that:
     if item.station != station.name:
         abort(403, "Order item does not belong to your station")
 
     # Update status
+    prev_status = item.status
     item.status = "ready"
     item.updated_at = datetime.utcnow()
+
+    # ---------------- Deduct stock if not already ready ----------------
+    if prev_status != "ready":
+        from app.routes.inventory.inventory import deduct_station_stock
+        deduct_station_stock(item)  # Silently skip if stock missing
+
     try:
         db.session.commit()
     except Exception as e:
@@ -134,6 +140,7 @@ def update_order_item_status(order_item_id):
             "updated_at": item.updated_at.isoformat() if getattr(item, "updated_at", None) else None
         }
     }), 200
+
 # ---- GET READY ITEMS HISTORY FOR STATION ----
 @stations_kds_bp.route("/orders/history", methods=["GET"])
 @jwt_required()
