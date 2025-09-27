@@ -71,3 +71,25 @@ class StockTransfer(db.Model):
 
     inventory_item = db.relationship("InventoryItem", back_populates="transfers")
     station = db.relationship("Station", backref="stock_transfers")
+# ---------------------- Station Stock Snapshots ---------------------- #
+class StationStockSnapshot(db.Model):
+    __tablename__ = "station_stock_snapshots"
+
+    id = db.Column(db.Integer, primary_key=True)
+    station_id = db.Column(db.Integer, db.ForeignKey("stations.id"), nullable=False)
+    inventory_item_id = db.Column(db.Integer, db.ForeignKey("inventory_items.id"), nullable=False)
+    snapshot_date = db.Column(db.Date, nullable=False)
+    
+    start_of_day_quantity = db.Column(db.Float, nullable=False)
+    sold_quantity = db.Column(db.Float, nullable=False, default=0.0)
+    remaining_quantity = db.Column(db.Float, nullable=False, default=0.0)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    station = db.relationship("Station")
+    inventory_item = db.relationship("InventoryItem")
+
+    __table_args__ = (
+        db.UniqueConstraint("station_id", "inventory_item_id", "snapshot_date", name="uq_station_item_date"),
+    )
+

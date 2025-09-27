@@ -172,3 +172,30 @@ export const getAvailableItems = async (token = null) => {
     handleError(error, "Failed to fetch available items");
   }
 };
+// ------------------ STATION STOCK WITH SALES (LIVE + SNAPSHOT) ------------------
+export const getStationStockWithSales = async ({ station = null, date = null } = {}, token = null) => {
+  try {
+    const params = {};
+    if (station) params.station = station;
+    if (date) params.date = date; // YYYY-MM-DD
+
+    const res = await axios.get(`${BASE_URL}/inventory/station-stock-with-sales`, {
+      headers: getAuthHeader(token),
+      params,
+    });
+
+    // Ensure proper numeric values
+    const data = res.data.map(item => ({
+      ...item,
+      start_of_day_quantity: Number(item.start_of_day_quantity),
+      sold_quantity: Number(item.sold_quantity),
+      remaining_quantity: Number(item.remaining_quantity)
+    }));
+
+    return data;
+  } catch (error) {
+    handleError(error, "Failed to fetch station stock with sales");
+  }
+};
+
+

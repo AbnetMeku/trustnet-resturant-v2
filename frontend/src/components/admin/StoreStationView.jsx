@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { getStoreStock, getStationStock, getStations } from "@/api/inventory";
+import { getStoreStock, getStationStockWithSales, getStations } from "@/api/inventory";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "react-hot-toast";
 
@@ -17,6 +17,7 @@ export default function StockManagement() {
   const [overallStock, setOverallStock] = useState([]);
   const [stations, setStations] = useState([]);
   const [selectedStation, setSelectedStation] = useState("");
+  const [snapshotDate, setSnapshotDate] = useState(new Date().toISOString().split("T")[0]); // default today
   const [page, setPage] = useState(1);
 
   // ---------------- Load Data ----------------
@@ -33,20 +34,17 @@ export default function StockManagement() {
     try {
       const data = await getStations(token);
       setStations(data);
-      if (data.length > 0) setSelectedStation(data[0].name);
+      if (data.length > 0 && !selectedStation) setSelectedStation(data[0].name);
     } catch (err) {
       toast.error(err.message || "Failed to load stations");
     }
   };
 
-  const loadStationStock = async (stationName = null) => {
+  const loadStationStock = async (stationName = null, date = null) => {
     try {
-      const data = await getStationStock(token);
-      if (stationName) {
-        setStationStock(data.filter((s) => s.station === stationName));
-      } else {
-        setStationStock(data);
-      }
+      const params = { station: stationName, date };
+      const data = await getStationStockWithSales(params, token);
+      setStationStock(data);
     } catch (err) {
       toast.error(err.message || "Failed to load station stock");
     }
@@ -58,11 +56,9 @@ export default function StockManagement() {
     const totals = {};
 
     all.forEach((row) => {
-      const key = row.menu_item || row.item_name;
-      if (!totals[key]) {
-        totals[key] = { item: key, total_quantity: 0 };
-      }
-      totals[key].total_quantity += row.quantity || 0;
+      const key = row.menu_item || row.item_name || row.item;
+      if (!totals[key]) totals[key] = { item: key, total_quantity: 0 };
+      totals[key].total_quantity += row.remaining_quantity || row.quantity || row.total_quantity || 0;
     });
 
     setOverallStock(Object.values(totals));
@@ -75,8 +71,8 @@ export default function StockManagement() {
   }, [token]);
 
   useEffect(() => {
-    if (selectedStation) loadStationStock(selectedStation);
-  }, [token, selectedStation]);
+    if (selectedStation) loadStationStock(selectedStation, snapshotDate);
+  }, [token, selectedStation, snapshotDate]);
 
   useEffect(() => {
     buildOverallStock();
@@ -86,7 +82,7 @@ export default function StockManagement() {
   const paginate = (data) => data.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // ---------------- Render Tables ----------------
-  const renderTable = (data) => (
+  const renderSimpleTable = (data) => (
     <div className="overflow-x-auto mt-2">
       <table className="w-full border rounded-lg shadow-sm">
         <thead>
@@ -94,46 +90,85 @@ export default function StockManagement() {
             <th className="p-2 border">#</th>
             <th className="p-2 border">Item</th>
             <th className="p-2 border">Quantity</th>
-            <th className="p-2 border">Location</th>
           </tr>
         </thead>
         <tbody>
           {paginate(data).map((row, i) => (
             <tr key={i} className="even:bg-gray-50 dark:even:bg-gray-800">
               <td className="p-2 border">{(page - 1) * PAGE_SIZE + i + 1}</td>
-              <td className="p-2 border">{row.menu_item || row.item_name}</td>
-              <td className="p-2 border">{row.quantity}</td>
-              <td className="p-2 border">{row.station || "Store"}</td>
+              <td className="p-2 border">{row.menu_item || row.item_name || row.item}</td>
+              <td className="p-2 border">{row.remaining_quantity || row.quantity || row.total_quantity}</td>
             </tr>
           ))}
         </tbody>
       </table>
-
       <Pagination data={data} />
     </div>
   );
 
-  const renderOverallTable = (data) => (
+  const renderStationTable = (data) => (
     <div className="overflow-x-auto mt-2">
+      <div className="mb-2 flex items-center gap-4">
+        {/* Station dropdown */}
+        <div className="flex items-center gap-2">
+          <label className="font-medium">Select Station:</label>
+          <select
+            className="border p-1 rounded bg-white text-black dark:bg-gray-800 dark:text-white"
+            value={selectedStation || ""}
+            onChange={(e) => {
+              setSelectedStation(e.target.value);
+              setPage(1);
+            }}
+          >
+            {stations
+            //   .filter((s) => s.name !== "Bar") // hide Bar or other stations
+              .map((s) => (
+                <option key={s.id} value={s.name}>
+                  {s.name}
+                </option>
+              ))}
+          </select>
+        </div>
+
+        {/* Date picker */}
+        <div className="flex items-center gap-2">
+          <label className="font-medium">Select Date:</label>
+          <input
+            type="date"
+            className="border p-1 rounded bg-white text-black dark:bg-gray-800 dark:text-white"
+            value={snapshotDate}
+            onChange={(e) => {
+              setSnapshotDate(e.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
+      </div>
+
       <table className="w-full border rounded-lg shadow-sm">
         <thead>
           <tr className="bg-gray-100 dark:bg-gray-700">
             <th className="p-2 border">#</th>
             <th className="p-2 border">Item</th>
-            <th className="p-2 border">Total Quantity</th>
+            <th className="p-2 border">Total</th>
+            <th className="p-2 border">Sold</th>
+            <th className="p-2 border">Remaining</th>
+            <th className="p-2 border">Station</th>
           </tr>
         </thead>
         <tbody>
           {paginate(data).map((row, i) => (
             <tr key={i} className="even:bg-gray-50 dark:even:bg-gray-800">
               <td className="p-2 border">{(page - 1) * PAGE_SIZE + i + 1}</td>
-              <td className="p-2 border">{row.item}</td>
-              <td className="p-2 border">{row.total_quantity}</td>
+              <td className="p-2 border">{row.menu_item}</td>
+              <td className="p-2 border">{row.start_of_day_quantity}</td>
+              <td className="p-2 border">{row.sold_quantity}</td>
+              <td className="p-2 border">{row.remaining_quantity}</td>
+              <td className="p-2 border">{row.station}</td>
             </tr>
           ))}
         </tbody>
       </table>
-
       <Pagination data={data} />
     </div>
   );
@@ -141,56 +176,28 @@ export default function StockManagement() {
   // ---------------- Pagination Component ----------------
   const Pagination = ({ data }) => (
     <div className="flex justify-between items-center mt-4">
-      <Button disabled={page === 1} onClick={() => setPage(page - 1)}>
-        Prev
-      </Button>
+      <Button disabled={page === 1} onClick={() => setPage(page - 1)}>Prev</Button>
       <span>
         Page {page} of {Math.ceil(data.length / PAGE_SIZE) || 1}
       </span>
-      <Button
-        disabled={page * PAGE_SIZE >= data.length}
-        onClick={() => setPage(page + 1)}
-      >
-        Next
-      </Button>
+      <Button disabled={page * PAGE_SIZE >= data.length} onClick={() => setPage(page + 1)}>Next</Button>
     </div>
   );
 
   return (
     <Card className="p-6 w-full space-y-4">
-      {/* <h2 className="text-xl font-bold">Stock Management</h2> */}
-
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val)}>
         <TabsList>
-          <TabsTrigger value="store">Store Stock</TabsTrigger>
-          <TabsTrigger value="station">Station Stock</TabsTrigger>
-          <TabsTrigger value="overall">Overall Stock</TabsTrigger>
+          <TabsTrigger value="store">Store</TabsTrigger>
+          <TabsTrigger value="station">Stations</TabsTrigger>
+          <TabsTrigger value="overall">Total</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="store">{renderTable(storeStock)}</TabsContent>
+        <TabsContent value="store">{renderSimpleTable(storeStock)}</TabsContent>
 
-        <TabsContent value="station">
-          <div className="mt-3 mb-2 flex items-center gap-3">
-            <label className="font-medium">Select Station:</label>
-            <select
-              className="border p-1 rounded bg-white text-black dark:bg-gray-800 dark:text-white"
-              value={selectedStation || ""}
-              onChange={(e) => {
-                setSelectedStation(e.target.value);
-                setPage(1); // reset pagination
-              }}
-            >
-              {stations.map((s) => (
-                <option key={s.id} value={s.name}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          {renderTable(stationStock)}
-        </TabsContent>
+        <TabsContent value="station">{renderStationTable(stationStock)}</TabsContent>
 
-        <TabsContent value="overall">{renderOverallTable(overallStock)}</TabsContent>
+        <TabsContent value="overall">{renderSimpleTable(overallStock)}</TabsContent>
       </Tabs>
     </Card>
   );
