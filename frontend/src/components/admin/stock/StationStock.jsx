@@ -13,13 +13,18 @@ export default function StationStock() {
     new Date().toISOString().split("T")[0]
   );
   const [stationStock, setStationStock] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // Load Stations
+  // Load Stations once
   const loadStations = async () => {
     try {
       const data = await getStations(token);
       setStations(data);
-      if (data.length > 0 && !selectedStation) setSelectedStation(data[0].name);
+
+      // Auto-select first station if none selected
+      if (data.length > 0 && !selectedStation) {
+        setSelectedStation(data[0].name);
+      }
     } catch (err) {
       toast.error(err.message || "Failed to load stations");
     }
@@ -29,6 +34,7 @@ export default function StationStock() {
   const loadStationStock = async () => {
     if (!selectedStation) return;
     try {
+      setLoading(true);
       const data = await getStationStockWithSales(
         { station: selectedStation, date: snapshotDate },
         token
@@ -36,15 +42,27 @@ export default function StationStock() {
       setStationStock(data);
     } catch (err) {
       toast.error(err.message || "Failed to load station stock");
+    } finally {
+      setLoading(false);
     }
   };
 
+  // First load
   useEffect(() => {
     loadStations();
   }, [token]);
 
+  // Reload when station/date changes
   useEffect(() => {
     if (selectedStation) loadStationStock();
+  }, [selectedStation, snapshotDate, token]);
+
+  // Auto-refresh every 15s
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (selectedStation) loadStationStock();
+    }, 15000); // 15 sec
+    return () => clearInterval(interval);
   }, [selectedStation, snapshotDate, token]);
 
   return (
@@ -64,13 +82,12 @@ export default function StationStock() {
             onChange={(e) => setSelectedStation(e.target.value)}
           >
             {stations
-             .filter((s) => s.name !== "Kitchen")
-             .filter((s) => s.name !== "Butcher")// hide Bar or other stations
-            .map((s) => (
-              <option key={s.id} value={s.name}>
-                {s.name}
-              </option>
-            ))}
+              .filter((s) => s.name !== "Kitchen" && s.name !== "Butcher") // hide some
+              .map((s) => (
+                <option key={s.id} value={s.name}>
+                  {s.name}
+                </option>
+              ))}
           </select>
         </div>
 
@@ -88,28 +105,46 @@ export default function StationStock() {
 
       {/* Stock Table */}
       <div className="overflow-x-auto">
-        <table className="w-full table-auto border-collapse border border-gray-300 dark:border-gray-600 shadow-sm">
-          <thead>
-            <tr className="bg-gray-100 dark:bg-gray-800">
-              <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left text-gray-700 dark:text-gray-200">Item Name</th>
-              <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-gray-700 dark:text-gray-200">Opening</th>
-              <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-gray-700 dark:text-gray-200">Added</th>
-              <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-gray-700 dark:text-gray-200">Sold</th>
-              <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-indigo-600 dark:text-indigo-400 font-semibold">Remaining</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stationStock.map((row, i) => (
-              <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">{row.menu_item}</td>
-                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">{row.start_of_day_quantity}</td>
-                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">{row.added_quantity}</td>
-                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">{row.sold_quantity}</td>
-                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">{row.remaining_quantity}</td>
+        {loading ? (
+          <p className="text-center text-gray-500 dark:text-gray-400">Loading...</p>
+        ) : stationStock.length === 0 ? (
+          <p className="text-center text-gray-500 dark:text-gray-400">
+            No stock data found for this station & date
+          </p>
+        ) : (
+          <table className="w-full table-auto border-collapse border border-gray-300 dark:border-gray-600 shadow-sm">
+            <thead>
+              <tr className="bg-gray-100 dark:bg-gray-800">
+                <th className="border px-4 py-2 text-left">Item Name</th>
+                <th className="border px-4 py-2 text-right">Opening</th>
+                <th className="border px-4 py-2 text-right">Added</th>
+                <th className="border px-4 py-2 text-right">Sold</th>
+                <th className="border px-4 py-2 text-right text-indigo-600 dark:text-indigo-400 font-semibold">
+                  Remaining
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {stationStock.map((row, i) => (
+                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <td className="border px-4 py-2">{row.menu_item}</td>
+                  <td className="border px-4 py-2 text-right">
+                    {row.start_of_day_quantity}
+                  </td>
+                  <td className="border px-4 py-2 text-right">
+                    {row.added_quantity}
+                  </td>
+                  <td className="border px-4 py-2 text-right">
+                    {row.sold_quantity}
+                  </td>
+                  <td className="border px-4 py-2 text-right">
+                    {row.remaining_quantity}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </Card>
   );

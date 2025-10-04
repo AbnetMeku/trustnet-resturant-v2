@@ -6,23 +6,23 @@ import StationStock from "./stock/StationStock";
 import OverallStock from "./stock/OverallStock";
 
 export default function StockManagement() {
-  const [activeTab, setActiveTab] = useState("store");
+  const [activeTab, setActiveTab] = useState("station");
 
   return (
     <Card className="p-6 w-full space-y-4">
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val)}>
         <TabsList>
-          <TabsTrigger value="store">Store</TabsTrigger>
           <TabsTrigger value="station">Stations</TabsTrigger>
+          <TabsTrigger value="store">Store</TabsTrigger>
           <TabsTrigger value="overall">Total</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="store">
-          <StoreStock />
-        </TabsContent>
-
         <TabsContent value="station">
           <StationStock />
+        </TabsContent>
+
+        <TabsContent value="store">
+          <StoreStock />
         </TabsContent>
 
         <TabsContent value="overall">
