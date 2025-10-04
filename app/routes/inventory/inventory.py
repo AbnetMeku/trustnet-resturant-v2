@@ -461,9 +461,11 @@ def get_station_stock_with_sales():
                 )
                 .filter(OrderItem.station == station.name)
                 .filter(db.func.date(OrderItem.created_at) == query_date)
+                .filter(OrderItem.status == "ready")   # ✅ only count ready items
                 .group_by(OrderItem.menu_item_id)
                 .all()
             )
+
             sold_map = {row.menu_item_id: float(row.sold_qty) for row in sold_qty_query}
 
             # Get live station stock
@@ -471,16 +473,25 @@ def get_station_stock_with_sales():
             live_map = {s.inventory_item_id: s.quantity for s in live_stock}
 
             # Build result
-            all_item_ids = set(list(start_of_day_qty_map.keys()) + list(added_map.keys()) + list(sold_map.keys()) + list(live_map.keys()))
+            all_item_ids = set(list(start_of_day_qty_map.keys()) + list(added_map.keys()) + list(live_map.keys()))
+
             for item_id in all_item_ids:
                 inventory_item = InventoryItem.query.get(item_id)
+                if not inventory_item:
+                    continue
+
+                # Map sold qty by inventory item instead of menu item
+                sold_qty = 0
+                if inventory_item.menu_item_id in sold_map:
+                    sold_qty = sold_map[inventory_item.menu_item_id]
+
                 result.append({
-                    "menu_item": inventory_item.menu_item.name,
-                    "menu_item_id": inventory_item.menu_item.id,
+                    "menu_item": inventory_item.menu_item.name if inventory_item.menu_item else None,
+                    "menu_item_id": inventory_item.menu_item.id if inventory_item.menu_item else None,
                     "station": station.name,
                     "start_of_day_quantity": start_of_day_qty_map.get(item_id, 0),
                     "added_quantity": added_map.get(item_id, 0),
-                    "sold_quantity": sold_map.get(item_id, 0),
+                    "sold_quantity": sold_qty,
                     "remaining_quantity": live_map.get(item_id, 0)
                 })
 
@@ -499,10 +510,12 @@ def get_station_stock_with_sales():
                 .filter(
                     OrderItem.station == snap.station.name,
                     OrderItem.menu_item_id == snap.inventory_item.menu_item.id,
-                    db.func.date(OrderItem.created_at) == query_date
+                    db.func.date(OrderItem.created_at) == query_date,
+                    OrderItem.status == "ready"   # ✅ only ready orders
                 )
                 .scalar()
             )
+
 
             remaining_qty = snap.start_of_day_quantity - sold_qty
 
@@ -511,7 +524,7 @@ def get_station_stock_with_sales():
                 "menu_item_id": snap.inventory_item.menu_item.id,
                 "station": snap.station.name,
                 "start_of_day_quantity": snap.start_of_day_quantity,
-                "added_quantity": 0,  # transfers are not considered for past days
+                "added_quantity": snap.added_quantity, # from snapshot
                 "sold_quantity": sold_qty,
                 "remaining_quantity": remaining_qty
             })
@@ -634,6 +647,7 @@ def create_station_snapshot():
     
     For each inventory item in each station:
     - start_of_day_quantity = current stock
+    - added_quantity = transfers into the station for that date (0 if none)
     - sold_quantity = 0
     - remaining_quantity = current stock
     """
@@ -662,11 +676,24 @@ def create_station_snapshot():
             if existing:
                 continue  # skip existing snapshot
 
+            # --- calculate transfers for the snapshot day ---
+            added_qty = float(
+                db.session.query(db.func.coalesce(db.func.sum(StockTransfer.quantity), 0))
+                .filter(
+                    StockTransfer.station_id == station.id,
+                    StockTransfer.inventory_item_id == stock_item.inventory_item_id,
+                    StockTransfer.status != "Deleted",
+                    db.func.date(StockTransfer.created_at) == snapshot_date
+                )
+                .scalar()
+            )
+
             snapshot = StationStockSnapshot(
                 station_id=station.id,
                 inventory_item_id=stock_item.inventory_item_id,
                 snapshot_date=snapshot_date,
                 start_of_day_quantity=stock_item.quantity,
+                added_quantity=added_qty,
                 sold_quantity=0,
                 remaining_quantity=stock_item.quantity
             )
@@ -674,12 +701,129 @@ def create_station_snapshot():
             created_snapshots.append({
                 "station": station.name,
                 "inventory_item_id": stock_item.inventory_item_id,
-                "start_of_day_quantity": stock_item.quantity
+                "snapshot_date": str(snapshot_date),
+                "start_of_day_quantity": stock_item.quantity,
+                "added_quantity": added_qty,
+                "sold_quantity": 0,
+                "remaining_quantity": stock_item.quantity
             })
 
     db.session.commit()
 
     return jsonify({
         "msg": f"Snapshots created for {len(created_snapshots)} items on {snapshot_date}",
+        "snapshots": created_snapshots
+    }), 201
+
+# --------------------- BACKFILL SINGLE DAY SNAPSHOT --------------------- #
+@inventory_bp.route("/station-snapshot-backfill-day", methods=["POST"])
+@jwt_required()
+def backfill_station_snapshot_day():
+    """
+    Backfills snapshots for all stations for a single day.
+    Accepts JSON body:
+    - date: YYYY-MM-DD (defaults to today)
+
+    Calculates:
+    - start_of_day_quantity: previous day's remaining or current stock
+    - added_quantity: sum of transfers on that day
+    - sold_quantity: sum of orders on that day
+    - remaining_quantity: start + added - sold
+    """
+    from datetime import date, timedelta
+
+    data = request.get_json() or {}
+    date_str = data.get("date")
+
+    try:
+        target_date = datetime.fromisoformat(date_str).date() if date_str else date.today()
+    except ValueError:
+        return jsonify({"msg": "Invalid date format, use YYYY-MM-DD"}), 400
+
+    created_snapshots = []
+
+    stations = Station.query.all()
+
+    for station in stations:
+        # Get all items in this station
+        station_items = StationStock.query.filter_by(station_id=station.id).all()
+        item_ids = [s.inventory_item_id for s in station_items]
+
+        for item_id in item_ids:
+            # Skip if snapshot already exists
+            existing = StationStockSnapshot.query.filter_by(
+                station_id=station.id,
+                inventory_item_id=item_id,
+                snapshot_date=target_date
+            ).first()
+            if existing:
+                continue
+
+            # Start of day quantity = previous day's remaining, fallback to current stock
+            prev_snapshot = StationStockSnapshot.query.filter_by(
+                station_id=station.id,
+                inventory_item_id=item_id,
+                snapshot_date=target_date - timedelta(days=1)
+            ).first()
+            if prev_snapshot:
+                start_of_day_qty = prev_snapshot.remaining_quantity
+            else:
+                live_stock = StationStock.query.filter_by(
+                    station_id=station.id, inventory_item_id=item_id
+                ).first()
+                start_of_day_qty = live_stock.quantity if live_stock else 0
+
+            # Added quantity (transfers)
+            added_qty = float(
+                db.session.query(db.func.coalesce(db.func.sum(StockTransfer.quantity), 0))
+                .filter(
+                    StockTransfer.station_id == station.id,
+                    StockTransfer.inventory_item_id == item_id,
+                    StockTransfer.status != "Deleted",
+                    db.func.date(StockTransfer.created_at) == target_date
+                )
+                .scalar()
+            )
+
+            # Sold quantity
+            menu_item_id = InventoryItem.query.get(item_id).menu_item.id
+            sold_qty = float(
+                db.session.query(db.func.coalesce(db.func.sum(OrderItem.quantity), 0))
+                .filter(
+                    OrderItem.station == station.name,
+                    OrderItem.menu_item_id == menu_item_id,
+                    db.func.date(OrderItem.created_at) == target_date
+                )
+                .scalar()
+            )
+
+            remaining_qty = start_of_day_qty + added_qty - sold_qty
+
+            # Create snapshot
+            snapshot = StationStockSnapshot(
+                station_id=station.id,
+                inventory_item_id=item_id,
+                snapshot_date=target_date,
+                start_of_day_quantity=start_of_day_qty,
+                added_quantity=added_qty,
+                sold_quantity=sold_qty,
+                remaining_quantity=remaining_qty
+            )
+            db.session.add(snapshot)
+
+            created_snapshots.append({
+                "station": station.name,
+                "inventory_item_id": item_id,
+                "snapshot_date": target_date,
+                "start_of_day_quantity": start_of_day_qty,
+                "added_quantity": added_qty,
+                "sold_quantity": sold_qty,
+                "remaining_quantity": remaining_qty
+            })
+
+    db.session.commit()
+
+    return jsonify({
+        "msg": f"Backfilled {len(created_snapshots)} snapshots for {target_date}",
         "snapshots": created_snapshots
     }), 201

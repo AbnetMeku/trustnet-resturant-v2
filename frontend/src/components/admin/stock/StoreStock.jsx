@@ -45,7 +45,7 @@ export default function StoreStock() {
 
   return (
     <div className="p-4">
-      <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Store Stock</h2>
+      <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">View Store Stock</h2>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-4 mb-4">

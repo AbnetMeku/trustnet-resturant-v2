@@ -50,7 +50,7 @@ export default function StationStock() {
   return (
     <Card className="p-4 w-full">
       <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">
-        Station Stock
+        View Station Stock
       </h2>
 
       {/* Filters */}

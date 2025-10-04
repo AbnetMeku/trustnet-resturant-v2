@@ -83,7 +83,8 @@ class StationStockSnapshot(db.Model):
     start_of_day_quantity = db.Column(db.Float, nullable=False)
     sold_quantity = db.Column(db.Float, nullable=False, default=0.0)
     remaining_quantity = db.Column(db.Float, nullable=False, default=0.0)
-    
+    added_quantity = db.Column(db.Float, nullable=True, default=0.0)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     station = db.relationship("Station")

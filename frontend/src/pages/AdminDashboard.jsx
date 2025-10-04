@@ -280,7 +280,7 @@ export default function AdminDashboard() {
 
             {active === "inventory-view" && (
               <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Store & Station Stock</h2>
+                {/* <h2 className="text-xl font-bold mb-4">Store & Station Stock</h2> */}
                 <StoreStationView />
               </Card>
             )}
