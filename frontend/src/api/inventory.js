@@ -188,6 +188,7 @@ export const getStationStockWithSales = async ({ station = null, date = null } =
     const data = res.data.map(item => ({
       ...item,
       start_of_day_quantity: Number(item.start_of_day_quantity),
+      added_quantity: Number(item.added_quantity || 0),    // <--- NEW
       sold_quantity: Number(item.sold_quantity),
       remaining_quantity: Number(item.remaining_quantity)
     }));
@@ -198,4 +199,58 @@ export const getStationStockWithSales = async ({ station = null, date = null } =
   }
 };
 
+// ------------------ OVERALL STOCK ------------------
+export const getOverallStock = async (token = null) => {
+  try {
+    const res = await axios.get(`${BASE_URL}/inventory/overall-stock`, {
+      headers: getAuthHeader(token),
+    });
+    // Ensure numeric values
+    const data = res.data.map(item => ({
+      ...item,
+      store_quantity: Number(item.store_quantity || 0),
+      station_quantity: Number(item.station_quantity || 0),
+      total_quantity: Number(item.total_quantity || 0),
+    }));
+    return data;
+  } catch (error) {
+    handleError(error, "Failed to fetch overall stock");
+  }
+};
 
+// ------------------ STORE STOCK WITH DATE ------------------
+export const getStoreStockWithDate = async ({ date = null } = {}, token = null) => {
+  try {
+    const params = {};
+    if (date) params.date = date; // YYYY-MM-DD
+
+    const res = await axios.get(`${BASE_URL}/inventory/store-stock-with-date`, {
+      headers: getAuthHeader(token),
+      params,
+    });
+
+    // Ensure numeric values
+    const data = res.data.map(item => ({
+      ...item,
+      purchased: Number(item.purchased || 0),
+      transferred_out: Number(item.transferred_out || 0),
+      remaining: Number(item.remaining || 0),
+    }));
+
+    return data;
+  } catch (error) {
+    handleError(error, "Failed to fetch store stock with date");
+  }
+};
+
+// ------------------ ITEMS WITH STATION (for transfer auto-select) ------------------
+export const getItemsWithStation = async (token = null) => {
+  try {
+    const res = await axios.get(`${BASE_URL}/inventory/items-with-station`, {
+      headers: getAuthHeader(token),
+    });
+    return res.data;
+  } catch (error) {
+    handleError(error, "Failed to fetch items with station");
+  }
+};
