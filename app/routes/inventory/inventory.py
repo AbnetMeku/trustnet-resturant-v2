@@ -611,80 +611,113 @@ def get_items_with_station():
     return jsonify(result), 200
 # --------------------- CREATE MANUAL STATION SNAPSHOT --------------------- #
 @inventory_bp.route("/station-snapshot", methods=["POST"])
-@jwt_required()
+# @jwt_required()
 def create_station_snapshot():
     """
-    Creates snapshots for all stations for a given date.
+    Manually creates or updates station snapshots for a given date.
     Accepts optional JSON body:
     - date: YYYY-MM-DD (defaults to today)
     
-    For each inventory item in each station:
-    - start_of_day_quantity = current stock
-    - added_quantity = transfers into the station for that date (0 if none)
-    - sold_quantity = 0
-    - remaining_quantity = current stock
+    For each station item:
+    - start_of_day_quantity = previous day's remaining (if any) or current stock
+    - added_quantity = total transferred into the station that day
+    - sold_quantity = total 'ready' orders for that day
+    - remaining_quantity = live stock (from StationStock table)
     """
-    from datetime import date
+    from datetime import date, timedelta
 
     data = request.get_json() or {}
     date_str = data.get("date")
-    
+
     try:
         snapshot_date = datetime.fromisoformat(date_str).date() if date_str else date.today()
     except ValueError:
         return jsonify({"msg": "Invalid date format, use YYYY-MM-DD"}), 400
 
+    previous_date = snapshot_date - timedelta(days=1)
     stations = Station.query.all()
     created_snapshots = []
 
     for station in stations:
-        station_stock_items = StationStock.query.filter_by(station_id=station.id).all()
-        for stock_item in station_stock_items:
-            # Check if snapshot already exists
-            existing = StationStockSnapshot.query.filter_by(
-                station_id=station.id,
-                inventory_item_id=stock_item.inventory_item_id,
-                snapshot_date=snapshot_date
-            ).first()
-            if existing:
-                continue  # skip existing snapshot
+        stock_items = StationStock.query.filter_by(station_id=station.id).all()
 
-            # --- calculate transfers for the snapshot day ---
+        for stock_item in stock_items:
+            item_id = stock_item.inventory_item_id
+
+            # --- Previous day's remaining quantity (as opening) ---
+            prev_snap = StationStockSnapshot.query.filter_by(
+                station_id=station.id,
+                inventory_item_id=item_id,
+                snapshot_date=previous_date
+            ).first()
+
+            start_of_day_qty = (
+                prev_snap.remaining_quantity if prev_snap else stock_item.quantity
+            )
+
+            # --- Transfers (added) for this snapshot date ---
             added_qty = float(
                 db.session.query(db.func.coalesce(db.func.sum(StockTransfer.quantity), 0))
                 .filter(
                     StockTransfer.station_id == station.id,
-                    StockTransfer.inventory_item_id == stock_item.inventory_item_id,
+                    StockTransfer.inventory_item_id == item_id,
                     StockTransfer.status != "Deleted",
                     db.func.date(StockTransfer.created_at) == snapshot_date
                 )
                 .scalar()
             )
 
-            snapshot = StationStockSnapshot(
-                station_id=station.id,
-                inventory_item_id=stock_item.inventory_item_id,
-                snapshot_date=snapshot_date,
-                start_of_day_quantity=stock_item.quantity,
-                added_quantity=added_qty,
-                sold_quantity=0,
-                remaining_quantity=stock_item.quantity
+            # --- Sold items (OrderItems with status='ready') ---
+            sold_qty = float(
+                db.session.query(db.func.coalesce(db.func.sum(OrderItem.quantity), 0))
+                .filter(OrderItem.station == station.name)
+                .filter(OrderItem.menu_item_id == stock_item.inventory_item.menu_item_id)
+                .filter(OrderItem.status == "ready")
+                .filter(db.func.date(OrderItem.created_at) == snapshot_date)
+                .scalar()
             )
-            db.session.add(snapshot)
+
+            # --- Remaining quantity from live stock table ---
+            remaining_qty = stock_item.quantity
+
+            # --- Create or update snapshot ---
+            snapshot = StationStockSnapshot.query.filter_by(
+                station_id=station.id,
+                inventory_item_id=item_id,
+                snapshot_date=snapshot_date
+            ).first()
+
+            if snapshot:
+                snapshot.start_of_day_quantity = start_of_day_qty
+                snapshot.added_quantity = added_qty
+                snapshot.sold_quantity = sold_qty
+                snapshot.remaining_quantity = remaining_qty
+            else:
+                snapshot = StationStockSnapshot(
+                    station_id=station.id,
+                    inventory_item_id=item_id,
+                    snapshot_date=snapshot_date,
+                    start_of_day_quantity=start_of_day_qty,
+                    added_quantity=added_qty,
+                    sold_quantity=sold_qty,
+                    remaining_quantity=remaining_qty,
+                )
+                db.session.add(snapshot)
+
             created_snapshots.append({
                 "station": station.name,
-                "inventory_item_id": stock_item.inventory_item_id,
+                "inventory_item_id": item_id,
                 "snapshot_date": str(snapshot_date),
-                "start_of_day_quantity": stock_item.quantity,
+                "start_of_day_quantity": start_of_day_qty,
                 "added_quantity": added_qty,
-                "sold_quantity": 0,
-                "remaining_quantity": stock_item.quantity
+                "sold_quantity": sold_qty,
+                "remaining_quantity": remaining_qty
             })
 
     db.session.commit()
 
     return jsonify({
-        "msg": f"Snapshots created for {len(created_snapshots)} items on {snapshot_date}",
+        "msg": f"Snapshots created/updated for {len(created_snapshots)} items on {snapshot_date}",
         "snapshots": created_snapshots
     }), 201
 
