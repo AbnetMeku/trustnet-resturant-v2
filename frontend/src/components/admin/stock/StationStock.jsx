@@ -16,53 +16,46 @@ export default function StationStock() {
   const [loading, setLoading] = useState(false);
 
   // Load Stations once
-  const loadStations = async () => {
-    try {
-      const data = await getStations(token);
-      setStations(data);
-
-      // Auto-select first station if none selected
-      if (data.length > 0 && !selectedStation) {
-        setSelectedStation(data[0].name);
-      }
-    } catch (err) {
-      toast.error(err.message || "Failed to load stations");
-    }
-  };
-
-  // Load Station Stock
-  const loadStationStock = async () => {
-    if (!selectedStation) return;
-    try {
-      setLoading(true);
-      const data = await getStationStockWithSales(
-        { station: selectedStation, date: snapshotDate },
-        token
-      );
-      setStationStock(data);
-    } catch (err) {
-      toast.error(err.message || "Failed to load station stock");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // First load
   useEffect(() => {
+    const loadStations = async () => {
+      try {
+        const data = await getStations(token);
+        const filteredStations = data.filter(
+          (s) => s.name !== "Kitchen" && s.name !== "Butcher"
+        );
+        setStations(filteredStations);
+
+        // Auto-select first station if available
+        if (filteredStations.length > 0) {
+          setSelectedStation(filteredStations[0].name);
+        }
+      } catch (err) {
+        toast.error(err.message || "Failed to load stations");
+      }
+    };
+
     loadStations();
   }, [token]);
 
-  // Reload when station/date changes
+  // Load stock only when station or date changes (no timer)
   useEffect(() => {
-    if (selectedStation) loadStationStock();
-  }, [selectedStation, snapshotDate, token]);
+    const loadStationStock = async () => {
+      if (!selectedStation) return;
+      setLoading(true);
+      try {
+        const data = await getStationStockWithSales(
+          { station: selectedStation, date: snapshotDate },
+          token
+        );
+        setStationStock(data);
+      } catch (err) {
+        toast.error(err.message || "Failed to load station stock");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // Auto-refresh every 15s
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (selectedStation) loadStationStock();
-    }, 15000); // 15 sec
-    return () => clearInterval(interval);
+    loadStationStock();
   }, [selectedStation, snapshotDate, token]);
 
   return (
@@ -78,16 +71,14 @@ export default function StationStock() {
           <label className="font-medium">Station:</label>
           <select
             className="p-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
-            value={selectedStation || ""}
+            value={selectedStation}
             onChange={(e) => setSelectedStation(e.target.value)}
           >
-            {stations
-              .filter((s) => s.name !== "Kitchen" && s.name !== "Butcher") // hide some
-              .map((s) => (
-                <option key={s.id} value={s.name}>
-                  {s.name}
-                </option>
-              ))}
+            {stations.map((s) => (
+              <option key={s.id} value={s.name}>
+                {s.name}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -104,22 +95,30 @@ export default function StationStock() {
       </div>
 
       {/* Stock Table */}
-      <div className="overflow-x-auto">
-        {loading ? (
-          <p className="text-center text-gray-500 dark:text-gray-400">Loading...</p>
-        ) : stationStock.length === 0 ? (
-          <p className="text-center text-gray-500 dark:text-gray-400">
-            No stock data found for this station & date
-          </p>
-        ) : (
+      {loading ? (
+        <div className="text-center py-6 text-gray-500">Loading...</div>
+      ) : stationStock.length === 0 ? (
+        <div className="text-center py-6 text-gray-500">
+          No data available for this date/station.
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
           <table className="w-full table-auto border-collapse border border-gray-300 dark:border-gray-600 shadow-sm">
             <thead>
               <tr className="bg-gray-100 dark:bg-gray-800">
-                <th className="border px-4 py-2 text-left">Item Name</th>
-                <th className="border px-4 py-2 text-right">Opening</th>
-                <th className="border px-4 py-2 text-right">Added</th>
-                <th className="border px-4 py-2 text-right">Sold</th>
-                <th className="border px-4 py-2 text-right text-indigo-600 dark:text-indigo-400 font-semibold">
+                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left text-gray-700 dark:text-gray-200">
+                  Item Name
+                </th>
+                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-gray-700 dark:text-gray-200">
+                  Opening
+                </th>
+                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-gray-700 dark:text-gray-200">
+                  Added
+                </th>
+                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-gray-700 dark:text-gray-200">
+                  Sold
+                </th>
+                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-indigo-600 dark:text-indigo-400 font-semibold">
                   Remaining
                 </th>
               </tr>
@@ -127,25 +126,27 @@ export default function StationStock() {
             <tbody>
               {stationStock.map((row, i) => (
                 <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td className="border px-4 py-2">{row.menu_item}</td>
-                  <td className="border px-4 py-2 text-right">
+                  <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
+                    {row.menu_item}
+                  </td>
+                  <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
                     {row.start_of_day_quantity}
                   </td>
-                  <td className="border px-4 py-2 text-right">
+                  <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
                     {row.added_quantity}
                   </td>
-                  <td className="border px-4 py-2 text-right">
+                  <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
                     {row.sold_quantity}
                   </td>
-                  <td className="border px-4 py-2 text-right">
+                  <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
                     {row.remaining_quantity}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
     </Card>
   );
 }

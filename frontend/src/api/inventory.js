@@ -189,7 +189,7 @@ export const getStationStockWithSales = async ({ station = null, date = null } =
       ...item,
       start_of_day_quantity: Number(item.start_of_day_quantity),
       added_quantity: Number(item.added_quantity || 0),    // <--- NEW
-      sold_quantity: Number(item.sold_quantity),
+      sold_quantity: Number(item.sold_quantity || 0),
       remaining_quantity: Number(item.remaining_quantity)
     }));
 
