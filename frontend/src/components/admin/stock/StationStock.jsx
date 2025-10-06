@@ -9,9 +9,12 @@ export default function StationStock() {
 
   const [stations, setStations] = useState([]);
   const [selectedStation, setSelectedStation] = useState("");
-  const [snapshotDate, setSnapshotDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
+// UTC "today" in YYYY-MM-DD
+const [snapshotDate, setSnapshotDate] = useState(() => {
+  const now = new Date();
+  return now.toISOString().split("T")[0]; // always UTC
+});
+
   const [stationStock, setStationStock] = useState([]);
   const [loading, setLoading] = useState(false);
 

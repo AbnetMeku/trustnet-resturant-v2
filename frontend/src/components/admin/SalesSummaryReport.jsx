@@ -9,18 +9,39 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { Loader2 } from "lucide-react";
 
+function getAdjustedEATDate() {
+  const now = new Date();
+  const utcHour = now.getUTCHours(); // UTC time hour
+
+  // EAT = UTC +3 → So between UTC 0–2 means before local 3AM → still show previous day
+  if (utcHour < 3) {
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    return yesterday;
+  }
+
+  return now;
+}
+
 export default function SalesSummaryReport({ darkMode }) {
   const [data, setData] = useState(null);
   const [waiters, setWaiters] = useState([]);
   const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [error, setError] = useState(null);
-  const today = new Date();
-  const [startDate, setStartDate] = useState(today);
-  const [endDate, setEndDate] = useState(today);
+
+  // ✅ Adjusted “today” based on EAT–UTC difference
+  const adjustedToday = getAdjustedEATDate();
+
+  // ✅ Make sure these are defined before they are used
   const [waiterId, setWaiterId] = useState("");
   const [vipOnly, setVipOnly] = useState("all");
+  const [startDate, setStartDate] = useState(adjustedToday);
+  const [endDate, setEndDate] = useState(adjustedToday);
+
   const reportRef = useRef(null);
+
+
 
   // Fetch waiters for dropdown
   useEffect(() => {
