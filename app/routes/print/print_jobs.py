@@ -52,7 +52,7 @@ def create_station_print_jobs(order: Order, only_new_items=True):
         if not station_items:
             continue
 
-        if station.name.lower() == "butcher":
+        if station.name.lower() == "but":
             db.session.add(PrintJob(
                 order_id=order.id,
                 station_id=station.id,

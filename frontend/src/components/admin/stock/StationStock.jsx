@@ -11,8 +11,12 @@ export default function StationStock() {
   const [selectedStation, setSelectedStation] = useState("");
 // UTC "today" in YYYY-MM-DD
 const [snapshotDate, setSnapshotDate] = useState(() => {
+  // ✅ Force pure UTC "today" (no local offset)
   const now = new Date();
-  return now.toISOString().split("T")[0]; // always UTC
+  const utcYear = now.getUTCFullYear();
+  const utcMonth = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const utcDay = String(now.getUTCDate()).padStart(2, "0");
+  return `${utcYear}-${utcMonth}-${utcDay}`;
 });
 
   const [stationStock, setStationStock] = useState([]);
