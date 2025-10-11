@@ -3,19 +3,45 @@ import { getSalesSummary } from "@/api/reportApi";
 import { getUsers } from "@/api/users";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 import { Loader2 } from "lucide-react";
+
+function getAdjustedEATDate() {
+  const now = new Date();
+  const utcHour = now.getUTCHours(); // UTC time hour
+
+  // EAT = UTC +3 → So between UTC 0–2 means before local 3AM → still show previous day
+  if (utcHour < 3) {
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    return yesterday;
+  }
+
+  return now;
+}
 
 export default function SalesSummaryReport({ darkMode }) {
   const [data, setData] = useState(null);
   const [waiters, setWaiters] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const [error, setError] = useState(null);
-  const today = new Date();
-  const [startDate, setStartDate] = useState(today);
-  const [endDate, setEndDate] = useState(today);
+
+  // ✅ Adjusted “today” based on EAT–UTC difference
+  const adjustedToday = getAdjustedEATDate();
+
+  // ✅ Make sure these are defined before they are used
   const [waiterId, setWaiterId] = useState("");
   const [vipOnly, setVipOnly] = useState("all");
+  const [startDate, setStartDate] = useState(adjustedToday);
+  const [endDate, setEndDate] = useState(adjustedToday);
+
   const reportRef = useRef(null);
+
+
 
   // Fetch waiters for dropdown
   useEffect(() => {
@@ -53,8 +79,339 @@ export default function SalesSummaryReport({ darkMode }) {
     fetchReportData();
   }, [startDate, endDate, waiterId, vipOnly]);
 
+  // PDF Export
+  const exportPDF = async () => {
+    if (!data) {
+      setError("No data available to export.");
+      return;
+    }
+
+    setPdfLoading(true);
+    setError(null);
+
+    try {
+      const pdf = new jsPDF("p", "pt", "a4");
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 40;
+      const lineHeight = 20;
+      let yPosition = margin;
+
+      // Load Noto Serif Ethiopic font
+      const fontUrl = "/fonts/NotoSerifEthiopic-Regular.ttf";
+      const response = await fetch(fontUrl);
+      if (!response.ok) throw new Error("Failed to load font file");
+      const fontArrayBuffer = await response.arrayBuffer();
+      const fontBase64 = btoa(
+        new Uint8Array(fontArrayBuffer).reduce(
+          (data, byte) => data + String.fromCharCode(byte),
+          ""
+        )
+      );
+
+      pdf.addFileToVFS("NotoSerifEthiopic-Regular.ttf", fontBase64);
+      pdf.addFont("NotoSerifEthiopic-Regular.ttf", "NotoSerifEthiopic", "normal");
+      pdf.setFont("NotoSerifEthiopic");
+
+      const addNewPageIfNeeded = (requiredHeight) => {
+        if (yPosition + requiredHeight > pageHeight - margin) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+      };
+
+      // Title
+      pdf.setFontSize(16);
+      pdf.setTextColor(17, 24, 39); // Gray-900
+      pdf.text(`Sales Summary: ${data.from} - ${data.to}`, margin, yPosition);
+      pdf.setLineWidth(1);
+      pdf.setDrawColor(59, 130, 246); // Blue-500
+      pdf.line(margin, yPosition + 5, pageWidth - margin, yPosition + 5);
+      yPosition += lineHeight * 2;
+
+      // Categories
+      data.report.forEach((category) => {
+        addNewPageIfNeeded(lineHeight);
+        pdf.setFontSize(14);
+        pdf.setTextColor(17, 24, 39); // Gray-900
+        pdf.text(category.category, margin, yPosition);
+        yPosition += lineHeight + 10;
+
+        category.subcategories.forEach((subcat) => {
+          addNewPageIfNeeded(lineHeight);
+          pdf.setFontSize(12);
+          pdf.setTextColor(79, 70, 229); // Indigo-600
+          pdf.text(subcat.name, margin + 20, yPosition);
+          yPosition += lineHeight + 5;
+
+          const tableData = subcat.items.map((item) => [
+            item.name,
+            item.vip_status,
+            item.quantity.toString(),
+            item.average_price.toFixed(2),
+            item.total_amount.toFixed(2),
+          ]);
+
+          tableData.push([
+            `Subtotal for ${subcat.name}`,
+            "",
+            subcat.total_qty.toString(),
+            "",
+            subcat.total_amount.toFixed(2),
+          ]);
+
+          addNewPageIfNeeded(100);
+          autoTable(pdf, {
+            startY: yPosition,
+            head: [["Item", "VIP Status", "Quantity", "Unit Price", "Total"]],
+            body: tableData,
+            theme: "grid",
+            headStyles: {
+              fillColor: [59, 130, 246], // Blue-500
+              textColor: [255, 255, 255],
+              font: "NotoSerifEthiopic",
+              fontStyle: "normal",
+            },
+            bodyStyles: {
+              textColor: [17, 24, 39], // Gray-900
+              font: "NotoSerifEthiopic",
+              fontStyle: "normal",
+            },
+            alternateRowStyles: {
+              fillColor: [243, 244, 246], // Gray-100
+            },
+            margin: { left: margin + 20, right: margin },
+            styles: { fontSize: 10, font: "NotoSerifEthiopic", cellPadding: 8 },
+            columnStyles: {
+              0: { cellWidth: "auto" },
+              1: { cellWidth: 80 },
+              2: { cellWidth: 60, halign: "right" },
+              3: { cellWidth: 60, halign: "right" },
+              4: { cellWidth: 80, halign: "right" },
+            },
+          });
+
+          yPosition = (pdf.lastAutoTable?.finalY || yPosition) + lineHeight;
+        });
+
+        addNewPageIfNeeded(lineHeight);
+        pdf.setFontSize(12);
+        pdf.setTextColor(17, 24, 39); // Gray-900
+        pdf.text(
+          `Total for ${category.category}: Quantity: ${category.total_qty} | Amount: ${category.total_amount.toFixed(2)}`,
+          margin + 10,
+          yPosition
+        );
+        pdf.setDrawColor(59, 130, 246); // Blue-500
+        pdf.line(margin, yPosition + 5, pageWidth - margin, yPosition + 5);
+        yPosition += lineHeight + 10;
+      });
+
+      // Grand Total
+      if (data.grand_totals) {
+        addNewPageIfNeeded(lineHeight);
+        pdf.setFontSize(12);
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFillColor(17, 24, 39); // Gray-900
+        pdf.rect(margin, yPosition - 5, pageWidth - 2 * margin, 25, "F");
+        pdf.text(
+          `Grand Total Sales Amount: ${data.grand_totals.total_amount.toFixed(2)}`,
+          margin + 10,
+          yPosition + 10
+        );
+        yPosition += lineHeight + 10;
+      }
+
+      pdf.save("sales_summary_report.pdf");
+    } catch (err) {
+      setError("Failed to export PDF: " + err.message);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  // PDF Preview
+  const previewPDF = async () => {
+    if (!data) {
+      setError("No data available to preview.");
+      return;
+    }
+
+    setPdfLoading(true);
+    setError(null);
+
+    try {
+      const pdf = new jsPDF("p", "pt", "a4");
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 40;
+      const lineHeight = 20;
+      let yPosition = margin;
+
+      // Load Noto Serif Ethiopic font
+      const fontUrl = "/fonts/NotoSerifEthiopic-Regular.ttf";
+      const response = await fetch(fontUrl);
+      if (!response.ok) throw new Error("Failed to load font file");
+      const fontArrayBuffer = await response.arrayBuffer();
+      const fontBase64 = btoa(
+        new Uint8Array(fontArrayBuffer).reduce(
+          (data, byte) => data + String.fromCharCode(byte),
+          ""
+        )
+      );
+
+      pdf.addFileToVFS("NotoSerifEthiopic-Regular.ttf", fontBase64);
+      pdf.addFont("NotoSerifEthiopic-Regular.ttf", "NotoSerifEthiopic", "normal");
+      pdf.setFont("NotoSerifEthiopic");
+
+      const addNewPageIfNeeded = (requiredHeight) => {
+        if (yPosition + requiredHeight > pageHeight - margin) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+      };
+
+      // Title
+      pdf.setFontSize(16);
+      pdf.setTextColor(17, 24, 39); // Gray-900
+      pdf.text(`Sales Summary: ${data.from} - ${data.to}`, margin, yPosition);
+      pdf.setLineWidth(1);
+      pdf.setDrawColor(59, 130, 246); // Blue-500
+      pdf.line(margin, yPosition + 5, pageWidth - margin, yPosition + 5);
+      yPosition += lineHeight * 2;
+
+      // Categories
+      data.report.forEach((category) => {
+        addNewPageIfNeeded(lineHeight);
+        pdf.setFontSize(14);
+        pdf.setTextColor(17, 24, 39); // Gray-900
+        pdf.text(category.category, margin, yPosition);
+        yPosition += lineHeight + 10;
+
+        category.subcategories.forEach((subcat) => {
+          addNewPageIfNeeded(lineHeight);
+          pdf.setFontSize(12);
+          pdf.setTextColor(79, 70, 229); // Indigo-600
+          pdf.text(subcat.name, margin + 20, yPosition);
+          yPosition += lineHeight + 5;
+
+          const tableData = subcat.items.map((item) => [
+            item.name,
+            item.vip_status,
+            item.quantity.toString(),
+            item.average_price.toFixed(2),
+            item.total_amount.toFixed(2),
+          ]);
+
+          tableData.push([
+            `Subtotal for ${subcat.name}`,
+            "",
+            subcat.total_qty.toString(),
+            "",
+            subcat.total_amount.toFixed(2),
+          ]);
+
+          addNewPageIfNeeded(100);
+          autoTable(pdf, {
+            startY: yPosition,
+            head: [["Item", "VIP Status", "Quantity", "Unit Price", "Total"]],
+            body: tableData,
+            theme: "grid",
+            headStyles: {
+              fillColor: [59, 130, 246], // Blue-500
+              textColor: [255, 255, 255],
+              font: "NotoSerifEthiopic",
+              fontStyle: "normal",
+            },
+            bodyStyles: {
+              textColor: [17, 24, 39], // Gray-900
+              font: "NotoSerifEthiopic",
+              fontStyle: "normal",
+            },
+            alternateRowStyles: {
+              fillColor: [243, 244, 246], // Gray-100
+            },
+            margin: { left: margin + 20, right: margin },
+            styles: { fontSize: 10, font: "NotoSerifEthiopic", cellPadding: 8 },
+            columnStyles: {
+              0: { cellWidth: "auto" },
+              1: { cellWidth: 80 },
+              2: { cellWidth: 60, halign: "right" },
+              3: { cellWidth: 60, halign: "right" },
+              4: { cellWidth: 80, halign: "right" },
+            },
+          });
+
+          yPosition = (pdf.lastAutoTable?.finalY || yPosition) + lineHeight;
+        });
+
+        addNewPageIfNeeded(lineHeight);
+        pdf.setFontSize(12);
+        pdf.setTextColor(17, 24, 39); // Gray-900
+        pdf.text(
+          `Total for ${category.category}: Quantity: ${category.total_qty} | Amount: ${category.total_amount.toFixed(2)}`,
+          margin + 10,
+          yPosition
+        );
+        pdf.setDrawColor(59, 130, 246); // Blue-500
+        pdf.line(margin, yPosition + 5, pageWidth - margin, yPosition + 5);
+        yPosition += lineHeight + 10;
+      });
+
+      // Grand Total
+      if (data.grand_totals) {
+        addNewPageIfNeeded(lineHeight);
+        pdf.setFontSize(12);
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFillColor(17, 24, 39); // Gray-900
+        pdf.rect(margin, yPosition - 5, pageWidth - 2 * margin, 25, "F");
+        pdf.text(
+          `Grand Total Sales Amount: ${data.grand_totals.total_amount.toFixed(2)}`,
+          margin + 10,
+          yPosition + 10
+        );
+      }
+
+      window.open(pdf.output("bloburl"), "_blank");
+    } catch (err) {
+      setError("Failed to preview PDF: " + err.message);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  // Excel Export
+  const exportExcel = () => {
+    if (!data) {
+      setError("No data available to export.");
+      return;
+    }
+
+    const wsData = [];
+    data.report.forEach((category) => {
+      wsData.push([category.category]);
+      category.subcategories.forEach((subcat) => {
+        wsData.push([subcat.name, "Quantity", "Total Amount"]);
+        subcat.items.forEach((item) => {
+          wsData.push([item.name, item.quantity, item.total_amount]);
+        });
+        wsData.push([`${subcat.name} Total`, subcat.total_qty, subcat.total_amount]);
+        wsData.push([]);
+      });
+      wsData.push([`${category.category} Total`, category.total_qty, category.total_amount]);
+      wsData.push([]);
+    });
+    wsData.push(["Grand Total", "", data.grand_totals.total_amount]);
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    XLSX.utils.book_append_sheet(wb, ws, "Sales Summary");
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    saveAs(new Blob([wbout], { type: "application/octet-stream" }), "sales_summary_report.xlsx");
+  };
+
   return (
-    <div className={`p-6 max-w-6xl mx-auto ${darkMode ? "dark bg-gray-800 " : "bg-gray-400 "}`}>
+    <div className={`p-6 max-w-6xl mx-auto ${darkMode ? "dark bg-gray-800 " : "bg-gray-800 "}`}>
       {/* Filter Section */}
       <div className="mb-8 bg-gray-50 dark:bg-gray-800 p-6 rounded-xl shadow-sm">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -118,6 +475,46 @@ export default function SalesSummaryReport({ darkMode }) {
               <option value="normal">Normal Only</option>
             </select>
           </label>
+        </div>
+        <div className="flex space-x-4 mt-6">
+          <button
+            type="button"
+            onClick={exportPDF}
+            className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 flex items-center disabled:opacity-50 transition-colors"
+            disabled={loading || pdfLoading}
+          >
+            {pdfLoading ? (
+              <>
+                <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                Exporting...
+              </>
+            ) : (
+              "Export PDF"
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={previewPDF}
+            className="bg-gray-600 text-white px-5 py-2 rounded-lg hover:bg-gray-700 flex items-center disabled:opacity-50 transition-colors"
+            disabled={loading || pdfLoading}
+          >
+            {pdfLoading ? (
+              <>
+                <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                Previewing...
+              </>
+            ) : (
+              "Preview PDF"
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={exportExcel}
+            className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 flex items-center disabled:opacity-50 transition-colors"
+            disabled={loading || pdfLoading}
+          >
+            Export Excel
+          </button>
         </div>
       </div>
 

@@ -7,15 +7,19 @@ import { Button } from "@/components/ui/button";
 
 // 🔹 Translation dictionary (English → Amharic)
 const categoryTranslations = {
-  "Alcohols": "ውስኪ",
-  "Drink": "መጠጥ",
   "Food": "ምግብ",
+  "Drink": "መጠጥ",
+  "Shot" : "ሾት",
+  "Alcohols": "ግማሽ ቦትል",
+  "Bottles": "ሙሉ ቦትል"
+
 };
 
 const subcategoryTranslations = {
-  "Beer": "ቢራ",
+  "Bottles": "ቦትል",
   "Wine": "ወይን",
-  "Beef": "በሬ ስጋ",
+  "Butchery": "ስጋ ቤት",
+  "Beef": "በሬ ስጋ"
 };
 
 export default function MenuSelection({

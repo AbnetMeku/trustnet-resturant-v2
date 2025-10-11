@@ -7,9 +7,12 @@ import { Button } from "@/components/ui/button";
 
 // ✅ Translation maps
 const categoryTranslations = {
-  "Alcohols": "ውስኪ",
-  "Drink": "መጠጥ",
   "Food": "ምግብ",
+  "Drink": "መጠጥ",
+  "Shot" : "ሾት",
+  "Alcohols": "ግማሽ ቦትል",
+  "Bottles": "ሙሉ ቦትል"
+
 };
 
 const subcategoryTranslations = {
