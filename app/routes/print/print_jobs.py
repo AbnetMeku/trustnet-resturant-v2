@@ -52,19 +52,19 @@ def create_station_print_jobs(order: Order, only_new_items=True):
         if not station_items:
             continue
 
-        if station.name.lower() == "but":
-            db.session.add(PrintJob(
-                order_id=order.id,
-                station_id=station.id,
-                type="station",
-                items_data={
-                    "copy": "customer",
-                    "order_id": order.id,
-                    "table": table_number,
-                    "waiter": waiter_name,
-                    "items": station_items,
-                }
-            ))
+        if station.name.lower() in ["butcher", "feyel"]:
+            # db.session.add(PrintJob(
+            #     order_id=order.id,
+            #     station_id=station.id,
+            #     type="station",
+            #     items_data={
+            #         "copy": "customer",
+            #         "order_id": order.id,
+            #         "table": table_number,
+            #         "waiter": waiter_name,
+            #         "items": station_items,
+            #     }
+            # ))
             for it in station_items:
                 db.session.add(PrintJob(
                     order_id=order.id,
