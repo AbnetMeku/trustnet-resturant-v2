@@ -1,12 +1,11 @@
-from flask import Blueprint, jsonify, abort
-from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
+from flask import Blueprint, jsonify, abort, request
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models.models import OrderItem, Station, Order
 from app.extensions import db
-from sqlalchemy import asc
-from datetime import datetime
+from sqlalchemy import asc, desc
+from datetime import datetime, timedelta
 
 stations_kds_bp = Blueprint("stations_kds_bp", __name__, url_prefix="/stations/kds")
-
 
 def parse_station_identity(identity):
     """
@@ -16,11 +15,9 @@ def parse_station_identity(identity):
     if identity is None:
         return None
     try:
-        # if identity already integer-like (string of digits) or int
         if isinstance(identity, int):
             return identity
         if isinstance(identity, str):
-            # handle 'station:2' or just '2'
             if identity.startswith("station:"):
                 _, _, sid = identity.partition(":")
                 return int(sid)
@@ -28,7 +25,6 @@ def parse_station_identity(identity):
     except (ValueError, TypeError):
         return None
     return None
-
 
 # ---- GET PENDING ORDERS FOR STATION ----
 @stations_kds_bp.route("/orders", methods=["GET"])
@@ -67,7 +63,7 @@ def get_pending_orders():
             orders_dict[order_id] = {
                 "order_id": order_id,
                 "station_id": station.id,
-                "station_name": station.name,   # ✅ Added here
+                "station_name": station.name,
                 "table_id": table.id if table else None,
                 "table_number": table.number if table else None,
                 "waiter_id": waiter.id if waiter else None,
@@ -88,11 +84,12 @@ def get_pending_orders():
             "prep_tag": item.prep_tag,
             "status": item.status,
             "created_at": item.created_at.isoformat() if getattr(item, "created_at", None) else None,
+            "updated_at": item.updated_at.isoformat() if getattr(item, "updated_at", None) else None,
         })
 
     return jsonify(list(orders_dict.values())), 200
 
-# ---- UPDATE ORDER ITEM STATUS TO READY (with silent stock deduction) ----
+# ---- UPDATE ORDER ITEM STATUS TO READY ----
 @stations_kds_bp.route("/orders/<int:order_item_id>/status", methods=["PUT"])
 @jwt_required()
 def update_order_item_status(order_item_id):
@@ -109,19 +106,16 @@ def update_order_item_status(order_item_id):
     if not item:
         abort(404, "Order item not found")
 
-    # Ensure this order item belongs to this station
     if item.station != station.name:
         abort(403, "Order item does not belong to your station")
 
-    # Update status
     prev_status = item.status
     item.status = "ready"
     item.updated_at = datetime.utcnow()
 
-    # ---------------- Deduct stock if not already ready ----------------
     if prev_status != "ready":
         from app.routes.inventory.inventory import deduct_station_stock
-        deduct_station_stock(item)  # Silently skip if stock missing
+        deduct_station_stock(item)
 
     try:
         db.session.commit()
@@ -129,7 +123,6 @@ def update_order_item_status(order_item_id):
         db.session.rollback()
         abort(500, f"Failed to update item status: {str(e)}")
 
-    # Return a useful payload
     return jsonify({
         "message": f"Item {item.id} marked as ready",
         "item": {
@@ -154,15 +147,43 @@ def get_ready_orders_history():
     if not station:
         abort(404, "Station not found")
 
-    ready_items = (
+    # Optional query params
+    waiter_id = request.args.get("waiter_id", type=int)
+    table_number = request.args.get("table_number", type=int)
+    date_filter = request.args.get("date")  # Date filter (YYYY-MM-DD)
+
+    # Base query
+    query = (
         db.session.query(OrderItem)
         .join(Order)
         .join(Order.table)
         .join(Order.user)
-        .filter(OrderItem.station == station.name, OrderItem.status == "ready")
-        .order_by(asc(OrderItem.updated_at))
-        .all()
+        .filter(
+            OrderItem.station == station.name,
+            OrderItem.status == "ready",
+        )
     )
+
+    # Apply date filter if provided, using OrderItem.created_at
+    if date_filter:
+        try:
+            selected_date = datetime.strptime(date_filter, "%Y-%m-%d")
+            date_start = selected_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            date_end = selected_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+            query = query.filter(OrderItem.created_at >= date_start, OrderItem.created_at <= date_end)
+        except ValueError:
+            abort(400, "Invalid date format. Use YYYY-MM-DD")
+
+    # Apply waiter filter if provided
+    if waiter_id:
+        query = query.filter(Order.user_id == waiter_id)
+
+    # Apply table filter if provided
+    if table_number:
+        query = query.filter(Order.table.has(number=table_number))
+
+    # Sort by OrderItem.created_at in descending order (latest first)
+    ready_items = query.order_by(desc(OrderItem.created_at)).all()
 
     orders_dict = {}
     for item in ready_items:

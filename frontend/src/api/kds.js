@@ -36,13 +36,18 @@ export const updateOrderItemStatus = async (stationToken, orderItemId) => {
   }
 };
 
-// Fetch all ready items (history) for this station
-export const fetchReadyOrdersHistory = async (stationToken) => {
+// Fetch ready items (history) for this station — supports filters including date
+export const fetchReadyOrdersHistory = async (
+  stationToken,
+  filters = {} // { waiter_id?: number, table_number?: number, date?: string }
+) => {
   if (!stationToken) throw new Error("Station token is required");
   try {
-    const res = await axios.get(`${BASE_URL}/orders/history`, {
-      headers: getAuthHeader(stationToken),
-    });
+    const query = new URLSearchParams(filters).toString();
+    const res = await axios.get(
+      `${BASE_URL}/orders/history${query ? `?${query}` : ""}`,
+      { headers: getAuthHeader(stationToken) }
+    );
     return res.data;
   } catch (error) {
     console.error("Failed to fetch ready orders history:", error);

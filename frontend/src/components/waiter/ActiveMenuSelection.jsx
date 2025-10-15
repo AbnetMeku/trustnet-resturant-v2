@@ -19,6 +19,7 @@ const subcategoryTranslations = {
   "Bottles": "ቦትል",
   "Wine": "ወይን",
   "Butchery": "ስጋ ቤት",
+  "Feyel":"ፍየል",
   "Beef": "በሬ ስጋ",
 };
 
@@ -47,6 +48,11 @@ export default function ActiveMenuSelection({
       try {
         const cats = await getCategories();
         setCategories(cats);
+        // ✅ Auto-select "Food" if found
+        const defaultCat = cats.find(
+          (cat) => cat.name?.toLowerCase() === "food"
+        );
+        if (defaultCat) setSelectedCategory(defaultCat.id);
       } catch (err) {
         console.error("Failed to load categories:", err);
       }
@@ -108,7 +114,7 @@ const updatedItems = items
 
     const increment =
       categoryName.toLowerCase() === "alcohols" ||
-      subcategoryName.toLowerCase() === "butchery"
+      subcategoryName.toLowerCase() === "butchery" || subcategoryName.toLowerCase() === "feyel"
         ? 0.5
         : 1;
 

@@ -141,3 +141,137 @@ def sales_summary():
         },
         "report": report,
     }), 200
+
+
+@reports_bp.route('/waiter-summary', methods=['GET', 'OPTIONS'])
+@jwt_required()
+@roles_required("admin", "manager", "cashier")
+def waiter_summary():
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200
+
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+
+    if not start_date or not end_date:
+        return jsonify({'error': 'start_date and end_date query params are required (format YYYY-MM-DD)'}), 400
+
+    try:
+        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+        end_dt = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
+    except ValueError:
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+
+    # Price field considering VIP pricing
+    price_field = case(
+        (and_(Table.is_vip == True, OrderItem.vip_price != None), OrderItem.vip_price),
+        else_=OrderItem.price
+    )
+
+    from app.models.models import User
+
+    # Query: sum totals per waiter
+    query = (
+        db.session.query(
+            Order.user_id.label("waiter_id"),
+            User.username.label("waiter_name"),
+            func.sum(price_field * OrderItem.quantity).label("total_sales")
+        )
+        .join(OrderItem.order)                   # OrderItem -> Order
+        .join(Order.table)                       # Order -> Table
+        .join(User, User.id == Order.user_id)    # Join to User table
+        .filter(
+            Order.created_at >= start_dt,
+            Order.created_at < end_dt,
+            # Remove OrderItem.status filter temporarily if data missing
+        )
+        .group_by(Order.user_id, User.username)
+        .order_by(User.username)
+    )
+
+    results = query.all()
+
+    # Transform results into list
+    report = [
+        {
+            "waiter_id": row.waiter_id,
+            "waiter_name": row.waiter_name,
+            "total_sales": float(row.total_sales or 0)
+        }
+        for row in results
+    ]
+
+    grand_total = sum(r["total_sales"] for r in report)
+
+    return jsonify({
+        "from": start_date,
+        "to": end_date,
+        "grand_total": grand_total,
+        "report": report
+    }), 200
+
+
+
+@reports_bp.route('/waiter/<int:waiter_id>/details', methods=['GET'])
+@jwt_required()
+@roles_required("admin", "manager", "cashier")
+def waiter_details(waiter_id):
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+
+    if not start_date or not end_date:
+        return jsonify({'error': 'start_date and end_date query params are required (format YYYY-MM-DD)'}), 400
+
+    try:
+        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+        end_dt = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
+    except ValueError:
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+
+    # Price field considering VIP pricing
+    price_field = case(
+        (and_(Table.is_vip == True, OrderItem.vip_price != None), OrderItem.vip_price),
+        else_=OrderItem.price
+    )
+
+    # Query items sold by this waiter in the range
+    query = (
+        db.session.query(
+            MenuItem.name.label("item_name"),
+            func.sum(OrderItem.quantity).label("quantity_sold"),
+            func.sum(price_field * OrderItem.quantity).label("total_amount")
+        )
+        .join(OrderItem.order)
+        .join(Order.table)
+        .join(Order.user)
+        .join(OrderItem.menu_item)
+        .filter(
+            Order.user_id == waiter_id,
+            Order.created_at >= start_dt,
+            Order.created_at < end_dt,
+            OrderItem.status == "paid"
+        )
+        .group_by(MenuItem.id, MenuItem.name)
+        .order_by(MenuItem.name)
+    )
+
+    results = query.all()
+
+    details = [
+        {
+            "item_name": row.item_name,
+            "quantity_sold": float(row.quantity_sold),
+            "total_amount": float(row.total_amount)
+        }
+        for row in results
+    ]
+
+    grand_total = sum(d["total_amount"] for d in details)
+
+    return jsonify({
+        "waiter_id": waiter_id,
+        "from": start_date,
+        "to": end_date,
+        "grand_total": grand_total,
+        "details": details
+    }), 200

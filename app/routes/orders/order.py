@@ -193,7 +193,7 @@ def create_order():
         if len(station) > 20:
             return error_response(f"Station name '{station}' exceeds 20 characters.", 400)
 
-        default_increment = Decimal("0.5") if category_name.lower() in {"alcohol", "butchery"} else Decimal("1.0")
+        default_increment = Decimal("0.5") if category_name.lower() in {"alcohol", "butchery","feyel"} else Decimal("1.0")
         quantity_to_add = Decimal(str(payload.get("quantity", default_increment)))
 
         try:
@@ -270,7 +270,7 @@ def add_order_item(order_id):
         if len(station) > 20:
             return error_response(f"Station name '{station}' exceeds 20 characters.", 400)
 
-        default_increment = Decimal("0.5") if category_name.lower() == "alcohol" or subcategory_name.lower() == "butchery" else Decimal("1.0")
+        default_increment = Decimal("0.5") if category_name.lower() == "alcohol" or subcategory_name.lower() == "butchery" or subcategory_name.lower() == "feyel" else Decimal("1.0")
         quantity_to_add = Decimal(str(payload.get("quantity", default_increment)))
 
         # Create a new OrderItem row instead of updating existing one
