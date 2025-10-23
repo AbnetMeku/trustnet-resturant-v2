@@ -111,15 +111,32 @@ def order_to_dict(order: Order):
     }
 
 
+# def recalc_order_total(order: Order) -> None:
+#     total = Decimal("0.00")
+#     table = db.session.get(Table, order.table_id)
+#     for i in order.items:
+#         price = i.vip_price if table.is_vip and i.vip_price is not None else i.price
+#         if price is None:
+#             continue
+#         total += Decimal(price) * Decimal(i.quantity)
+#     order.total_amount = total
+# from decimal import Decimal
+
 def recalc_order_total(order: Order) -> None:
+    """Recalculate the total amount of an order, excluding voided items."""
     total = Decimal("0.00")
     table = db.session.get(Table, order.table_id)
     for i in order.items:
+        # 🚫 Skip voided items
+        if i.status == "void":
+            continue
+        # Choose VIP or regular price
         price = i.vip_price if table.is_vip and i.vip_price is not None else i.price
         if price is None:
             continue
         total += Decimal(price) * Decimal(i.quantity)
     order.total_amount = total
+    db.session.flush()  # ensure it's updated in the current session
 
 # ---------------- Orders: Create ----------------
 @orders_bp.route("/", methods=["POST"])
@@ -371,8 +388,6 @@ def list_orders():
 
     return jsonify([order_to_dict(o) for o in orders]), 200
 
-
-# ---------------- Orders: Get Single ----------------
 # ---------------- Orders: Get Single ----------------
 @orders_bp.route("/<int:order_id>", methods=["GET"])
 @jwt_required()
@@ -482,17 +497,19 @@ def delete_order(order_id):
         return error_response(f"Database error: {str(e)}", 500)
     return jsonify({"message": "Order deleted"}), 200
 
-# ---------------- OrderItems: Delete one item ----------------
+# ---------------- OrderItems: Delete(void) one item ----------------
 @orders_bp.route("/<int:order_id>/items/<int:item_id>", methods=["DELETE"])
 @jwt_required()
 @roles_required("admin", "manager", "waiter")
-def delete_order_item(order_id, item_id):
+def void_order_item(order_id, item_id):
     order_item = db.session.get(OrderItem, item_id)
     if not order_item or order_item.order_id != order_id:
         return error_response("Order item not found.", 404)
 
     order = db.session.get(Order, order_id)
     user_id = safe_int_identity()
+
+    # ✅ Waiter restriction
     if "waiter" in get_jwt().get("roles", []):
         user = db.session.get(User, user_id)
         table = db.session.get(Table, order.table_id)
@@ -500,12 +517,26 @@ def delete_order_item(order_id, item_id):
             return error_response("You are not assigned to this table.", 403)
 
     try:
-        db.session.delete(order_item)
-        db.session.flush()
+        # ✅ Mark item as void
+        order_item.status = "void"
+
+        # ✅ Recalculate order total (excluding voided)
         recalc_order_total(order)
+
         db.session.commit()
-        logger.info(f"Deleted order item {item_id} from order {order_id} by user {user_id}")
+        logger.info(f"Voided order item {item_id} from order {order_id} by user {user_id}")
     except Exception as e:
         db.session.rollback()
         return error_response(f"Database error: {str(e)}", 500)
+
     return jsonify(order_to_dict(order)), 200
+@orders_bp.route("/<int:order_id>/items/<int:item_id>/unvoid", methods=["PATCH"])
+@jwt_required()
+def unvoid_order_item(order_id, item_id):
+    item = OrderItem.query.filter_by(order_id=order_id, id=item_id).first()
+    if not item:
+        return error_response("Item not found", 404)
+    
+    item.status = "ready"  # or whatever default status you use
+    db.session.commit()
+    return jsonify({"message": "Item unvoided", "item_id": item.id}), 200

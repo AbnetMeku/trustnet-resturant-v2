@@ -323,6 +323,9 @@ def get_order_history_raw():
                     "name": item.menu_item.name if item.menu_item else None,
                     "quantity": float(item.quantity or 0),
                     "price": float(item.price or 0.0),
+                    "status": item.status,
+                    "created_at": item.created_at.isoformat() if item.created_at else None,
+                    "prep_tag": item.prep_tag,
                 }
                 for item in order.items
             ],

@@ -1,13 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import {
-  fetchOrderHistoryRaw,
-} from "@/api/order_history";
-import {
-  updateOrderItem,
-  deleteOrderItem,
-  deleteOrder,
-} from "@/api/orders"; // make sure these exist
+import { fetchOrderHistoryRaw } from "@/api/order_history";
+import { updateOrderItem, voidOrderItem, unvoidOrderItem, deleteOrder } from "@/api/orders";
 import { getUsers } from "@/api/users";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,7 +14,7 @@ export default function AdminOrders() {
 
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editMode, setEditMode] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState(null);
+  const [itemToVoid, setItemToVoid] = useState(null);
   const [orderToDelete, setOrderToDelete] = useState(null);
 
   const [waiters, setWaiters] = useState([]);
@@ -65,9 +59,7 @@ export default function AdminOrders() {
   const filteredOrders = orders.filter((order) => {
     return (
       (filterWaiter ? order.user?.id?.toString() === filterWaiter : true) &&
-      (filterTable
-        ? order.table.number.toString().includes(filterTable)
-        : true) &&
+      (filterTable ? order.table.number.toString().includes(filterTable) : true) &&
       (filterStatus ? order.status === filterStatus : true)
     );
   });
@@ -85,22 +77,23 @@ export default function AdminOrders() {
     }
   };
 
-  // --- Edit & Delete Handlers ---
+  // --- Handlers ---
   const handleSaveChanges = async () => {
     try {
       const updatedItems = [];
       for (const item of selectedOrder.items) {
-        await updateOrderItem(authToken, selectedOrder.id, item.id, {
-          quantity: item.quantity,
-        });
+        if (item.status !== "void") {
+          await updateOrderItem(authToken, selectedOrder.id, item.id, {
+            quantity: item.quantity,
+          });
+        }
         updatedItems.push(item);
       }
-      const updatedTotal = updatedItems.reduce(
-        (acc, i) => acc + i.price * i.quantity,
-        0
-      );
 
-      // update modal and orders list
+      const updatedTotal = updatedItems
+        .filter((i) => i.status !== "void")
+        .reduce((acc, i) => acc + i.price * i.quantity, 0);
+
       const updatedOrder = { ...selectedOrder, items: updatedItems, total_amount: updatedTotal };
       setSelectedOrder(updatedOrder);
       setOrders((prev) =>
@@ -114,15 +107,17 @@ export default function AdminOrders() {
     }
   };
 
-  const handleDeleteItem = async () => {
+  const handleVoidItem = async () => {
     try {
-      await deleteOrderItem(authToken, selectedOrder.id, itemToDelete.id);
+      await voidOrderItem(authToken, selectedOrder.id, itemToVoid.id);
 
-      const updatedItems = selectedOrder.items.filter((i) => i.id !== itemToDelete.id);
-      const updatedTotal = updatedItems.reduce(
-        (acc, i) => acc + i.price * i.quantity,
-        0
+      const updatedItems = selectedOrder.items.map((i) =>
+        i.id === itemToVoid.id ? { ...i, status: "void" } : i
       );
+
+      const updatedTotal = updatedItems
+        .filter((i) => i.status !== "void")
+        .reduce((acc, i) => acc + i.price * i.quantity, 0);
 
       const updatedOrder = { ...selectedOrder, items: updatedItems, total_amount: updatedTotal };
       setSelectedOrder(updatedOrder);
@@ -130,10 +125,34 @@ export default function AdminOrders() {
         prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
       );
 
-      toast.success("Item removed");
-      setItemToDelete(null);
+      toast.success("Item voided");
+      setItemToVoid(null);
     } catch (err) {
-      toast.error(err.message || "Failed to delete item");
+      toast.error(err.message || "Failed to void item");
+    }
+  };
+
+  const handleUnvoidItem = async (item) => {
+    try {
+      await unvoidOrderItem(authToken, selectedOrder.id, item.id);
+
+      const updatedItems = selectedOrder.items.map((i) =>
+        i.id === item.id ? { ...i, status: "pending" } : i
+      );
+
+      const updatedTotal = updatedItems
+        .filter((i) => i.status !== "void")
+        .reduce((acc, i) => acc + i.price * i.quantity, 0);
+
+      const updatedOrder = { ...selectedOrder, items: updatedItems, total_amount: updatedTotal };
+      setSelectedOrder(updatedOrder);
+      setOrders((prev) =>
+        prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
+      );
+
+      toast.success("Item unvoided successfully");
+    } catch (err) {
+      toast.error(err.message || "Failed to unvoid item");
     }
   };
 
@@ -163,7 +182,6 @@ export default function AdminOrders() {
           onChange={(e) => setSelectedDate(e.target.value)}
           className="border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
         />
-
         <select
           value={filterWaiter}
           onChange={(e) => setFilterWaiter(e.target.value)}
@@ -175,7 +193,6 @@ export default function AdminOrders() {
             </option>
           ))}
         </select>
-
         <input
           type="text"
           placeholder="Filter by table"
@@ -183,7 +200,6 @@ export default function AdminOrders() {
           onChange={(e) => setFilterTable(e.target.value)}
           className="border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
         />
-
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
@@ -194,13 +210,12 @@ export default function AdminOrders() {
           <option value="closed">Closed</option>
           <option value="paid">Paid</option>
         </select>
-
         <span className="text-gray-800 dark:text-gray-200">
           Showing {filteredOrders.length} orders
         </span>
       </div>
 
-      {/* Orders */}
+      {/* Orders List */}
       {loading ? (
         <p className="text-gray-800 dark:text-gray-200">Loading...</p>
       ) : filteredOrders.length === 0 ? (
@@ -212,14 +227,20 @@ export default function AdminOrders() {
               key={order.id}
               className="p-5 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
             >
-              <div>
-                <h3 className="font-medium">Table {order.table.number}</h3>
-                <p>Total: ${order.total_amount.toFixed(2)}</p>
-                <p>Waiter: {order.user?.username || "—"}</p>
-                <p>Items: {order.items.length}</p>
-                <p>Time: {new Date(order.created_at).toLocaleTimeString()}</p>
-                <p>{statusBadge(order.status)}</p>
+              <div className="flex justify-between items-start">
+                <div className="flex flex-col">
+                  <h3 className="font-medium">Order #{order.id}</h3>
+                  <p>Total: ${order.total_amount.toFixed(2)}</p>
+                  <p>Waiter: {order.user?.username || "—"}</p>
+                  <p>Items: {order.items.length}</p>
+                  <p>Time: {new Date(order.created_at).toLocaleTimeString()}</p>
+                  <p>{statusBadge(order.status)}</p>
+                </div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  Table {order.table.number}
+                </div>
               </div>
+
               <div className="mt-3 space-x-2">
                 <Button
                   onClick={() => {
@@ -243,42 +264,79 @@ export default function AdminOrders() {
 
       {/* --- Details Modal --- */}
       {selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-          <div className="bg-white dark:bg-gray-900 p-6 rounded shadow w-full max-w-lg text-gray-900 dark:text-gray-100">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 p-6 rounded shadow w-full max-w-lg max-h-[80vh] overflow-y-auto text-gray-900 dark:text-gray-100">
             <h3 className="text-xl mb-3">Order #{selectedOrder.id}</h3>
             <ul className="divide-y divide-gray-200 dark:divide-gray-700">
               {selectedOrder.items.map((item, idx) => (
-                <li key={idx} className="flex justify-between py-1">
-                  <span>{item.name}</span>
-                  {editMode ? (
-                    <input
-                      type="number"
-                      min="1"
-                      value={item.quantity}
-                      onChange={(e) => {
-                        const qty = parseInt(e.target.value) || 1;
-                        setSelectedOrder((prev) => {
-                          const items = [...prev.items];
-                          items[idx] = { ...items[idx], quantity: qty };
-                          return { ...prev, items };
-                        });
-                      }}
-                      className="w-16 border px-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                    />
-                  ) : (
-                    <span>
-                      {item.quantity} × ${item.price}
-                    </span>
-                  )}
-                  {editMode && (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => setItemToDelete(item)}
+                <li
+                  key={idx}
+                  className="flex flex-col md:flex-row md:justify-between py-1 items-start md:items-center gap-1 md:gap-0"
+                >
+                  <div className="flex flex-col">
+                    <span
+                      className={item.status === "void" ? "line-through text-red-500" : ""}
                     >
-                      ✕
-                    </Button>
-                  )}
+                      {item.name} {item.status === "void" && "(voided)"}
+                    </span>
+                    {item.prep_tag && (
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        Prep Tag: {item.prep_tag}
+                      </span>
+                    )}
+                    {item.created_at && (
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        Time: {new Date(item.created_at).toLocaleTimeString()}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-1 md:mt-0">
+                    {editMode && item.status !== "void" ? (
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const qty = parseFloat(e.target.value);
+                          setSelectedOrder((prev) => {
+                            const items = [...prev.items];
+                            items[idx] = {
+                              ...items[idx],
+                              quantity: isNaN(qty) ? 0 : qty,
+                            };
+                            return { ...prev, items };
+                          });
+                        }}
+                        className="w-16 border px-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      />
+                    ) : (
+                      <span>
+                        {item.quantity} × ${item.price}
+                      </span>
+                    )}
+
+                    {editMode && item.status !== "void" && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setItemToVoid(item)}
+                      >
+                        Void
+                      </Button>
+                    )}
+
+                    {editMode && item.status === "void" && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleUnvoidItem(item)}
+                      >
+                        Unvoid
+                      </Button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -295,17 +353,17 @@ export default function AdminOrders() {
         </div>
       )}
 
-      {/* --- Confirm Delete Item Modal --- */}
-      {itemToDelete && (
+      {/* --- Confirm Void Item Modal --- */}
+      {itemToVoid && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
           <div className="bg-white dark:bg-gray-900 p-6 rounded shadow text-gray-900 dark:text-gray-100">
             <p>
-              Delete item <strong>{itemToDelete.name}</strong>?
+              Void item <strong>{itemToVoid.name}</strong>?
             </p>
             <div className="mt-3 flex gap-3">
-              <Button onClick={() => setItemToDelete(null)}>Cancel</Button>
-              <Button variant="destructive" onClick={handleDeleteItem}>
-                Delete
+              <Button onClick={() => setItemToVoid(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={handleVoidItem}>
+                Void
               </Button>
             </div>
           </div>

@@ -20,7 +20,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "https://trustnet-restaurant.onrender.com", // your Flask backend
+        target: "http://127.0.0.1:5000", // your Flask backend
         changeOrigin: true,
         secure: false,
       },
