@@ -3,7 +3,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models.models import OrderItem, Station, Order
 from app.extensions import db
 from sqlalchemy import asc, desc
-from datetime import datetime, timedelta
+from datetime import datetime
+from app.routes.orders.order import recalc_order_total
 
 stations_kds_bp = Blueprint("stations_kds_bp", __name__, url_prefix="/stations/kds")
 
@@ -89,7 +90,8 @@ def get_pending_orders():
 
     return jsonify(list(orders_dict.values())), 200
 
-# ---- UPDATE ORDER ITEM STATUS TO READY ----
+
+# ---- UPDATE ORDER ITEM STATUS TO READY OR VOID ----
 @stations_kds_bp.route("/orders/<int:order_item_id>/status", methods=["PUT"])
 @jwt_required()
 def update_order_item_status(order_item_id):
@@ -109,14 +111,23 @@ def update_order_item_status(order_item_id):
     if item.station != station.name:
         abort(403, "Order item does not belong to your station")
 
+    # Accept new status from request JSON
+    data = request.get_json() or {}
+    new_status = data.get("status", "ready").lower()
+    if new_status not in ["ready", "void"]:
+        abort(400, "Invalid status. Must be 'ready' or 'void'")
+
     prev_status = item.status
-    item.status = "ready"
+    item.status = new_status
     item.updated_at = datetime.utcnow()
 
-    if prev_status != "ready":
+    # Deduct stock only if marking ready
+    if prev_status != "ready" and new_status == "ready":
         from app.routes.inventory.inventory import deduct_station_stock
         deduct_station_stock(item)
 
+    # Recalculate order totals after status change (ready or void)
+    recalc_order_total(item.order)
     try:
         db.session.commit()
     except Exception as e:
@@ -124,7 +135,7 @@ def update_order_item_status(order_item_id):
         abort(500, f"Failed to update item status: {str(e)}")
 
     return jsonify({
-        "message": f"Item {item.id} marked as ready",
+        "message": f"Item {item.id} marked as {new_status}",
         "item": {
             "item_id": item.id,
             "order_id": item.order_id,
@@ -152,7 +163,7 @@ def get_ready_orders_history():
     table_number = request.args.get("table_number", type=int)
     date_filter = request.args.get("date")  # Date filter (YYYY-MM-DD)
 
-    # Base query
+    # Base query: include ready and void items in history
     query = (
         db.session.query(OrderItem)
         .join(Order)
@@ -160,11 +171,11 @@ def get_ready_orders_history():
         .join(Order.user)
         .filter(
             OrderItem.station == station.name,
-            OrderItem.status == "ready",
+            OrderItem.status.in_(["ready", "void"]),
         )
     )
 
-    # Apply date filter if provided, using OrderItem.created_at
+    # Apply date filter if provided
     if date_filter:
         try:
             selected_date = datetime.strptime(date_filter, "%Y-%m-%d")
@@ -174,15 +185,12 @@ def get_ready_orders_history():
         except ValueError:
             abort(400, "Invalid date format. Use YYYY-MM-DD")
 
-    # Apply waiter filter if provided
     if waiter_id:
         query = query.filter(Order.user_id == waiter_id)
 
-    # Apply table filter if provided
     if table_number:
         query = query.filter(Order.table.has(number=table_number))
 
-    # Sort by OrderItem.created_at in descending order (latest first)
     ready_items = query.order_by(desc(OrderItem.created_at)).all()
 
     orders_dict = {}

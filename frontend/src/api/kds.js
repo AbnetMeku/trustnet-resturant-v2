@@ -20,18 +20,25 @@ export const fetchKDSOrders = async (stationToken) => {
   }
 };
 
-// Mark a specific order item as ready
-export const updateOrderItemStatus = async (stationToken, orderItemId) => {
+/**
+ * Mark a specific order item with a new status: "ready" or "void"
+ * @param {string} stationToken 
+ * @param {number} orderItemId 
+ * @param {string} status - "ready" | "void"
+ */
+export const updateOrderItemStatus = async (stationToken, orderItemId, status = "ready") => {
   if (!stationToken) throw new Error("Station token is required");
+  if (!["ready", "void"].includes(status)) throw new Error("Invalid status");
+
   try {
     const res = await axios.put(
       `${BASE_URL}/orders/${orderItemId}/status`,
-      {},
+      { status }, // send status in request body
       { headers: getAuthHeader(stationToken) }
     );
     return res.data;
   } catch (error) {
-    console.error(`Failed to mark item ${orderItemId} ready:`, error);
+    console.error(`Failed to mark item ${orderItemId} as ${status}:`, error);
     throw error;
   }
 };

@@ -55,14 +55,19 @@ def order_item_to_dict(item: OrderItem):
 
 def order_to_dict(order: Order):
     """
-    Returns order dict with aggregated items by menu_item_id
+    Returns order dict with aggregated items by menu_item_id, 
+    separated into active and voided for frontend highlighting
     """
-    aggregated_items = {}
     table = db.session.get(Table, order.table_id)
+
+    active_items = {}
+    voided_items = {}
+
     for item in order.items:
+        target_dict = voided_items if item.status == "void" else active_items
         key = item.menu_item_id
-        if key not in aggregated_items:
-            aggregated_items[key] = {
+        if key not in target_dict:
+            target_dict[key] = {
                 "id": item.id,
                 "menu_item_id": item.menu_item_id,
                 "name": item.menu_item.name if item.menu_item else None,
@@ -74,7 +79,7 @@ def order_to_dict(order: Order):
                 "status": set(),
                 "prep_tag": set(),
             }
-        agg = aggregated_items[key]
+        agg = target_dict[key]
         agg["quantity"] += float(item.quantity)
         if item.notes:
             agg["notes"].append(item.notes)
@@ -83,11 +88,13 @@ def order_to_dict(order: Order):
         if item.prep_tag:
             agg["prep_tag"].add(item.prep_tag)
 
-    # Convert sets to list or comma-separated strings
-    for agg in aggregated_items.values():
-        agg["status"] = list(agg["status"])
-        agg["prep_tag"] = list(agg["prep_tag"])
-        agg["notes"] = "; ".join(agg["notes"]) if agg["notes"] else None
+    # Convert sets to list / join notes
+    def finalize(items_dict):
+        for agg in items_dict.values():
+            agg["status"] = list(agg["status"])
+            agg["prep_tag"] = list(agg["prep_tag"])
+            agg["notes"] = "; ".join(agg["notes"]) if agg["notes"] else None
+        return list(items_dict.values())
 
     return {
         "id": order.id,
@@ -98,7 +105,7 @@ def order_to_dict(order: Order):
             "is_vip": order.table.is_vip,
         },
         "user_id": order.user_id,
-        "user": {  # ✅ Add this
+        "user": {
             "id": order.user.id if order.user else None,
             "username": order.user.username if order.user else None,
             "role": order.user.role if order.user else None
@@ -107,7 +114,8 @@ def order_to_dict(order: Order):
         "total_amount": float(order.total_amount) if order.total_amount else 0.0,
         "created_at": order.created_at.isoformat(),
         "updated_at": order.updated_at.isoformat(),
-        "items": list(aggregated_items.values()),
+        "active_items": finalize(active_items),
+        "voided_items": finalize(voided_items),
     }
 
 

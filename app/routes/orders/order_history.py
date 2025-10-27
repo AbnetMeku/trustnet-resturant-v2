@@ -81,23 +81,33 @@ def get_order_summary():
     pending_amount = 0.0
     total_items = 0.0
     item_map = {}
+    voided_items_map = {}
 
     waiter_map = {}
 
     for order in orders:
-        # Paid/pending totals
-        order_total = float(order.total_amount or 0)
+        # Calculate totals for paid/pending orders (exclude voided items)
+        order_total = 0.0
+        for item in order.items:
+            qty = float(item.quantity or 0)
+            price = float(item.price or 0.0)
+
+            if item.status == "void":
+                # Track voided items separately
+                voided_items_map[item.menu_item.name] = voided_items_map.get(item.menu_item.name, 0) + qty
+                continue  # Skip voided items from totals
+
+            order_total += price * qty
+
+            # Accumulate item quantities
+            item_map[item.menu_item.name] = item_map.get(item.menu_item.name, 0) + qty
+            total_items += qty
+
+        # Totals per order
         if order.status == "paid":
             paid_amount += order_total
         else:
             pending_amount += order_total
-
-        # Items
-        for item in order.items:
-            item_name = item.menu_item.name  # ✅ fix
-            qty = float(item.quantity or 0)
-            total_items += qty
-            item_map[item_name] = item_map.get(item_name, 0) + qty
 
         # Waiter aggregation
         if order.user:
@@ -118,12 +128,14 @@ def get_order_summary():
             else:
                 waiter_map[waiter_id]["pendingAmount"] += order_total
 
+            # Waiter item totals (exclude voided)
             for item in order.items:
-                waiter_map[waiter_id]["totalItems"] += float(item.quantity or 0)
+                if item.status != "void":
+                    waiter_map[waiter_id]["totalItems"] += float(item.quantity or 0)
 
-    daily_items_summary = [
-        {"name": name, "quantity": qty} for name, qty in item_map.items()
-    ]
+    # Build summaries
+    daily_items_summary = [{"name": name, "quantity": qty} for name, qty in item_map.items()]
+    daily_voided_items_summary = [{"name": name, "quantity": qty} for name, qty in voided_items_map.items()]
     waiter_summary = list(waiter_map.values())
 
     summary = {
@@ -132,6 +144,7 @@ def get_order_summary():
         "pendingAmount": round(pending_amount, 2),
         "totalItems": total_items,
         "dailyItemsSummary": daily_items_summary,
+        "dailyVoidedItemsSummary": daily_voided_items_summary,  # ✅ new field for front end
         "waiterSummary": waiter_summary,
     }
 

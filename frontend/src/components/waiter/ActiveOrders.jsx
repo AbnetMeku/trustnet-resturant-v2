@@ -26,20 +26,16 @@ export default function ActiveOrders({ goBack }) {
       try {
         setLoading(true);
 
-        // Fetch all tables and open orders in parallel
         const [tables, orders] = await Promise.all([
           getTables(authToken),
           fetchOrders(authToken, { status: "open" })
         ]);
 
-        // Get table IDs assigned to this waiter
         const assignedTableIds = tables
           .filter(t => t.waiters?.some(w => w.id === user.id))
           .map(t => t.id);
 
-        // Filter orders to only include assigned tables
         const myOrders = orders.filter(o => assignedTableIds.includes(o.table_id));
-
         setOpenOrders(myOrders);
       } catch (err) {
         toast.error(err.message || "Failed to load orders");
@@ -195,18 +191,12 @@ export default function ActiveOrders({ goBack }) {
         <p className="text-gray-500">ምንም የተከፈተ ትዕዛዝ የለም</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          
           {openOrders.map(order => (
             <div key={order.id} className="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border rounded-2xl p-5 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all flex flex-col justify-between">
-              {/* <button
-                onClick={e => { e.stopPropagation(); setConfirmCloseId(order.id); }}
-                className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-red-500 hover:text-white transition"
-              >
-                ዝጋ
-              </button> */}
-
               <div onClick={() => selectOrder(order)} className="cursor-pointer">
-                <h3 className="font-bold text-xl mb-2 text-gray-900 dark:text-white">Table {order.table.number}</h3>
+                <h3 className="font-bold text-xl mb-2 text-gray-900 dark:text-white">
+                  Table {order.table.number}
+                </h3>
                 <span className="inline-block px-3 py-1 text-sm font-semibold bg-blue-100 text-blue-700 rounded-full dark:bg-blue-900 dark:text-blue-200">
                   ጠቅላላ ዋጋ: ${order.total_amount.toFixed(2)}
                 </span>
@@ -214,14 +204,9 @@ export default function ActiveOrders({ goBack }) {
               <Button className="mt-4" variant="outline" onClick={() => setDetailsOrder(order)}>
                 ዝርዝር ይመልከቱ
               </Button>
-              { <Button
-                className="mt-3"
-                variant="destructive"
-                onClick={() => setConfirmCloseId(order.id)}
-              >
+              <Button className="mt-3" variant="destructive" onClick={() => setConfirmCloseId(order.id)}>
                 ትዕዛዝ ዝጋ
-              </Button> }
-
+              </Button>
             </div>
           ))}
         </div>
@@ -244,7 +229,9 @@ export default function ActiveOrders({ goBack }) {
       {detailsOrder && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-11/12 max-w-lg">
-            <h3 className="text-xl font-bold mb-4">Table {detailsOrder.table.number} - ትዕዛዝ #{detailsOrder.id}</h3>
+            <h3 className="text-xl font-bold mb-4">
+              Table {detailsOrder.table.number} - ትዕዛዝ #{detailsOrder.id}
+            </h3>
             <div className="max-h-80 overflow-y-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -256,14 +243,22 @@ export default function ActiveOrders({ goBack }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {detailsOrder.items.map(item => (
-                    <tr key={item.id} className="border-b dark:border-gray-700">
-                      <td>{item.name}</td>
-                      <td>{item.quantity}</td>
-                      <td>${item.price.toFixed(2)}</td>
-                      <td>${(item.price * item.quantity).toFixed(2)}</td>
-                    </tr>
-                  ))}
+                  {([...detailsOrder.active_items, ...detailsOrder.voided_items] || []).map(item => {
+                    const isVoided = item.status?.includes("void"); // check if item is voided
+                    return (
+                      <tr
+                        key={item.id}
+                        className={`border-b dark:border-gray-700 ${
+                          isVoided ? "bg-red-100 dark:bg-red-800/50 line-through text-gray-500 dark:text-gray-300" : ""
+                        }`}
+                      >
+                        <td>{item.name}</td>
+                        <td>{item.quantity}</td>
+                        <td>${item.price.toFixed(2)}</td>
+                        <td>${(item.price * item.quantity).toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

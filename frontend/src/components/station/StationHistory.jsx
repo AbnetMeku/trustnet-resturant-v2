@@ -18,7 +18,7 @@ export default function StationHistory() {
       if (filterDate) filters.date = filterDate; // Send date as YYYY-MM-DD
 
       const res = await fetchReadyOrdersHistory(stationToken, filters);
-      // Sort orders by the most recent item.created_at in descending order
+      // Sort orders by most recent item.created_at descending
       res.sort((a, b) => {
         const latestItemA = a.items.reduce((latest, item) =>
           new Date(item.created_at) > new Date(latest.created_at) ? item : latest
@@ -41,13 +41,19 @@ export default function StationHistory() {
     return () => clearInterval(interval);
   }, [stationToken, filterWaiter, filterDate]);
 
-  // Ready orders only
-  const readyOrders = orders
+  // Include both ready and void items
+  const historyOrders = orders
     .map((order) => ({
       ...order,
-      items: order.items.filter((item) => item.status === "ready"),
+      items: order.items.filter((item) => item.status === "ready" || item.status === "void"),
     }))
     .filter((order) => order.items.length > 0);
+
+  // Only ready items for stats
+  const readyOrders = historyOrders.map((order) => ({
+    ...order,
+    items: order.items.filter((item) => item.status === "ready"),
+  })).filter((order) => order.items.length > 0);
 
   // Unique waiter list
   const waitersMap = new Map();
@@ -57,7 +63,7 @@ export default function StationHistory() {
   });
   const waiters = Array.from(waitersMap, ([id, name]) => ({ id, name }));
 
-  // Stats
+  // Stats (ready items only)
   const totalOrders = readyOrders.length;
   const totalItems = readyOrders.reduce(
     (sum, order) => sum + order.items.reduce((s, i) => s + i.quantity, 0),
@@ -68,7 +74,7 @@ export default function StationHistory() {
     0
   );
 
-  // Aggregate sold items for modal
+  // Aggregate sold items for modal (ready items only)
   const aggregatedItems = readyOrders
     .flatMap((o) => o.items)
     .reduce((acc, item) => {
@@ -109,7 +115,7 @@ export default function StationHistory() {
           onChange={(e) => setFilterDate(e.target.value)}
           placeholder="Select Date (or leave blank for all)"
           className="p-2 rounded-lg border text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 w-64"
-          max={new Date().toISOString().slice(0, 10)} // Prevent future dates
+          max={new Date().toISOString().slice(0, 10)}
         />
       </div>
 
@@ -146,13 +152,13 @@ export default function StationHistory() {
       </div>
 
       {/* Orders */}
-      {readyOrders.length === 0 ? (
+      {historyOrders.length === 0 ? (
         <p className="text-center mt-10 text-gray-500 dark:text-gray-400">
           የተዘጋባ እቃዎች የሉም
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {readyOrders.map((order) => (
+          {historyOrders.map((order) => (
             <div
               key={order.order_id}
               className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6"
@@ -179,7 +185,11 @@ export default function StationHistory() {
                 {order.items.map((item) => (
                   <li
                     key={`${order.order_id}-${item.item_id}`}
-                    className="flex justify-between items-center bg-green-100 dark:bg-green-700 p-3 rounded-lg"
+                    className={`flex justify-between items-center p-3 rounded-lg ${
+                      item.status === "ready"
+                        ? "bg-green-100 dark:bg-green-700"
+                        : "bg-red-100 dark:bg-red-400"
+                    }`}
                   >
                     <div>
                       <span className="font-medium text-gray-900 dark:text-gray-100">
@@ -190,8 +200,12 @@ export default function StationHistory() {
                         ({new Date(item.created_at).toLocaleString()})
                       </span>
                     </div>
-                    <span className="px-3 py-1 rounded-full text-white bg-green-500 text-sm font-semibold">
-                      ወቷል
+                    <span
+                      className={`px-3 py-1 rounded-full text-white text-sm font-semibold ${
+                        item.status === "ready" ? "bg-green-500" : "bg-red-500"
+                      }`}
+                    >
+                      {item.status === "ready" ? "ወቷል" : "ተሰርዟል"}
                     </span>
                   </li>
                 ))}

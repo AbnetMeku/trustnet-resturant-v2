@@ -130,7 +130,9 @@ export default function ClosedOrders() {
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
                   Waiter: {order.user?.username || "—"}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Items: {order.items.length}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                  Items: {order.active_items.length + order.voided_items.length}
+                </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
                   Time: {new Date(order.created_at).toLocaleTimeString()}
                 </p>
@@ -186,19 +188,25 @@ export default function ClosedOrders() {
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedOrder.items.map((item) => (
-                    <tr key={item.id} className="border-b border-gray-200 dark:border-gray-700">
-                      <td className="py-1 text-gray-800 dark:text-gray-100">{item.name}</td>
-                      <td className="py-1 text-gray-800 dark:text-gray-100">{item.quantity}</td>
-                      <td className="py-1 text-gray-800 dark:text-gray-100">${item.price.toFixed(2)}</td>
-                      <td className="py-1 text-gray-800 dark:text-gray-100">${(item.price * item.quantity).toFixed(2)}</td>
-                    </tr>
-                  ))}
+                  {[...selectedOrder.active_items, ...selectedOrder.voided_items].map((item) => {
+                    const isVoided = selectedOrder.voided_items.includes(item);
+                    return (
+                      <tr
+                        key={item.id}
+                        className={`border-b dark:border-gray-700 ${isVoided ? "line-through text-gray-500 dark:text-gray-300 bg-red-100 dark:bg-red-800/50" : ""}`}
+                      >
+                        <td>{item.name}</td>
+                        <td>{item.quantity}</td>
+                        <td>${item.price.toFixed(2)}</td>
+                        <td>${(item.price * item.quantity).toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
             <p className="mt-4 font-semibold text-right text-gray-900 dark:text-gray-100">
-              Total: ${selectedOrder.total_amount.toFixed(2)}
+              Total: ${selectedOrder.active_items.reduce((sum, i) => sum + i.price * i.quantity, 0).toFixed(2)}
             </p>
             <div className="flex justify-end mt-4">
               <Button
