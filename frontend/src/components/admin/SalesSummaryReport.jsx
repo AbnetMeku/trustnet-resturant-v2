@@ -566,41 +566,69 @@ export default function SalesSummaryReport({ darkMode }) {
                           <th className="p-3 text-right font-medium">Total</th>
                         </tr>
                       </thead>
-                      <tbody>
-                        {subcat.items.map((item) => (
-                          <tr
-                            key={`${item.menu_item_id}-${item.vip_status}`}
-                            className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
-                          >
-                            <td className="p-3 text-gray-900 dark:text-gray-100">{item.name}</td>
-                            <td className="p-3 text-right text-gray-900 dark:text-gray-100">
-                              {item.vip_status}
-                            </td>
-                            <td className="p-3 text-right text-gray-900 dark:text-gray-100">
-                              {item.quantity}
-                            </td>
-                            <td className="p-3 text-right text-gray-900 dark:text-gray-100">
-                              {item.average_price.toFixed(2)}
-                            </td>
-                            <td className="p-3 text-right text-gray-900 dark:text-gray-100">
-                              {item.total_amount.toFixed(2)}
-                            </td>
-                          </tr>
-                        ))}
-                        <tr className="bg-gray-100 dark:bg-gray-700 font-medium">
-                          <td className="p-3 text-gray-900 dark:text-gray-100">
-                            Subtotal for {subcat.name}
-                          </td>
-                          <td className="p-3"></td>
-                          <td className="p-3 text-right text-gray-900 dark:text-gray-100">
-                            {subcat.total_qty}
-                          </td>
-                          <td className="p-3"></td>
-                          <td className="p-3 text-right text-gray-900 dark:text-gray-100">
-                            {subcat.total_amount.toFixed(2)}
-                          </td>
-                        </tr>
-                      </tbody>
+<tbody>
+  {subcat.items.map((item) => {
+    const isVoid = item.status === "void"; // flag for void items
+    return (
+      <tr
+        key={`${item.menu_item_id}-${item.vip_status}`}
+        // className={`border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${
+        //   isVoid ? "bg-yellow-50 dark:bg-yellow-50" : ""
+        // }`}
+      >
+        <td
+          className={`p-3 text-gray-900 dark:text-gray-100 ${
+            isVoid ? "line-through text-red-600 dark:text-red-400" : ""
+          }`}
+        >
+          {item.name}
+        </td>
+        <td
+          className={`p-3 text-right text-gray-900 dark:text-gray-100 ${
+            isVoid ? "line-through text-red-600 dark:text-red-400" : ""
+          }`}
+        >
+          {item.vip_status}
+        </td>
+        <td
+          className={`p-3 text-right text-gray-900 dark:text-gray-100 ${
+            isVoid ? "line-through text-red-600 dark:text-red-400" : ""
+          }`}
+        >
+          {item.quantity}
+        </td>
+        <td
+          className={`p-3 text-right text-gray-900 dark:text-gray-100 ${
+            isVoid ? "line-through text-red-600 dark:text-red-400" : ""
+          }`}
+        >
+          {item.average_price.toFixed(2)}
+        </td>
+        <td
+          className={`p-3 text-right text-gray-900 dark:text-gray-100 ${
+            isVoid ? "line-through text-red-600 dark:text-red-400" : ""
+          }`}
+        >
+          {item.total_amount.toFixed(2)}
+        </td>
+      </tr>
+    );
+  })}
+  <tr className="bg-gray-100 dark:bg-gray-700 font-medium">
+    <td className="p-3 text-gray-900 dark:text-gray-100">
+      Subtotal for {subcat.name}
+    </td>
+    <td className="p-3"></td>
+    <td className="p-3 text-right text-gray-900 dark:text-gray-100">
+      {subcat.total_qty}
+    </td>
+    <td className="p-3"></td>
+    <td className="p-3 text-right text-gray-900 dark:text-gray-100">
+      {subcat.total_amount.toFixed(2)}
+    </td>
+  </tr>
+</tbody>
+
                     </table>
                   </div>
                 </div>
