@@ -10,9 +10,7 @@ const categoryTranslations = {
   "Food": "ምግብ",
   "Drink": "መጠጥ",
   "Shot" : "ሾት",
-  "Alcohols": "ግማሽ ቦትል",
-  "Bottles": "ሙሉ ቦትል"
-
+  "Alcohols": "ቦትል"
 };
 
 const subcategoryTranslations = {

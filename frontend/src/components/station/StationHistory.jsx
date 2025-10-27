@@ -4,9 +4,11 @@ import { fetchReadyOrdersHistory } from "@/api/kds";
 
 export default function StationHistory() {
   const { stationToken } = useAuth();
+  // ✅ Default to today's date
+  const today = new Date().toISOString().slice(0, 10);
   const [orders, setOrders] = useState([]);
   const [filterWaiter, setFilterWaiter] = useState("");
-  const [filterDate, setFilterDate] = useState(""); // Date as string (YYYY-MM-DD or empty)
+  const [filterDate, setFilterDate] = useState(today);
   const [showItemsModal, setShowItemsModal] = useState(false);
 
   // Fetch orders with filters
@@ -15,7 +17,7 @@ export default function StationHistory() {
     try {
       const filters = {};
       if (filterWaiter) filters.waiter_id = filterWaiter;
-      if (filterDate) filters.date = filterDate; // Send date as YYYY-MM-DD
+      if (filterDate) filters.date = filterDate; // default today
 
       const res = await fetchReadyOrdersHistory(stationToken, filters);
       // Sort orders by most recent item.created_at descending
@@ -26,7 +28,10 @@ export default function StationHistory() {
         const latestItemB = b.items.reduce((latest, item) =>
           new Date(item.created_at) > new Date(latest.created_at) ? item : latest
         );
-        return new Date(latestItemB.created_at).getTime() - new Date(latestItemA.created_at).getTime();
+        return (
+          new Date(latestItemB.created_at).getTime() -
+          new Date(latestItemA.created_at).getTime()
+        );
       });
       setOrders(res);
     } catch (err) {
@@ -113,9 +118,9 @@ export default function StationHistory() {
           type="date"
           value={filterDate}
           onChange={(e) => setFilterDate(e.target.value)}
-          placeholder="Select Date (or leave blank for all)"
+          placeholder={`Default: ${today}`}
           className="p-2 rounded-lg border text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 w-64"
-          max={new Date().toISOString().slice(0, 10)}
+          max={today}
         />
       </div>
 
