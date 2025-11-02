@@ -13,7 +13,6 @@ def create_inventory_item():
     data = request.get_json()
     name = data.get("name")
     unit = data.get("unit", "Bottle")
-    base_quantity = data.get("base_quantity", 1.0)
 
     if not name:
         return jsonify({"msg": "Name is required"}), 400
@@ -21,7 +20,7 @@ def create_inventory_item():
     if InventoryItem.query.filter_by(name=name).first():
         return jsonify({"msg": "Inventory item already exists"}), 400
 
-    item = InventoryItem(name=name, unit=unit, base_quantity=base_quantity)
+    item = InventoryItem(name=name, unit=unit)
     db.session.add(item)
     db.session.commit()
 
@@ -39,7 +38,6 @@ def get_all_inventory_items():
             "id": i.id,
             "name": i.name,
             "unit": i.unit,
-            "base_quantity": i.base_quantity,
             "is_active": i.is_active,
             "created_at": i.created_at,
         })
@@ -58,7 +56,6 @@ def get_inventory_item(item_id):
         "id": item.id,
         "name": item.name,
         "unit": item.unit,
-        "base_quantity": item.base_quantity,
         "is_active": item.is_active,
         "created_at": item.created_at,
         "menu_links": [
@@ -83,7 +80,6 @@ def update_inventory_item(item_id):
     data = request.get_json()
     item.name = data.get("name", item.name)
     item.unit = data.get("unit", item.unit)
-    item.base_quantity = data.get("base_quantity", item.base_quantity)
     item.is_active = data.get("is_active", item.is_active)
 
     db.session.commit()

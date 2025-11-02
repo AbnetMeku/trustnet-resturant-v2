@@ -16,10 +16,10 @@ import SalesSummaryReport from "@/components/admin/SalesSummaryReport";
 import OverView from "@/components/admin/OverView";
 import OrderTracker from "@/components/admin/OrderTracker"; 
 import PrintJobs from "@/components/admin/PrintJobs"; 
-import PurchaseManagement from "@/components/admin/PurchaseManagement";
-import TransferManagement from "@/components/admin/TransferManagement";
-import StoreStationView from "@/components/admin/StoreStationView";
-// import ItemSales from "@/components/admin/ItemSales"; // New component for Item Sales
+import PurchaseManagement from "@/components/inventory/PurchaseManagement";
+import TransferManagement from "@/components/inventory/TransferManagement";
+import StoreStationView from "@/components/inventory/ViewStock";
+import InventoryItemManagement from "@/components/inventory/InventoryItemManagement";
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
@@ -81,10 +81,10 @@ export default function AdminDashboard() {
       icon: FaBoxes,
       label: "Inventory",
       children: [
-        { id: "inventory-add", label: "Add to Store" },
-        { id: "inventory-transfer", label: "Transfer to Station" },
+        { id: "inventory-register", label: "Register" },
+        { id: "inventory-add", label: "Purchase" },
+        { id: "inventory-transfer", label: "Transfer" },
         { id: "inventory-view", label: "View Stock" },
-        // { id: "inventory-sales", label: "Item Sales" },
       ],
     },
   ];
@@ -264,16 +264,23 @@ export default function AdminDashboard() {
             )}
 
             {/* Inventory Views */}
+            {active === "inventory-register" && (
+              <Card className="p-6 w-full">
+                <h2 className="text-xl font-bold mb-4">Register</h2>
+                <InventoryItemManagement />
+              </Card>
+            )}
+            
             {active === "inventory-add" && (
               <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Add to Store</h2>
+                <h2 className="text-xl font-bold mb-4">Purchase</h2>
                 <PurchaseManagement />
               </Card>
             )}
 
             {active === "inventory-transfer" && (
               <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Transfer to Station</h2>
+                <h2 className="text-xl font-bold mb-4">Transfer</h2>
                 <TransferManagement />
               </Card>
             )}
@@ -285,12 +292,7 @@ export default function AdminDashboard() {
               </Card>
             )}
 
-            {/* {active === "inventory-sales" && (
-              <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Item Sales</h2>
-                <ItemSales />
-              </Card>
-            )} */}
+
           </main>
         </div>
       </div>
