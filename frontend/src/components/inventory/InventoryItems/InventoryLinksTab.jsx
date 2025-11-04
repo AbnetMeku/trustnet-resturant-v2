@@ -1,0 +1,408 @@
+import React, { useEffect, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
+import {
+  getInventoryItems,
+  getInventoryLinks,
+  createInventoryLinks,
+  updateInventoryLink,
+  deleteInventoryLink,
+} from "@/api/inventory/items";
+import { getMenuItems } from "@/api/menu_item";
+import { toast } from "react-hot-toast";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import ReactSelect from "react-select";
+
+export default function InventoryLinksTab() {
+  const { token } = useAuth();
+  const [items, setItems] = useState([]);
+  const [menuItems, setMenuItems] = useState([]);
+  const [links, setLinks] = useState([]);
+  const [loadingLinks, setLoadingLinks] = useState(true);
+
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [selectedInventoryItem, setSelectedInventoryItem] = useState(null);
+  const [selectedMenuItems, setSelectedMenuItems] = useState([]);
+  const [deductionQuantity, setDeductionQuantity] = useState(1.0);
+  const [linkSubmitting, setLinkSubmitting] = useState(false);
+
+  const [editLinkModalOpen, setEditLinkModalOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState(null);
+
+  // ---------------- Load items, menu items, and links ----------------
+  const loadData = async () => {
+    try {
+      const [i, m] = await Promise.all([
+        getInventoryItems(token),
+        getMenuItems({}, token),
+      ]);
+      setItems(i);
+      setMenuItems(m);
+
+      const allLinks = [];
+      for (const item of i) {
+        const data = await getInventoryLinks(item.id, token);
+        data.forEach((group) => {
+          allLinks.push({
+            inventory_item_id: item.id,
+            inventory_item_name: item.name,
+            deduction_ratio: group.deduction_ratio,
+            menu_items: group.menu_items,
+            menu_item_ids: group.menu_item_ids,
+            ids: group.ids,
+          });
+        });
+      }
+      setLinks(allLinks);
+    } catch {
+      toast.error("Failed to load data");
+    } finally {
+      setLoadingLinks(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [token]);
+
+  // ---------------- Create Link ----------------
+  const closeLinkModal = () => {
+    setLinkModalOpen(false);
+    setSelectedInventoryItem(null);
+    setSelectedMenuItems([]);
+    setDeductionQuantity(1.0);
+  };
+
+  const handleLinkSubmit = async () => {
+    if (!selectedInventoryItem || selectedMenuItems.length === 0) return;
+    setLinkSubmitting(true);
+
+    try {
+      const payload = [
+        {
+          menu_item_ids: selectedMenuItems,
+          deduction_ratio: parseFloat(deductionQuantity) || 1.0,
+        },
+      ];
+
+      const res = await createInventoryLinks(selectedInventoryItem, payload, token);
+
+      if (res.skipped && res.skipped.length > 0) {
+        const skippedNames = res.skipped
+          .map((s) => menuItems.find((m) => m.id === s.menu_item_id)?.name || s.menu_item_id)
+          .join(", ");
+        toast.error(`Some items already linked: ${skippedNames}`);
+      }
+
+      if (res.created && res.created.length > 0) {
+        toast.success("Links created successfully");
+      }
+
+      loadData();
+      closeLinkModal();
+    } catch (err) {
+      toast.error(err.message || "Failed to create links");
+    } finally {
+      setLinkSubmitting(false);
+    }
+  };
+
+  // ---------------- Edit Link ----------------
+  const openEditLinkModal = (group) => {
+    setEditingGroup(group);
+    setEditLinkModalOpen(true);
+  };
+
+  const handleEditLinkSubmit = async () => {
+    if (!editingGroup) return;
+
+    try {
+      // Update each link ID individually (backend expects single ID per PUT)
+      for (let i = 0; i < editingGroup.ids.length; i++) {
+        await updateInventoryLink(editingGroup.ids[i], {
+          deduction_ratio: parseFloat(editingGroup.deduction_ratio),
+        }, token);
+      }
+
+      toast.success("Links updated successfully");
+      setEditLinkModalOpen(false);
+      loadData();
+    } catch {
+      toast.error("Failed to update links");
+    }
+  };
+
+  // ---------------- Delete Link ----------------
+  const handleLinkDelete = async (group) => {
+    try {
+      for (const id of group.ids) {
+        await deleteInventoryLink(id, token);
+      }
+      toast.success("Links deleted successfully");
+      loadData();
+    } catch {
+      toast.error("Failed to delete links");
+    }
+  };
+
+  // ---------------- Render ----------------
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Header Actions */}
+      <div className="flex justify-end">
+        <Dialog open={linkModalOpen} onOpenChange={setLinkModalOpen}>
+          <DialogTrigger asChild>
+            <Button className="font-semibold">+ Link Menu Items</Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Link Menu Items to Inventory</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Select Inventory Item
+                </label>
+                <Select
+                  value={selectedInventoryItem}
+                  onValueChange={setSelectedInventoryItem}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an inventory item" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {items.map((i, idx) => (
+                      <SelectItem key={i.id} value={i.id}>
+                        {idx + 1}. {i.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Menu Items
+                </label>
+                <ReactSelect
+                  isMulti
+                  options={menuItems.map((m) => ({
+                    value: m.id,
+                    label: m.name,
+                  }))}
+                  value={selectedMenuItems
+                    .map((id) => {
+                      const menuItem = menuItems.find((m) => m.id === id);
+                      return menuItem
+                        ? { value: menuItem.id, label: menuItem.name }
+                        : null;
+                    })
+                    .filter(Boolean)}
+                  onChange={(selected) =>
+                    setSelectedMenuItems(selected.map((s) => s.value))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Deduction Quantity (applied to all selected)
+                </label>
+                <Input
+                  type="number"
+                  step={0.01}
+                  value={deductionQuantity}
+                  onChange={(e) =>
+                    setDeductionQuantity(parseFloat(e.target.value))
+                  }
+                  className="w-32"
+                />
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                onClick={closeLinkModal}
+                disabled={linkSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleLinkSubmit} disabled={linkSubmitting}>
+                {linkSubmitting ? "Linking..." : "Link Selected"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Edit Modal */}
+<Dialog open={editLinkModalOpen} onOpenChange={setEditLinkModalOpen}>
+  <DialogContent className="sm:max-w-lg">
+    <DialogHeader>
+      <DialogTitle>Edit Link</DialogTitle>
+    </DialogHeader>
+    {editingGroup && (
+      <div className="space-y-3">
+        {/* Editable Inventory Item Name */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Inventory Item</label>
+          <Input
+            value={editingGroup.inventory_item_name}
+            onChange={(e) =>
+              setEditingGroup({ ...editingGroup, inventory_item_name: e.target.value })
+            }
+            className="w-full"
+          />
+        </div>
+
+        {/* Editable Menu Items */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Menu Items</label>
+          <ReactSelect
+            isMulti
+            options={menuItems.map((m) => ({ value: m.id, label: m.name }))}
+            value={editingGroup.menu_item_ids
+              .map((id) => {
+                const menuItem = menuItems.find((m) => m.id === id);
+                return menuItem ? { value: menuItem.id, label: menuItem.name } : null;
+              })
+              .filter(Boolean)}
+            onChange={(selected) => {
+              setEditingGroup({
+                ...editingGroup,
+                menu_item_ids: selected.map((s) => s.value),
+                menu_items: selected.map((s) => ({
+                  menu_item_id: s.value,
+                  menu_item_name: s.label,
+                })),
+              });
+            }}
+          />
+        </div>
+
+        {/* Editable Deduction Ratio */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Deduction Quantity</label>
+          <Input
+            type="number"
+            step="any" // allows exact decimal input
+            value={editingGroup.deduction_ratio}
+            onChange={(e) =>
+              setEditingGroup({
+                ...editingGroup,
+                deduction_ratio: e.target.value, // keep exact input as string
+              })
+            }
+            className="w-32"
+          />
+        </div>
+      </div>
+    )}
+    <DialogFooter className="gap-2">
+      <Button variant="outline" onClick={() => setEditLinkModalOpen(false)}>
+        Cancel
+      </Button>
+      <Button
+        onClick={async () => {
+          // Update all links in group with current fields
+          try {
+            for (let i = 0; i < editingGroup.ids.length; i++) {
+              await updateInventoryLink(editingGroup.ids[i], {
+                deduction_ratio: parseFloat(editingGroup.deduction_ratio),
+              }, token);
+            }
+            toast.success("Links updated successfully");
+            setEditLinkModalOpen(false);
+            loadData();
+          } catch {
+            toast.error("Failed to update links");
+          }
+        }}
+      >
+        Update
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+
+
+      {/* Table */}
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted text-muted-foreground">
+                <th className="px-4 py-2 text-left">#</th>
+                <th className="px-4 py-2 text-left">Inventory Item</th>
+                <th className="px-4 py-2 text-left">Menu Items</th>
+                <th className="px-4 py-2 text-left">Deduction Ratio</th>
+                <th className="px-4 py-2 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loadingLinks ? (
+                <tr>
+                  <td colSpan="5" className="text-center py-4 text-muted-foreground">
+                    Loading...
+                  </td>
+                </tr>
+              ) : links.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="text-center py-4 text-muted-foreground">
+                    No links found
+                  </td>
+                </tr>
+              ) : (
+                links.map((group, idx) => (
+                  <tr
+                    key={group.inventory_item_id + "-" + group.deduction_ratio}
+                    className="border-b hover:bg-muted/40 transition-colors"
+                  >
+                    <td className="px-4 py-2">{idx + 1}</td>
+                    <td className="px-4 py-2">{group.inventory_item_name}</td>
+                    <td className="px-4 py-2">
+                      {group.menu_items.map((m) => m.menu_item_name).join(", ")}
+                    </td>
+                    <td className="px-4 py-2">{group.deduction_ratio.toFixed(2)}</td>
+                    <td className="px-4 py-2 space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEditLinkModal(group)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleLinkDelete(group)}
+                      >
+                        Delete
+                      </Button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
