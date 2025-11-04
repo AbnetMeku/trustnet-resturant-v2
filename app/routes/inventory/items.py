@@ -99,7 +99,7 @@ def delete_inventory_item(item_id):
     return jsonify({"msg": "Inventory item deleted"}), 200
 
 
-# --------------------- ADD MENU LINKS (BULK) --------------------- #
+# --------------------- ADD MENU LINKS (BULK, GROUPED) --------------------- #
 @inventory_items_bp.route("/<int:inventory_item_id>/links", methods=["POST"])
 @jwt_required()
 def create_inventory_links(inventory_item_id):
@@ -111,31 +111,39 @@ def create_inventory_links(inventory_item_id):
         return jsonify({"msg": "Inventory item not found"}), 404
 
     created_links = []
-    for link in links:
-        menu_item_id = link.get("menu_item_id")
-        deduction_ratio = link.get("deduction_ratio", 1.0)
+    skipped_links = []
 
-        if not MenuItem.query.get(menu_item_id):
-            continue  # Skip invalid menu items
+    for group in links:
+        menu_item_ids = group.get("menu_item_ids", [])
+        deduction_ratio = group.get("deduction_ratio", 1.0)
 
-        existing = InventoryMenuLink.query.filter_by(
-            inventory_item_id=inventory_item_id,
-            menu_item_id=menu_item_id
-        ).first()
-        if existing:
-            continue
+        for menu_item_id in menu_item_ids:
+            menu_item = MenuItem.query.get(menu_item_id)
+            if not menu_item:
+                skipped_links.append({"menu_item_id": menu_item_id, "reason": "Menu item not found"})
+                continue  # Skip invalid menu items
 
-        new_link = InventoryMenuLink(
-            inventory_item_id=inventory_item_id,
-            menu_item_id=menu_item_id,
-            deduction_ratio=deduction_ratio
-        )
-        db.session.add(new_link)
-        created_links.append(menu_item_id)
+            # Check if this menu item is already linked to any inventory item
+            existing_link = InventoryMenuLink.query.filter_by(menu_item_id=menu_item_id).first()
+            if existing_link:
+                skipped_links.append({"menu_item_id": menu_item_id, "reason": "Already linked to another inventory item"})
+                continue
+
+            # Create the new link
+            new_link = InventoryMenuLink(
+                inventory_item_id=inventory_item_id,
+                menu_item_id=menu_item_id,
+                deduction_ratio=deduction_ratio
+            )
+            db.session.add(new_link)
+            created_links.append(menu_item_id)
 
     db.session.commit()
-    return jsonify({"msg": "Menu links created", "menu_items": created_links}), 201
-
+    return jsonify({
+        "msg": "Menu links processed",
+        "created": created_links,
+        "skipped": skipped_links
+    }), 201
 
 # --------------------- GET ALL LINKS FOR AN INVENTORY ITEM --------------------- #
 @inventory_items_bp.route("/<int:inventory_item_id>/links", methods=["GET"])

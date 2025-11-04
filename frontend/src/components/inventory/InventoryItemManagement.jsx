@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import {
   getInventoryItems,
   createInventoryItem,
@@ -74,7 +74,7 @@ export default function InventoryItemManagement() {
   const [deductionRatio, setDeductionRatio] = useState(1.0);
   const [linkSubmitting, setLinkSubmitting] = useState(false);
 
-  // Load inventory and menu items
+  // --- Load inventory and menu items ---
   const loadItems = async () => {
     setLoadingItems(true);
     try {
@@ -96,17 +96,15 @@ export default function InventoryItemManagement() {
     }
   };
 
-  useEffect(() => {
-    loadItems();
-    loadMenuItems();
-  }, [token]);
-
-  // Load links for inventory item
-  const loadLinks = async (inventoryItemId) => {
+  const loadAllLinks = async () => {
     setLoadingLinks(true);
     try {
-      const data = await getInventoryLinks(inventoryItemId, token);
-      setLinks(data);
+      const allLinks = [];
+      for (const item of items) {
+        const data = await getInventoryLinks(item.id, token);
+        allLinks.push(...data.map(l => ({ ...l, inventory_item_name: item.name })));
+      }
+      setLinks(allLinks);
     } catch (err) {
       toast.error(err.message || "Failed to load links");
     } finally {
@@ -114,7 +112,18 @@ export default function InventoryItemManagement() {
     }
   };
 
-  // Inventory Item Modal
+  useEffect(() => {
+    loadItems();
+    loadMenuItems();
+  }, [token]);
+
+  useEffect(() => {
+    if (!loadingItems && items.length > 0) {
+      loadAllLinks();
+    }
+  }, [loadingItems, items]);
+
+  // --- Inventory Item Modal ---
   const openItemModal = (item = null) => {
     setErrors({});
     if (item) {
@@ -164,7 +173,7 @@ export default function InventoryItemManagement() {
     }
   };
 
-  // Delete
+  // --- Delete ---
   const confirmDelete = (id) => setDeleteId(id);
   const cancelDelete = () => (!deleting ? setDeleteId(null) : null);
   const doDelete = async () => {
@@ -174,6 +183,7 @@ export default function InventoryItemManagement() {
       await deleteInventoryItem(deleteId, token);
       toast.success("Item deleted successfully");
       setItems((prev) => prev.filter((i) => i.id !== deleteId));
+      loadAllLinks(); // reload links in case any linked to deleted item
     } catch (err) {
       toast.error(err.message || "Failed to delete item");
     } finally {
@@ -198,7 +208,7 @@ export default function InventoryItemManagement() {
       const linksPayload = selectedMenuItems.map((id) => ({ menu_item_id: id, deduction_ratio: deductionRatio }));
       await createInventoryLinks(selectedInventoryItem, linksPayload, token);
       toast.success("Links created successfully");
-      loadLinks(selectedInventoryItem);
+      loadAllLinks();
       closeLinkModal();
     } catch (err) {
       toast.error(err.message || "Failed to create links");
@@ -211,7 +221,7 @@ export default function InventoryItemManagement() {
     try {
       await deleteInventoryLink(linkId, token);
       toast.success("Link deleted successfully");
-      if (selectedInventoryItem) loadLinks(selectedInventoryItem);
+      loadAllLinks();
     } catch (err) {
       toast.error(err.message || "Failed to delete link");
     }
@@ -222,7 +232,7 @@ export default function InventoryItemManagement() {
     try {
       await updateInventoryLink(linkId, { deduction_ratio: newRatio }, token);
       toast.success("Link updated successfully");
-      if (selectedInventoryItem) loadLinks(selectedInventoryItem);
+      loadAllLinks();
     } catch (err) {
       toast.error(err.message || "Failed to update link");
     }
@@ -337,49 +347,58 @@ export default function InventoryItemManagement() {
           />
         </TabsContent>
 
-        {/* Link Menu Items Tab */}
+        {/* Links Tab */}
         <TabsContent value="links">
           <div className="flex flex-col gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Select Inventory Item</label>
-              <Select value={selectedInventoryItem} onValueChange={(v) => { setSelectedInventoryItem(v); loadLinks(v); }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select an inventory item" />
-                </SelectTrigger>
-                <SelectContent>
-                  {items.map((i) => (
-                    <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Button onClick={openLinkModal} disabled={!selectedInventoryItem}>+ Link Menu Items</Button>
-
-            {/* Link Modal */}
+            {/* Modal for linking menu items */}
             <Dialog open={linkModalOpen} onOpenChange={setLinkModalOpen}>
+              <DialogTrigger asChild>
+                <Button disabled={items.length === 0}>+ Link Menu Items</Button>
+              </DialogTrigger>
               <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                  <DialogTitle>Link Menu Items</DialogTitle>
+                  <DialogTitle>Link Menu Items to Inventory</DialogTitle>
                 </DialogHeader>
+
                 <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Select Inventory Item</label>
+                    <Select
+                      value={selectedInventoryItem}
+                      onValueChange={(v) => setSelectedInventoryItem(v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an inventory item" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {items.map((i, idx) => (
+                          <SelectItem key={i.id} value={i.id}>
+                            {idx + 1}. {i.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium mb-1">Menu Items</label>
                     <div className="max-h-60 overflow-y-auto border p-2 rounded">
-                      {menuItems.map((m) => (
-                        <div key={m.id} className="flex items-center gap-2">
+                      {menuItems.map((m, idx) => (
+                        <div key={m.id} className="flex items-center gap-2 py-1">
                           <Checkbox
                             checked={selectedMenuItems.includes(m.id)}
-                            onCheckedChange={(v) => {
-                              if (v) setSelectedMenuItems((prev) => [...prev, m.id]);
-                              else setSelectedMenuItems((prev) => prev.filter((id) => id !== m.id));
-                            }}
+                            onCheckedChange={(v) =>
+                              setSelectedMenuItems((prev) =>
+                                v ? [...prev, m.id] : prev.filter((id) => id !== m.id)
+                              )
+                            }
                           />
-                          <span>{m.name}</span>
+                          <span>{idx + 1}. {m.name}</span>
                         </div>
                       ))}
                     </div>
                   </div>
+
                   <div>
                     <label className="block text-sm font-medium mb-1">Deduction Ratio</label>
                     <Input
@@ -390,62 +409,80 @@ export default function InventoryItemManagement() {
                     />
                   </div>
                 </div>
+
                 <DialogFooter className="gap-2">
-                  <Button variant="outline" onClick={closeLinkModal} disabled={linkSubmitting}>Cancel</Button>
-                  <Button onClick={handleLinkSubmit} disabled={linkSubmitting}>
+                  <Button variant="outline" onClick={closeLinkModal} disabled={linkSubmitting}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleLinkSubmit} disabled={linkSubmitting || !selectedInventoryItem}>
                     {linkSubmitting ? "Linking..." : "Link Selected Items"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
 
-            {/* Links Table */}
-            <Card className="overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr className="bg-muted/60 text-left">
-                      <th className="px-4 py-3 font-medium">ID</th>
-                      <th className="px-4 py-3 font-medium">Menu Item</th>
-                      <th className="px-4 py-3 font-medium">Deduction Ratio</th>
-                      <th className="px-4 py-3 font-medium text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loadingLinks ? (
-                      <tr>
-                        <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">Loading links…</td>
-                      </tr>
-                    ) : links.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">No links found.</td>
-                      </tr>
-                    ) : (
-                      links.map((l) => (
-                        <tr key={l.id} className="border-b last:border-b-0 hover:bg-muted/60 transition-colors">
-                          <td className="px-4 py-3">{l.id}</td>
-                          <td className="px-4 py-3">{l.menu_item_name}</td>
-                          <td className="px-4 py-3">
-                            <Input
-                              type="number"
-                              step={0.01}
-                              value={isNaN(l.deduction_ratio) ? "" : l.deduction_ratio}
-                              onChange={(e) => {
-                                const newVal = parseFloat(e.target.value);
-                                if (!isNaN(newVal)) handleLinkUpdate(l.id, newVal);
-                              }}
-                            />
-                          </td>
-                          <td className="px-4 py-3 text-right flex justify-end gap-2">
-                            <Button size="sm" variant="destructive" onClick={() => handleLinkDelete(l.id)}>Delete</Button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
+           {/* Links Table */}
+<Card className="overflow-hidden">
+  <div className="overflow-x-auto">
+    <table className="min-w-full text-sm">
+      <thead>
+        <tr className="bg-muted/60 text-left">
+          <th className="px-4 py-3 font-medium">Inventory Item</th>
+          <th className="px-4 py-3 font-medium">Menu Items</th>
+          <th className="px-4 py-3 font-medium">Deduction Ratio</th>
+          <th className="px-4 py-3 font-medium text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {loadingLinks ? (
+          <tr>
+            <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
+              Loading links…
+            </td>
+          </tr>
+        ) : links.length === 0 ? (
+          <tr>
+            <td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">
+              No links found.
+            </td>
+          </tr>
+        ) : (
+          links.map((l, index) => {
+            // Map menu_item_ids to names using menuItems list
+            const menuNames = l.menu_item_ids
+              .map((id) => menuItems.find((m) => m.id === id)?.name)
+              .filter(Boolean)
+              .join(", ");
+
+            return (
+              <tr key={index} className="border-b last:border-b-0 hover:bg-muted/60 transition-colors">
+                <td className="px-4 py-3">{l.inventory_item_name}</td>
+                <td className="px-4 py-3">{menuNames}</td>
+                <td className="px-4 py-3">
+                  <Input
+                    type="number"
+                    step={0.01}
+                    value={isNaN(l.deduction_ratio) ? "" : l.deduction_ratio}
+                    onBlur={(e) => {
+                      const newVal = parseFloat(e.target.value);
+                      if (!isNaN(newVal)) handleLinkUpdate(l.id, newVal);
+                    }}
+                  />
+                </td>
+                <td className="px-4 py-3 text-right flex justify-end gap-2">
+                  <Button size="sm" variant="destructive" onClick={() => handleLinkDelete(l.id)}>
+                    Delete
+                  </Button>
+                </td>
+              </tr>
+            );
+          })
+        )}
+      </tbody>
+    </table>
+  </div>
+</Card>
+
           </div>
         </TabsContent>
       </Tabs>
