@@ -96,7 +96,8 @@ export default function UserManagement() {
   }, []);
 
   // ----- Helpers -----
-  const canChangeRole = (currentUser?.role === "admin" || currentUser?.role === "manager");
+  const canChangeRole = currentUser?.role === "admin" || currentUser?.role === "manager";
+  const canEditUsername = currentUser?.role === "admin" || currentUser?.role === "manager";
   const editingIsWaiter = editingUser?.role === "waiter";
   const selectedRoleIsWaiter = form.role === "waiter";
 
@@ -112,7 +113,7 @@ export default function UserManagement() {
   const openModal = (user = null) => {
     setErrors({});
     if (user) {
-      // Edit mode: username not editable
+      // Edit mode
       setEditingUser(user);
       setForm({
         role: user.role || "",
@@ -146,7 +147,6 @@ export default function UserManagement() {
     const e = {};
     if (!form.role) e.role = "Role is required";
     if (!editingUser) {
-      // Create: username required for all
       if (!form.username?.trim()) e.username = "Username is required";
       if (form.role === "waiter") {
         if (!/^\d{4}$/.test(form.pin)) e.pin = "PIN must be exactly 4 digits";
@@ -155,24 +155,21 @@ export default function UserManagement() {
           e.password = "Password must be at least 6 characters";
       }
     } else {
-      // Edit:
-      // Username cannot be changed — don't validate content here besides presence for display
+      // Edit
       if (!form.username?.trim()) e.username = "Username is required";
+      else if (form.username.trim().length < 3) e.username = "Username must be at least 3 characters";
       if (form.role === "waiter") {
         if (form.pin && !/^\d{4}$/.test(form.pin)) e.pin = "PIN must be exactly 4 digits";
       } else {
         if (form.password && form.password.length < 6)
           e.password = "Password must be at least 6 characters";
       }
-      // role change allowed only for admin/manager
-      if (!canChangeRole && form.role !== editingUser.role) {
-        e.role = "You are not allowed to change roles";
-      }
-      // Manager cannot make changes to an admin's password/role
+
+      if (!canChangeRole && form.role !== editingUser.role) e.role = "You are not allowed to change roles";
+
       if (currentUser?.role === "manager" && editingUser?.role === "admin") {
         if (form.password) e.password = "Manager cannot update Admin's password";
-        if (form.role !== editingUser.role)
-          e.role = "Manager cannot change Admin's role";
+        if (form.role !== editingUser.role) e.role = "Manager cannot change Admin's role";
       }
     }
     setErrors(e);
@@ -187,7 +184,11 @@ export default function UserManagement() {
     try {
       if (editingUser) {
         const payload = {};
-        // Only include fields that are allowed and provided
+
+        if (canEditUsername && form.username !== editingUser.username) {
+          payload.username = form.username.trim();
+        }
+
         if (canChangeRole) payload.role = form.role;
 
         if (form.role === "waiter") {
@@ -216,7 +217,6 @@ export default function UserManagement() {
     } catch (err) {
       const msg = err?.response?.data || err.message || "Operation failed";
       toast.error(msg);
-      // Show field-level errors if we can infer:
       if (typeof msg === "string" && msg.toLowerCase().includes("username")) {
         setErrors((prev) => ({ ...prev, username: msg }));
       }
@@ -247,21 +247,12 @@ export default function UserManagement() {
     }
   };
 
-  // Row styles
-  const rowBase =
-    "border-b last:border-b-0 hover:bg-muted/60 transition-colors";
+  const rowBase = "border-b last:border-b-0 hover:bg-muted/60 transition-colors";
 
   return (
     <div className="space-y-5">
       {/* Header / Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        {/* <div>
-          <h2 className="text-2xl font-semibold tracking-tight">User Management</h2>
-          <p className="text-sm text-muted-foreground">
-            Create and manage user accounts, roles, and credentials.
-          </p>
-        </div> */}
-
         <div className="flex gap-2">
           <Dialog open={modalOpen} onOpenChange={(v) => (v ? openModal() : closeModal())}>
             <DialogTrigger asChild>
@@ -293,29 +284,25 @@ export default function UserManagement() {
                       <SelectItem value="waiter">Waiter</SelectItem>
                     </SelectContent>
                   </Select>
-                  {errors.role && (
-                    <p className="mt-1 text-xs text-destructive">{errors.role}</p>
-                  )}
+                  {errors.role && <p className="mt-1 text-xs text-destructive">{errors.role}</p>}
                 </div>
 
-                {/* Username (always required, but not editable on edit) */}
+                {/* Username */}
                 <div>
                   <label className="block text-sm font-medium mb-1">Username</label>
                   <Input
                     value={form.username}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, username: e.target.value }))
-                    }
-                    disabled={!!editingUser}
+                    onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+                    disabled={editingUser && !canEditUsername}
                     placeholder="e.g. johndoe"
                     className={errors.username ? "ring-2 ring-destructive" : ""}
                   />
                   {errors.username && (
                     <p className="mt-1 text-xs text-destructive">{errors.username}</p>
                   )}
-                  {editingUser && (
+                  {editingUser && !canEditUsername && (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Username cannot be changed.
+                      Only Admins or Managers can change usernames.
                     </p>
                   )}
                 </div>
@@ -329,9 +316,7 @@ export default function UserManagement() {
                     <Input
                       type="password"
                       value={form.password}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, password: e.target.value }))
-                      }
+                      onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
                       placeholder={editingUser ? "Leave blank to keep current" : "Min 6 characters"}
                       className={errors.password ? "ring-2 ring-destructive" : ""}
                     />
@@ -357,9 +342,7 @@ export default function UserManagement() {
                       placeholder="1234"
                       className={errors.pin ? "ring-2 ring-destructive" : ""}
                     />
-                    {errors.pin && (
-                      <p className="mt-1 text-xs text-destructive">{errors.pin}</p>
-                    )}
+                    {errors.pin && <p className="mt-1 text-xs text-destructive">{errors.pin}</p>}
                   </div>
                 )}
 
@@ -377,43 +360,32 @@ export default function UserManagement() {
         </div>
       </div>
 
-{/* Filters */}
-<Card className="p-3 sm:p-4">
-  <div className="flex flex-col md:flex-row md:items-center gap-3">
-    <div className="flex-1">
-      <Input
-        placeholder="Search by username or role…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-    </div>
-    <div className="w-full md:w-48">
-      <Select value={roleFilter} onValueChange={setRoleFilter}>
-        <SelectTrigger>
-          <SelectValue placeholder="Filter by role" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">
-            All roles ({filteredUsers.length})
-          </SelectItem>
-          <SelectItem value="admin">
-            Admin ({filteredUsers.filter(u => u.role === "admin").length})
-          </SelectItem>
-          <SelectItem value="manager">
-            Manager ({filteredUsers.filter(u => u.role === "manager").length})
-          </SelectItem>
-          <SelectItem value="cashier">
-            Cashier ({filteredUsers.filter(u => u.role === "cashier").length})
-          </SelectItem>
-          <SelectItem value="waiter">
-            Waiter ({filteredUsers.filter(u => u.role === "waiter").length})
-          </SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-  </div>
-</Card>
-
+      {/* Filters */}
+      <Card className="p-3 sm:p-4">
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
+          <div className="flex-1">
+            <Input
+              placeholder="Search by username or role…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="w-full md:w-48">
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All roles ({filteredUsers.length})</SelectItem>
+                <SelectItem value="admin">Admin ({filteredUsers.filter(u => u.role === "admin").length})</SelectItem>
+                <SelectItem value="manager">Manager ({filteredUsers.filter(u => u.role === "manager").length})</SelectItem>
+                <SelectItem value="cashier">Cashier ({filteredUsers.filter(u => u.role === "cashier").length})</SelectItem>
+                <SelectItem value="waiter">Waiter ({filteredUsers.filter(u => u.role === "waiter").length})</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </Card>
 
       {/* Table */}
       <Card className="overflow-hidden">
@@ -421,7 +393,7 @@ export default function UserManagement() {
           <table className="min-w-full text-sm">
             <thead>
               <tr className="bg-muted/60 text-left">
-                <th className="px-4 py-3 font-medium">ID</th>
+                <th className="px-4 py-3 font-medium">No</th>
                 <th className="px-4 py-3 font-medium">Username</th>
                 <th className="px-4 py-3 font-medium">Role</th>
                 <th className="px-4 py-3 font-medium text-right">Actions</th>
@@ -441,9 +413,9 @@ export default function UserManagement() {
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((u) => (
+                filteredUsers.map((u, index) => (
                   <tr key={u.id} className={rowBase}>
-                    <td className="px-4 py-3">{u.id}</td>
+                    <td className="px-4 py-3">{index + 1}</td> {/* Sequential number */}
                     <td className="px-4 py-3">{u.username}</td>
                     <td className="px-4 py-3 capitalize">{u.role}</td>
                     <td className="px-4 py-3">

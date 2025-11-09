@@ -100,9 +100,16 @@ def update_user(user_id):
         abort(404, "User not found")
 
     data = request.get_json()
+    new_username = data.get("username")
     new_password = data.get("password")
     new_pin = data.get("pin")
     new_role = data.get("role", user.role)
+
+    # ✅ Handle username update (ensure uniqueness)
+    if new_username and new_username != user.username:
+        if User.query.filter(User.username == new_username, User.id != user.id).first():
+            abort(400, "Username already exists")
+        user.username = new_username
 
     # Admin/Manager can update anyone except role restrictions
     if current_user.role in ["admin", "manager"]:
@@ -118,7 +125,6 @@ def update_user(user_id):
                     abort(400, "This PIN is already taken")
             user.pin_hash = new_pin
 
-        # Update role for admin/manager only
         user.role = new_role
 
     # Waiter can only update own PIN
