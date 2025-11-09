@@ -75,8 +75,8 @@ export const deleteInventoryItem = async (id, token = null) => {
 export const createInventoryLinks = async (inventoryItemId, links, token = null) => {
   try {
     const payload = {
-      links: links.map(group => ({
-        deduction_ratio: parseFloat(group.deduction_ratio) || 1.0,
+      links: links.map((group) => ({
+        deduction_ratio: parseFloat(group.deduction_ratio),
         menu_item_ids: group.menu_item_ids,
       })),
     };
@@ -97,32 +97,34 @@ export const createInventoryLinks = async (inventoryItemId, links, token = null)
   }
 };
 
-// ---------------- FIXED ----------------
-// Get all links for an inventory item, **preserve link IDs**
+// GET ALL LINKS for a given inventory item
+
 export const getInventoryLinks = async (inventoryItemId, token = null) => {
   try {
-    const res = await axios.get(`${BASE_URL}/inventory/items/${inventoryItemId}/links`, {
-      headers: getAuthHeader(token),
-    });
+    const res = await axios.get(
+      `${BASE_URL}/inventory/items/${inventoryItemId}/links`,
+      {
+        headers: getAuthHeader(token),
+      }
+    );
 
-    // Group by deduction_ratio
+    // Group by deduction_ratio, but DO NOT round decimals
     const grouped = {};
-    res.data.forEach(link => {
-      const key = link.deduction_ratio.toFixed(2); // use fixed precision to group properly
+    res.data.forEach((link) => {
+      const key = link.deduction_ratio.toString();
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push({
-        id: link.id, // keep backend link ID
+        id: link.id,
         menu_item_id: link.menu_item_id,
         menu_item_name: link.menu_item_name,
       });
     });
 
-    // Convert to array format: [{ deduction_ratio, menu_items: [{id, menu_item_id, menu_item_name}] }]
-    const result = Object.keys(grouped).map(key => ({
+    const result = Object.keys(grouped).map((key) => ({
       deduction_ratio: parseFloat(key),
       menu_items: grouped[key],
-      menu_item_ids: grouped[key].map(l => l.menu_item_id),
-      ids: grouped[key].map(l => l.id), // list of link IDs
+      menu_item_ids: grouped[key].map((l) => l.menu_item_id),
+      ids: grouped[key].map((l) => l.id),
     }));
 
     return result;
@@ -131,16 +133,26 @@ export const getInventoryLinks = async (inventoryItemId, token = null) => {
   }
 };
 
+// UPDATE A SINGLE LINK
+
 export const updateInventoryLink = async (linkId, data, token = null) => {
   try {
-    const res = await axios.put(`${BASE_URL}/inventory/items/links/${linkId}`, data, {
-      headers: { ...getAuthHeader(token), "Content-Type": "application/json" },
+    const res = await axios.put(`${BASE_URL}/inventory/items/links/${linkId}`,{
+        deduction_ratio: data.deduction_ratio,
+        menu_item_id: data.menu_item_id,
+        inventory_item_id: data.inventory_item_id,
+      },
+      {
+      headers: {...getAuthHeader(token),"Content-Type": "application/json" ,
+},
     });
     return res.data;
   } catch (error) {
     handleError(error, "Failed to update inventory link");
   }
 };
+
+// DELETE LINK
 
 export const deleteInventoryLink = async (linkId, token = null) => {
   try {

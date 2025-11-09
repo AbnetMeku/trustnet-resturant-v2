@@ -101,11 +101,19 @@ export default function InventoryLinksTab() {
         },
       ];
 
-      const res = await createInventoryLinks(selectedInventoryItem, payload, token);
+      const res = await createInventoryLinks(
+        selectedInventoryItem,
+        payload,
+        token
+      );
 
       if (res.skipped && res.skipped.length > 0) {
         const skippedNames = res.skipped
-          .map((s) => menuItems.find((m) => m.id === s.menu_item_id)?.name || s.menu_item_id)
+          .map(
+            (s) =>
+              menuItems.find((m) => m.id === s.menu_item_id)?.name ||
+              s.menu_item_id
+          )
           .join(", ");
         toast.error(`Some items already linked: ${skippedNames}`);
       }
@@ -131,13 +139,18 @@ export default function InventoryLinksTab() {
 
   const handleEditLinkSubmit = async () => {
     if (!editingGroup) return;
-
     try {
-      // Update each link ID individually (backend expects single ID per PUT)
+      const { deduction_ratio, menu_item_ids } = editingGroup;
+
       for (let i = 0; i < editingGroup.ids.length; i++) {
-        await updateInventoryLink(editingGroup.ids[i], {
-          deduction_ratio: parseFloat(editingGroup.deduction_ratio),
-        }, token);
+        await updateInventoryLink(
+          editingGroup.ids[i],
+          {
+            deduction_ratio: parseFloat(deduction_ratio),
+            menu_item_ids: menu_item_ids,
+          },
+          token
+        );
       }
 
       toast.success("Links updated successfully");
@@ -175,6 +188,7 @@ export default function InventoryLinksTab() {
               <DialogTitle>Link Menu Items to Inventory</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
+              {/* Inventory Selection */}
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Select Inventory Item
@@ -196,6 +210,7 @@ export default function InventoryLinksTab() {
                 </Select>
               </div>
 
+              {/* Menu Items Multi Select */}
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Menu Items
@@ -220,17 +235,16 @@ export default function InventoryLinksTab() {
                 />
               </div>
 
+              {/* Deduction Quantity */}
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Deduction Quantity (applied to all selected)
                 </label>
                 <Input
                   type="number"
-                  step={0.01}
+                  step="any"
                   value={deductionQuantity}
-                  onChange={(e) =>
-                    setDeductionQuantity(parseFloat(e.target.value))
-                  }
+                  onChange={(e) => setDeductionQuantity(e.target.value)}
                   className="w-32"
                 />
               </div>
@@ -251,98 +265,76 @@ export default function InventoryLinksTab() {
         </Dialog>
       </div>
 
-      {/* Edit Modal */}
-<Dialog open={editLinkModalOpen} onOpenChange={setEditLinkModalOpen}>
-  <DialogContent className="sm:max-w-lg">
-    <DialogHeader>
-      <DialogTitle>Edit Link</DialogTitle>
-    </DialogHeader>
-    {editingGroup && (
-      <div className="space-y-3">
-        {/* Editable Inventory Item Name */}
-        <div>
-          <label className="block text-sm font-medium mb-1">Inventory Item</label>
-          <Input
-            value={editingGroup.inventory_item_name}
-            onChange={(e) =>
-              setEditingGroup({ ...editingGroup, inventory_item_name: e.target.value })
-            }
-            className="w-full"
-          />
-        </div>
+      {/* ---------------- Edit Modal ---------------- */}
+      <Dialog open={editLinkModalOpen} onOpenChange={setEditLinkModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Link</DialogTitle>
+          </DialogHeader>
+          {editingGroup && (
+            <div className="space-y-3">
+              {/* Editable Menu Items */}
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Menu Items
+                </label>
+                <ReactSelect
+                  isMulti
+                  options={menuItems.map((m) => ({
+                    value: m.id,
+                    label: m.name,
+                  }))}
+                  value={editingGroup.menu_item_ids
+                    .map((id) => {
+                      const menuItem = menuItems.find((m) => m.id === id);
+                      return menuItem
+                        ? { value: menuItem.id, label: menuItem.name }
+                        : null;
+                    })
+                    .filter(Boolean)}
+                  onChange={(selected) => {
+                    setEditingGroup({
+                      ...editingGroup,
+                      menu_item_ids: selected.map((s) => s.value),
+                      menu_items: selected.map((s) => ({
+                        menu_item_id: s.value,
+                        menu_item_name: s.label,
+                      })),
+                    });
+                  }}
+                />
+              </div>
 
-        {/* Editable Menu Items */}
-        <div>
-          <label className="block text-sm font-medium mb-1">Menu Items</label>
-          <ReactSelect
-            isMulti
-            options={menuItems.map((m) => ({ value: m.id, label: m.name }))}
-            value={editingGroup.menu_item_ids
-              .map((id) => {
-                const menuItem = menuItems.find((m) => m.id === id);
-                return menuItem ? { value: menuItem.id, label: menuItem.name } : null;
-              })
-              .filter(Boolean)}
-            onChange={(selected) => {
-              setEditingGroup({
-                ...editingGroup,
-                menu_item_ids: selected.map((s) => s.value),
-                menu_items: selected.map((s) => ({
-                  menu_item_id: s.value,
-                  menu_item_name: s.label,
-                })),
-              });
-            }}
-          />
-        </div>
+              {/* Editable Deduction Ratio */}
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Deduction Quantity
+                </label>
+                <Input
+                  type="number"
+                  step="any"
+                  value={editingGroup.deduction_ratio}
+                  onChange={(e) =>
+                    setEditingGroup({
+                      ...editingGroup,
+                      deduction_ratio: e.target.value,
+                    })
+                  }
+                  className="w-32"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setEditLinkModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditLinkSubmit}>Update</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        {/* Editable Deduction Ratio */}
-        <div>
-          <label className="block text-sm font-medium mb-1">Deduction Quantity</label>
-          <Input
-            type="number"
-            step="any" // allows exact decimal input
-            value={editingGroup.deduction_ratio}
-            onChange={(e) =>
-              setEditingGroup({
-                ...editingGroup,
-                deduction_ratio: e.target.value, // keep exact input as string
-              })
-            }
-            className="w-32"
-          />
-        </div>
-      </div>
-    )}
-    <DialogFooter className="gap-2">
-      <Button variant="outline" onClick={() => setEditLinkModalOpen(false)}>
-        Cancel
-      </Button>
-      <Button
-        onClick={async () => {
-          // Update all links in group with current fields
-          try {
-            for (let i = 0; i < editingGroup.ids.length; i++) {
-              await updateInventoryLink(editingGroup.ids[i], {
-                deduction_ratio: parseFloat(editingGroup.deduction_ratio),
-              }, token);
-            }
-            toast.success("Links updated successfully");
-            setEditLinkModalOpen(false);
-            loadData();
-          } catch {
-            toast.error("Failed to update links");
-          }
-        }}
-      >
-        Update
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
-
-
-      {/* Table */}
+      {/* ---------------- Table ---------------- */}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
@@ -379,7 +371,7 @@ export default function InventoryLinksTab() {
                     <td className="px-4 py-2">
                       {group.menu_items.map((m) => m.menu_item_name).join(", ")}
                     </td>
-                    <td className="px-4 py-2">{group.deduction_ratio.toFixed(2)}</td>
+                    <td className="px-4 py-2">{group.deduction_ratio}</td>
                     <td className="px-4 py-2 space-x-2">
                       <Button
                         variant="outline"

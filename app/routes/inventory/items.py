@@ -170,10 +170,29 @@ def update_inventory_link(link_id):
         return jsonify({"msg": "Link not found"}), 404
 
     data = request.get_json()
-    link.deduction_ratio = data.get("deduction_ratio", link.deduction_ratio)
+
+    # update deduction_ratio precisely (no rounding)
+    if "deduction_ratio" in data:
+        try:
+            link.deduction_ratio = float(data["deduction_ratio"])
+        except ValueError:
+            return jsonify({"msg": "Invalid deduction ratio"}), 400
+
+    # allow changing linked menu_item or inventory_item if provided
+    if "menu_item_id" in data:
+        menu_item = MenuItem.query.get(data["menu_item_id"])
+        if not menu_item:
+            return jsonify({"msg": "Menu item not found"}), 404
+        link.menu_item_id = data["menu_item_id"]
+
+    if "inventory_item_id" in data:
+        inventory_item = InventoryItem.query.get(data["inventory_item_id"])
+        if not inventory_item:
+            return jsonify({"msg": "Inventory item not found"}), 404
+        link.inventory_item_id = data["inventory_item_id"]
+
     db.session.commit()
     return jsonify({"msg": "Link updated successfully"}), 200
-
 
 # --------------------- DELETE LINK --------------------- #
 @inventory_items_bp.route("/links/<int:link_id>", methods=["DELETE"])
