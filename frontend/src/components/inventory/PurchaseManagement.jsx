@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
+import Select from "react-select";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
-import { getInventoryItems } from "@/api/inventory/items"; // updated to inventory items
+import { getInventoryItems } from "@/api/inventory/items";
 import { createPurchase, getPurchases, updatePurchase, deletePurchase } from "@/api/inventory/purchases";
 import { toast } from "@/hooks/use-toast";
 
@@ -18,12 +19,10 @@ export default function PurchaseManagement() {
 
   const [form, setForm] = useState({ inventory_item_id: "", quantity: "", unit_price: "" });
   const [editingId, setEditingId] = useState(null);
-
   const [deleteId, setDeleteId] = useState(null);
-  const [activeTab, setActiveTab] = useState("add"); // 'add' or 'history'
+  const [activeTab, setActiveTab] = useState("add");
   const [loadingItems, setLoadingItems] = useState(false);
 
-  // Load inventory items
   useEffect(() => {
     (async () => {
       setLoadingItems(true);
@@ -38,19 +37,16 @@ export default function PurchaseManagement() {
     })();
   }, [token]);
 
-  // Load purchases
   const loadPurchases = async () => {
     try {
       const data = await getPurchases(token);
-      const filtered = (data || []).filter(p => p.status !== "Deleted");
-      setPurchases(filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+      setPurchases((data || []).filter(p => p.status !== "Deleted").sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
     } catch {
       toast({ title: "Error", description: "Failed to load purchases", variant: "destructive" });
     }
   };
   useEffect(() => { loadPurchases(); }, [token]);
 
-  // Submit purchase
   const handleSubmit = async () => {
     if (!form.inventory_item_id || !form.quantity) {
       toast({ title: "Validation Error", description: "Please fill in all required fields.", variant: "destructive" });
@@ -77,7 +73,6 @@ export default function PurchaseManagement() {
     }
   };
 
-  // Delete purchase
   const handleDelete = async (id) => {
     try {
       await deletePurchase(id, token);
@@ -88,7 +83,6 @@ export default function PurchaseManagement() {
     }
   };
 
-  // Edit purchase
   const handleEditClick = (p) => {
     setEditingId(p.id);
     setForm({
@@ -103,55 +97,35 @@ export default function PurchaseManagement() {
 
   if (user?.role !== "admin") return <div className="p-4 text-red-600">Access denied. Admins only.</div>;
 
-  // SearchableSelect Component
-  function SearchableSelect({ items = [], value, onChange, placeholder = "Search...", disabled = false }) {
-    const [open, setOpen] = useState(false);
-    const [q, setQ] = useState("");
-    const wrapperRef = useRef(null);
+  const selectOptions = inventoryItems.map(item => ({ value: item.id, label: item.name }));
 
-    useEffect(() => {
-      function onDocClick(e) { if (!wrapperRef.current?.contains(e.target)) setOpen(false); }
-      document.addEventListener("mousedown", onDocClick);
-      return () => document.removeEventListener("mousedown", onDocClick);
-    }, []);
-
-    useEffect(() => setQ(""), [items]);
-    const selectedItem = items.find((it) => String(it.id) === String(value));
-    const displayValue = selectedItem ? selectedItem.name : q;
-    const filtered = items.filter((it) => it.name.toLowerCase().includes(q.trim().toLowerCase()));
-
-    return (
-      <div ref={wrapperRef} className="relative">
-        <input
-          className="border rounded-md p-2 w-full dark:bg-gray-800 dark:text-white dark:border-gray-700"
-          placeholder={placeholder}
-          value={displayValue}
-          onFocus={() => !disabled && setOpen(true)}
-          onChange={(e) => {
-            if (!disabled) {
-              setQ(e.target.value);
-              setOpen(true);
-              if (selectedItem && e.target.value !== selectedItem.name) onChange("");
-            }
-          }}
-          disabled={disabled}
-        />
-        {open && !disabled && (
-          <ul className="absolute z-50 bg-white dark:bg-gray-900 border rounded-md mt-1 max-h-48 overflow-auto w-full shadow-lg dark:border-gray-700 dark:text-white">
-            {filtered.length ? filtered.map((it) => (
-              <li
-                key={it.id}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                onMouseDown={(ev) => { ev.preventDefault(); onChange(String(it.id)); setOpen(false); setQ(""); }}
-              >
-                {it.name}
-              </li>
-            )) : <li className="p-2 text-gray-400 dark:text-gray-500">No items found</li>}
-          </ul>
-        )}
-      </div>
-    );
-  }
+  const selectStyles = {
+    control: (base, state) => ({
+      ...base,
+      minHeight: 44,
+      borderRadius: 8,
+      borderColor: state.isFocused ? "#3b82f6" : "#d1d5db",
+      boxShadow: "none",
+      "&:hover": { borderColor: "#3b82f6" },
+      backgroundColor: user?.darkMode ? "#1f2937" : "#ffffff",
+      color: user?.darkMode ? "#ffffff" : "#111827",
+    }),
+    menu: (base) => ({
+      ...base,
+      borderRadius: 8,
+      backgroundColor: user?.darkMode ? "#1f2937" : "#ffffff",
+      color: user?.darkMode ? "#ffffff" : "#111827",
+      zIndex: 9999,
+    }),
+    option: (base, { isFocused }) => ({
+      ...base,
+      backgroundColor: isFocused ? (user?.darkMode ? "#374151" : "#e5e7eb") : (user?.darkMode ? "#1f2937" : "#ffffff"),
+      color: user?.darkMode ? "#ffffff" : "#111827",
+      cursor: "pointer",
+    }),
+    singleValue: (base) => ({ ...base, color: user?.darkMode ? "#ffffff" : "#111827" }),
+    placeholder: (base) => ({ ...base, color: user?.darkMode ? "#9ca3af" : "#6b7280" }),
+  };
 
   const lastThree = purchases.slice(0, 3);
 
@@ -178,11 +152,13 @@ export default function PurchaseManagement() {
         <div className="flex flex-col gap-4">
           {loadingItems
             ? <div>Loading inventory items...</div>
-            : <SearchableSelect
-                items={inventoryItems}
-                value={form.inventory_item_id}
-                onChange={(val) => setForm({ ...form, inventory_item_id: val })}
+            : <Select
+                options={selectOptions}
+                value={selectOptions.find(opt => String(opt.value) === String(form.inventory_item_id)) || null}
+                onChange={(val) => setForm({ ...form, inventory_item_id: val?.value || "" })}
                 placeholder="Select inventory item..."
+                styles={selectStyles}
+                isClearable
               />
           }
 
@@ -207,7 +183,6 @@ export default function PurchaseManagement() {
             {editingId ? "Update" : "Save"}
           </Button>
 
-          {/* Last 3 purchases */}
           {lastThree.length > 0 && (
             <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
               {lastThree.map((p) => (
@@ -230,7 +205,7 @@ export default function PurchaseManagement() {
             <table className="w-full border rounded-lg shadow-sm dark:border-gray-700">
               <thead className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white">
                 <tr>
-                  <th className="p-2 border dark:border-gray-700">#</th>
+                  <th className="p-2 border dark:border-gray-700">No.</th>
                   <th className="p-2 border dark:border-gray-700">Item</th>
                   <th className="p-2 border dark:border-gray-700">Quantity</th>
                   <th className="p-2 border dark:border-gray-700">Unit Price</th>
@@ -264,7 +239,6 @@ export default function PurchaseManagement() {
         </>
       )}
 
-      {/* Delete Modal */}
       {deleteId && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 p-6 rounded-md shadow-md w-80 text-black dark:text-white">

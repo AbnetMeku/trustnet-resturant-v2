@@ -161,7 +161,8 @@ def get_inventory_links(inventory_item_id):
     return jsonify(result), 200
 
 
-# --------------------- UPDATE LINK --------------------- #
+# --------------------- UPDATE LINK (SAFE TRANSACTION) --------------------- #
+from sqlalchemy.exc import IntegrityError
 @inventory_items_bp.route("/links/<int:link_id>", methods=["PUT"])
 @jwt_required()
 def update_inventory_link(link_id):
@@ -171,28 +172,46 @@ def update_inventory_link(link_id):
 
     data = request.get_json()
 
-    # update deduction_ratio precisely (no rounding)
-    if "deduction_ratio" in data:
-        try:
-            link.deduction_ratio = float(data["deduction_ratio"])
-        except ValueError:
-            return jsonify({"msg": "Invalid deduction ratio"}), 400
+    try:
+        # Begin atomic transaction
+        with db.session.begin_nested():
+            # Update deduction_ratio precisely (no rounding)
+            if "deduction_ratio" in data:
+                try:
+                    link.deduction_ratio = float(data["deduction_ratio"])
+                except ValueError:
+                    db.session.rollback()
+                    return jsonify({"msg": "Invalid deduction ratio"}), 400
 
-    # allow changing linked menu_item or inventory_item if provided
-    if "menu_item_id" in data:
-        menu_item = MenuItem.query.get(data["menu_item_id"])
-        if not menu_item:
-            return jsonify({"msg": "Menu item not found"}), 404
-        link.menu_item_id = data["menu_item_id"]
+            # Allow changing linked menu_item or inventory_item if provided
+            if "menu_item_id" in data:
+                menu_item = MenuItem.query.get(data["menu_item_id"])
+                if not menu_item:
+                    db.session.rollback()
+                    return jsonify({"msg": "Menu item not found"}), 404
+                link.menu_item_id = data["menu_item_id"]
 
-    if "inventory_item_id" in data:
-        inventory_item = InventoryItem.query.get(data["inventory_item_id"])
-        if not inventory_item:
-            return jsonify({"msg": "Inventory item not found"}), 404
-        link.inventory_item_id = data["inventory_item_id"]
+            if "inventory_item_id" in data:
+                inventory_item = InventoryItem.query.get(data["inventory_item_id"])
+                if not inventory_item:
+                    db.session.rollback()
+                    return jsonify({"msg": "Inventory item not found"}), 404
+                link.inventory_item_id = data["inventory_item_id"]
 
-    db.session.commit()
-    return jsonify({"msg": "Link updated successfully"}), 200
+            db.session.add(link)
+
+        # Commit the transaction safely
+        db.session.commit()
+        return jsonify({"msg": "Link updated successfully"}), 200
+
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"msg": "Conflict: this menu/inventory combination already exists"}), 400
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": f"An unexpected error occurred: {str(e)}"}), 500
+
 
 # --------------------- DELETE LINK --------------------- #
 @inventory_items_bp.route("/links/<int:link_id>", methods=["DELETE"])

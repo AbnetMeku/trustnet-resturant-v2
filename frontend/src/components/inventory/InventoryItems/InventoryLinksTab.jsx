@@ -133,30 +133,67 @@ export default function InventoryLinksTab() {
 
   // ---------------- Edit Link ----------------
   const openEditLinkModal = (group) => {
-    setEditingGroup(group);
+    setEditingGroup({ ...group });
     setEditLinkModalOpen(true);
   };
 
   const handleEditLinkSubmit = async () => {
     if (!editingGroup) return;
-    try {
-      const { deduction_ratio, menu_item_ids } = editingGroup;
 
-      for (let i = 0; i < editingGroup.ids.length; i++) {
+    try {
+      const { deduction_ratio, menu_item_ids: newMenuIds, inventory_item_id } =
+        editingGroup;
+
+      // 1️⃣ Fetch current links
+      const currentLinks = await getInventoryLinks(inventory_item_id, token);
+      const flatLinks = currentLinks.flatMap((g) => g.menu_items);
+      const currentMenuIds = flatLinks.map((l) => l.menu_item_id);
+
+      // 2️⃣ Determine which links to add, update, or remove
+      const toAdd = newMenuIds.filter((id) => !currentMenuIds.includes(id));
+      const toRemove = currentMenuIds.filter((id) => !newMenuIds.includes(id));
+      const toUpdate = flatLinks.filter((l) => newMenuIds.includes(l.menu_item_id));
+
+      // 3️⃣ Update deduction_ratio for existing links
+      for (const link of toUpdate) {
         await updateInventoryLink(
-          editingGroup.ids[i],
+          link.id,
           {
             deduction_ratio: parseFloat(deduction_ratio),
-            menu_item_ids: menu_item_ids,
+            menu_item_id: link.menu_item_id,
+            inventory_item_id, // always same
           },
           token
         );
       }
 
-      toast.success("Links updated successfully");
+      // 4️⃣ Add new links
+      if (toAdd.length > 0) {
+        await createInventoryLinks(
+          inventory_item_id,
+          [
+            {
+              menu_item_ids: toAdd,
+              deduction_ratio: parseFloat(deduction_ratio),
+            },
+          ],
+          token
+        );
+      }
+
+      // 5️⃣ Delete removed links
+      if (toRemove.length > 0) {
+        const linksToDelete = flatLinks.filter((l) => toRemove.includes(l.menu_item_id));
+        for (const link of linksToDelete) {
+          await deleteInventoryLink(link.id, token);
+        }
+      }
+
+      toast.success("Links updated successfully!");
       setEditLinkModalOpen(false);
       loadData();
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("Failed to update links");
     }
   };
@@ -212,26 +249,17 @@ export default function InventoryLinksTab() {
 
               {/* Menu Items Multi Select */}
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Menu Items
-                </label>
+                <label className="block text-sm font-medium mb-1">Menu Items</label>
                 <ReactSelect
                   isMulti
-                  options={menuItems.map((m) => ({
-                    value: m.id,
-                    label: m.name,
-                  }))}
+                  options={menuItems.map((m) => ({ value: m.id, label: m.name }))}
                   value={selectedMenuItems
                     .map((id) => {
                       const menuItem = menuItems.find((m) => m.id === id);
-                      return menuItem
-                        ? { value: menuItem.id, label: menuItem.name }
-                        : null;
+                      return menuItem ? { value: menuItem.id, label: menuItem.name } : null;
                     })
                     .filter(Boolean)}
-                  onChange={(selected) =>
-                    setSelectedMenuItems(selected.map((s) => s.value))
-                  }
+                  onChange={(selected) => setSelectedMenuItems(selected.map((s) => s.value))}
                 />
               </div>
 
@@ -250,11 +278,7 @@ export default function InventoryLinksTab() {
               </div>
             </div>
             <DialogFooter className="gap-2">
-              <Button
-                variant="outline"
-                onClick={closeLinkModal}
-                disabled={linkSubmitting}
-              >
+              <Button variant="outline" onClick={closeLinkModal} disabled={linkSubmitting}>
                 Cancel
               </Button>
               <Button onClick={handleLinkSubmit} disabled={linkSubmitting}>
@@ -273,52 +297,54 @@ export default function InventoryLinksTab() {
           </DialogHeader>
           {editingGroup && (
             <div className="space-y-3">
+              {/* Inventory Item (GRAYED OUT) */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Inventory Item</label>
+                <Select value={editingGroup.inventory_item_id} disabled={true}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {items.map((i) => (
+                      <SelectItem key={i.id} value={i.id}>
+                        {i.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Editable Menu Items */}
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Menu Items
-                </label>
+                <label className="block text-sm font-medium mb-1">Menu Items</label>
                 <ReactSelect
                   isMulti
-                  options={menuItems.map((m) => ({
-                    value: m.id,
-                    label: m.name,
-                  }))}
+                  options={menuItems.map((m) => ({ value: m.id, label: m.name }))}
                   value={editingGroup.menu_item_ids
                     .map((id) => {
                       const menuItem = menuItems.find((m) => m.id === id);
-                      return menuItem
-                        ? { value: menuItem.id, label: menuItem.name }
-                        : null;
+                      return menuItem ? { value: menuItem.id, label: menuItem.name } : null;
                     })
                     .filter(Boolean)}
-                  onChange={(selected) => {
+                  onChange={(selected) =>
                     setEditingGroup({
                       ...editingGroup,
                       menu_item_ids: selected.map((s) => s.value),
-                      menu_items: selected.map((s) => ({
-                        menu_item_id: s.value,
-                        menu_item_name: s.label,
-                      })),
-                    });
-                  }}
+                      menu_items: selected.map((s) => ({ menu_item_id: s.value, menu_item_name: s.label })),
+                    })
+                  }
                 />
               </div>
 
               {/* Editable Deduction Ratio */}
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Deduction Quantity
-                </label>
+                <label className="block text-sm font-medium mb-1">Deduction Quantity</label>
                 <Input
                   type="number"
                   step="any"
                   value={editingGroup.deduction_ratio}
                   onChange={(e) =>
-                    setEditingGroup({
-                      ...editingGroup,
-                      deduction_ratio: e.target.value,
-                    })
+                    setEditingGroup({ ...editingGroup, deduction_ratio: e.target.value })
                   }
                   className="w-32"
                 />
