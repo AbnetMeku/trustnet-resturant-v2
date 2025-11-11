@@ -91,13 +91,25 @@ export const createInventoryLinks = async (inventoryItemId, links, token = null)
         },
       }
     );
+
+    // Handle partial success — show skipped warnings
+    if (res.data.skipped?.length > 0) {
+      const skippedItems = res.data.skipped
+        .map((s) => `${s.menu_item_id}: ${s.reason}`)
+        .join(", ");
+      console.warn("Some links were skipped:", skippedItems);
+      res.data.warning = `Some links were skipped: ${skippedItems}`;
+    }
+
     return res.data;
   } catch (error) {
     handleError(error, "Failed to create inventory links");
   }
 };
 
+// ============================================================
 // GET ALL LINKS for a given inventory item
+// ============================================================
 
 export const getInventoryLinks = async (inventoryItemId, token = null) => {
   try {
@@ -108,7 +120,7 @@ export const getInventoryLinks = async (inventoryItemId, token = null) => {
       }
     );
 
-    // Group by deduction_ratio, but DO NOT round decimals
+    // Group by deduction_ratio, do not round decimals
     const grouped = {};
     res.data.forEach((link) => {
       const key = link.deduction_ratio.toString();
@@ -120,45 +132,55 @@ export const getInventoryLinks = async (inventoryItemId, token = null) => {
       });
     });
 
-    const result = Object.keys(grouped).map((key) => ({
+    return Object.keys(grouped).map((key) => ({
       deduction_ratio: parseFloat(key),
       menu_items: grouped[key],
       menu_item_ids: grouped[key].map((l) => l.menu_item_id),
       ids: grouped[key].map((l) => l.id),
     }));
-
-    return result;
   } catch (error) {
     handleError(error, "Failed to fetch inventory links");
   }
 };
 
+// ============================================================
 // UPDATE A SINGLE LINK
+// ============================================================
 
 export const updateInventoryLink = async (linkId, data, token = null) => {
   try {
-    const res = await axios.put(`${BASE_URL}/inventory/items/links/${linkId}`,{
+    const res = await axios.put(
+      `${BASE_URL}/inventory/items/links/${linkId}`,
+      {
         deduction_ratio: data.deduction_ratio,
         menu_item_id: data.menu_item_id,
         inventory_item_id: data.inventory_item_id,
       },
       {
-      headers: {...getAuthHeader(token),"Content-Type": "application/json" ,
-},
-    });
+        headers: {
+          ...getAuthHeader(token),
+          "Content-Type": "application/json",
+        },
+      }
+    );
     return res.data;
   } catch (error) {
     handleError(error, "Failed to update inventory link");
   }
 };
 
+// ============================================================
 // DELETE LINK
+// ============================================================
 
 export const deleteInventoryLink = async (linkId, token = null) => {
   try {
-    const res = await axios.delete(`${BASE_URL}/inventory/items/links/${linkId}`, {
-      headers: getAuthHeader(token),
-    });
+    const res = await axios.delete(
+      `${BASE_URL}/inventory/items/links/${linkId}`,
+      {
+        headers: getAuthHeader(token),
+      }
+    );
     return res.data;
   } catch (error) {
     handleError(error, "Failed to delete inventory link");

@@ -1,256 +1,282 @@
 import React, { useState, useEffect } from "react";
-import Select from "react-select";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
-import { getInventoryItems } from "@/api/inventory/items";
 import { createPurchase, getPurchases, updatePurchase, deletePurchase } from "@/api/inventory/purchases";
-import { toast } from "@/hooks/use-toast";
+import { getInventoryItems } from "@/api/inventory/items";
+import { getAllStoreStock } from "@/api/inventory/stock";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import ReactSelect from "react-select";
+import { toast } from "react-hot-toast";
 
 const PAGE_SIZE = 10;
 
 export default function PurchaseManagement() {
   const { token, user } = useAuth();
-
-  const [inventoryItems, setInventoryItems] = useState([]);
+  const [activeTab, setActiveTab] = useState("add");
+  const [items, setItems] = useState([]);
+  const [stocks, setStocks] = useState([]);
   const [purchases, setPurchases] = useState([]);
-  const [page, setPage] = useState(1);
+  const [purchasePage, setPurchasePage] = useState(1);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
+  const [editId, setEditId] = useState(null);
 
   const [form, setForm] = useState({ inventory_item_id: "", quantity: "", unit_price: "" });
-  const [editingId, setEditingId] = useState(null);
-  const [deleteId, setDeleteId] = useState(null);
-  const [activeTab, setActiveTab] = useState("add");
-  const [loadingItems, setLoadingItems] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      setLoadingItems(true);
-      try {
-        const items = await getInventoryItems(token);
-        setInventoryItems(items || []);
-      } catch {
-        toast({ title: "Error", description: "Failed to load inventory items", variant: "destructive" });
-      } finally {
-        setLoadingItems(false);
-      }
-    })();
-  }, [token]);
+  // --- Load data ---
+  const loadItems = async () => {
+    try {
+      const data = await getInventoryItems(token);
+      setItems(data);
+    } catch {
+      toast.error("Failed to load inventory items. Please try again.");
+    }
+  };
+
+  const loadStocks = async () => {
+    try {
+      const data = await getAllStoreStock(token);
+      setStocks(data);
+    } catch {
+      toast.error("Failed to load store stock data.");
+    }
+  };
 
   const loadPurchases = async () => {
     try {
       const data = await getPurchases(token);
-      setPurchases((data || []).filter(p => p.status !== "Deleted").sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+      setPurchases(data.filter(p => p.status !== "Deleted").sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
     } catch {
-      toast({ title: "Error", description: "Failed to load purchases", variant: "destructive" });
+      toast.error("Failed to load purchases. Please try again.");
     }
   };
-  useEffect(() => { loadPurchases(); }, [token]);
 
-  const handleSubmit = async () => {
-    if (!form.inventory_item_id || !form.quantity) {
-      toast({ title: "Validation Error", description: "Please fill in all required fields.", variant: "destructive" });
-      return;
+  useEffect(() => {
+    loadItems();
+    loadStocks();
+    loadPurchases();
+  }, [token]);
+
+  // --- Helper ---
+  const getStockQty = (inventoryId) => {
+    const stock = stocks.find((s) => s.inventory_item_id === inventoryId);
+    return stock ? stock.quantity : 0;
+  };
+
+  // --- Form submission ---
+const handleSubmit = async () => {
+  const { inventory_item_id, quantity, unit_price } = form;
+
+  if (!inventory_item_id) return toast.error("Please select an inventory item.");
+  if (!quantity || isNaN(quantity) || quantity <= 0)
+    return toast.error("Enter a valid quantity greater than zero.");
+
+  const payload = {
+    inventory_item_id: parseInt(inventory_item_id),
+    quantity: parseFloat(parseFloat(quantity).toFixed(3)),
+    unit_price: unit_price ? parseFloat(parseFloat(unit_price).toFixed(3)) : null,
+  };
+
+  try {
+    if (editId) {
+      await updatePurchase(editId, payload, token);
+      toast.success("Purchase updated successfully.");
+    } else {
+      await createPurchase(payload, token);
+      toast.success("Purchase created successfully.");
     }
-    const payload = {
-      inventory_item_id: parseInt(form.inventory_item_id),
-      quantity: parseFloat(form.quantity),
-      unit_price: form.unit_price ? parseFloat(form.unit_price) : null,
-    };
+
+    setForm({ inventory_item_id: "", quantity: "", unit_price: "" });
+    setEditId(null);
+    await loadPurchases();
+    await loadStocks();
+  } catch {
+    toast.error("Failed to process purchase. Please check input and try again.");
+  }
+};
+
+  // --- Delete handler ---
+  const handleDelete = async () => {
     try {
-      if (editingId) {
-        await updatePurchase(editingId, payload, token);
-        toast({ title: "Success", description: "Purchase updated successfully" });
-      } else {
-        await createPurchase(payload, token);
-        toast({ title: "Success", description: "Purchase created successfully" });
-      }
-      setForm({ inventory_item_id: "", quantity: "", unit_price: "" });
-      setEditingId(null);
-      loadPurchases();
+      await deletePurchase(deleteId, token);
+      toast.success("Purchase deleted successfully.");
+      setShowDeleteDialog(false);
+      setDeleteId(null);
+      await loadPurchases();
+      await loadStocks();
     } catch {
-      toast({ title: "Error", description: "Failed to save purchase. Try again.", variant: "destructive" });
+      toast.error("Failed to delete purchase. Please try again.");
     }
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      await deletePurchase(id, token);
-      toast({ title: "Deleted", description: "Purchase deleted successfully" });
-      loadPurchases();
-    } catch {
-      toast({ title: "Error", description: "Failed to delete purchase.", variant: "destructive" });
-    }
-  };
-
-  const handleEditClick = (p) => {
-    setEditingId(p.id);
-    setForm({
-      inventory_item_id: p.inventory_item_id?.toString() || "",
-      quantity: p.quantity?.toString() || "",
-      unit_price: p.unit_price?.toString() || "",
-    });
-    setActiveTab("add");
   };
 
   const paginate = (data, page) => data.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  if (user?.role !== "admin") return <div className="p-4 text-red-600">Access denied. Admins only.</div>;
-
-  const selectOptions = inventoryItems.map(item => ({ value: item.id, label: item.name }));
-
   const selectStyles = {
     control: (base, state) => ({
       ...base,
-      minHeight: 44,
-      borderRadius: 8,
-      borderColor: state.isFocused ? "#3b82f6" : "#d1d5db",
-      boxShadow: "none",
-      "&:hover": { borderColor: "#3b82f6" },
-      backgroundColor: user?.darkMode ? "#1f2937" : "#ffffff",
-      color: user?.darkMode ? "#ffffff" : "#111827",
+      backgroundColor: "hsl(var(--background))",
+      color: "hsl(var(--foreground))",
+      borderColor: state.isFocused ? "hsl(var(--ring))" : "hsl(var(--border))",
+      boxShadow: state.isFocused ? "0 0 0 1px hsl(var(--ring))" : "none",
+      "&:hover": { borderColor: "hsl(var(--ring))" },
     }),
-    menu: (base) => ({
-      ...base,
-      borderRadius: 8,
-      backgroundColor: user?.darkMode ? "#1f2937" : "#ffffff",
-      color: user?.darkMode ? "#ffffff" : "#111827",
-      zIndex: 9999,
-    }),
+    menu: (base) => ({ ...base, backgroundColor: "hsl(var(--popover))", color: "hsl(var(--foreground))", zIndex: 50 }),
+    singleValue: (base) => ({ ...base, color: "hsl(var(--foreground))" }),
     option: (base, { isFocused }) => ({
       ...base,
-      backgroundColor: isFocused ? (user?.darkMode ? "#374151" : "#e5e7eb") : (user?.darkMode ? "#1f2937" : "#ffffff"),
-      color: user?.darkMode ? "#ffffff" : "#111827",
-      cursor: "pointer",
+      backgroundColor: isFocused ? "hsl(var(--accent))" : "hsl(var(--popover))",
+      color: "hsl(var(--foreground))",
     }),
-    singleValue: (base) => ({ ...base, color: user?.darkMode ? "#ffffff" : "#111827" }),
-    placeholder: (base) => ({ ...base, color: user?.darkMode ? "#9ca3af" : "#6b7280" }),
   };
 
-  const lastThree = purchases.slice(0, 3);
+  const latestPurchases = purchases.slice(0, 3);
 
   return (
     <Card className="p-6 w-full dark:bg-gray-900 dark:text-white">
       {/* Tabs */}
-      <div className="flex mb-6 border-b border-gray-700">
-        <button
-          className={`px-4 py-2 mr-4 ${activeTab === "add" ? "border-b-2 border-blue-500 font-semibold" : "text-gray-400 dark:text-gray-300"}`}
-          onClick={() => setActiveTab("add")}
-        >
-          Add Purchase
-        </button>
-        <button
-          className={`px-4 py-2 ${activeTab === "history" ? "border-b-2 border-blue-500 font-semibold" : "text-gray-400 dark:text-gray-300"}`}
-          onClick={() => setActiveTab("history")}
-        >
-          Purchase History
-        </button>
+      <div className="flex mb-6 border-b border-gray-200 dark:border-gray-700">
+        {["add", "history"].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 mr-4 transition-colors ${
+              activeTab === tab
+                ? "border-b-2 border-blue-500 font-semibold"
+                : "text-gray-500 dark:text-gray-300 hover:text-blue-500"
+            }`}
+          >
+            {tab === "add" ? "Add Purchase" : "Purchase History"}
+          </button>
+        ))}
       </div>
 
-      {/* Add Purchase Tab */}
+      {/* Add Purchase */}
       {activeTab === "add" && (
-        <div className="flex flex-col gap-4">
-          {loadingItems
-            ? <div>Loading inventory items...</div>
-            : <Select
-                options={selectOptions}
-                value={selectOptions.find(opt => String(opt.value) === String(form.inventory_item_id)) || null}
-                onChange={(val) => setForm({ ...form, inventory_item_id: val?.value || "" })}
-                placeholder="Select inventory item..."
-                styles={selectStyles}
-                isClearable
-              />
-          }
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-4">
+            <ReactSelect
+              styles={selectStyles}
+              placeholder="Select Inventory Item"
+              options={items.map((i) => ({ value: i.id, label: `${i.name} (${getStockQty(i.id)} left)` }))}
+              value={
+                form.inventory_item_id
+                  ? { value: form.inventory_item_id, label: items.find(x => x.id === +form.inventory_item_id)?.name || "" }
+                  : null
+              }
+              onChange={(opt) => setForm({ ...form, inventory_item_id: opt.value })}
+            />
 
-          <Input
-            placeholder="Quantity"
-            type="number"
-            min="1"
-            value={form.quantity}
-            onChange={(e) => setForm({ ...form, quantity: e.target.value })}
-            className="dark:bg-gray-800 dark:text-white"
-          />
-          <Input
-            placeholder="Unit Price"
-            type="number"
-            min="0"
-            value={form.unit_price}
-            onChange={(e) => setForm({ ...form, unit_price: e.target.value })}
-            className="dark:bg-gray-800 dark:text-white"
-          />
+            <Input
+              name="quantity"
+              type="number"
+              placeholder="Quantity"
+              value={form.quantity}
+              onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+              className="dark:bg-gray-800 dark:text-white"
+            />
 
-          <Button onClick={handleSubmit} className="bg-blue-500 hover:bg-blue-600 text-white">
-            {editingId ? "Update" : "Save"}
+            <Input
+              name="unit_price"
+              type="number"
+              placeholder="Unit Price"
+              value={form.unit_price}
+              onChange={(e) => setForm({ ...form, unit_price: e.target.value })}
+              className="dark:bg-gray-800 dark:text-white"
+            />
+          </div>
+
+          <Button onClick={handleSubmit} className="bg-blue-600 hover:bg-blue-700 text-white w-fit">
+            {editId ? "Update Purchase" : "Create Purchase"}
           </Button>
 
-          {lastThree.length > 0 && (
-            <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {lastThree.map((p) => (
-                <Card key={p.id} className="p-3 border dark:border-gray-700 dark:bg-gray-800">
-                  <p className="font-semibold">{p.inventory_item_name}</p>
-                  <p>Quantity: {p.quantity}</p>
-                  <p>Unit Price: {p.unit_price ?? "-"}</p>
-                  <p className="text-sm text-gray-400 dark:text-gray-300">{p.created_at ? new Date(p.created_at).toISOString().split("T")[0] : "-"}</p>
-                </Card>
-              ))}
+          {/* Latest 3 purchases */}
+          {latestPurchases.length > 0 && (
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-200">Recent Purchases</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {latestPurchases.map((p) => (
+                  <Card key={p.id} className="p-4 bg-gray-50 dark:bg-gray-800 border dark:border-gray-700 shadow-sm">
+                    <div className="font-medium text-gray-900 dark:text-white">{p.inventory_item_name}</div>
+                    <div className="mt-1 text-blue-600 dark:text-blue-400 font-semibold">{p.quantity} units</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-300">Unit Price: {p.unit_price ?? "-"}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{new Date(p.created_at).toLocaleString()}</div>
+                  </Card>
+                ))}
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* Purchase History Tab */}
+      {/* History Tab */}
       {activeTab === "history" && (
-        <>
-          <div className="overflow-x-auto">
-            <table className="w-full border rounded-lg shadow-sm dark:border-gray-700">
-              <thead className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white">
-                <tr>
-                  <th className="p-2 border dark:border-gray-700">No.</th>
-                  <th className="p-2 border dark:border-gray-700">Item</th>
-                  <th className="p-2 border dark:border-gray-700">Quantity</th>
-                  <th className="p-2 border dark:border-gray-700">Unit Price</th>
-                  <th className="p-2 border dark:border-gray-700">Date</th>
-                  <th className="p-2 border dark:border-gray-700">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginate(purchases, page).map((p, i) => (
-                  <tr key={p.id} className="hover:bg-gray-100 dark:hover:bg-gray-800">
-                    <td className="p-2 border dark:border-gray-700">{(page - 1) * PAGE_SIZE + i + 1}</td>
-                    <td className="p-2 border dark:border-gray-700">{p.inventory_item_name}</td>
-                    <td className="p-2 border dark:border-gray-700">{p.quantity}</td>
-                    <td className="p-2 border dark:border-gray-700">{p.unit_price ?? "-"}</td>
-                    <td className="p-2 border dark:border-gray-700">{p.created_at ? new Date(p.created_at).toISOString().split("T")[0] : "-"}</td>
-                    <td className="p-2 border dark:border-gray-700 space-x-2">
-                      <Button size="sm" variant="outline" onClick={() => handleEditClick(p)}>Edit</Button>
-                      <Button size="sm" variant="destructive" onClick={() => setDeleteId(p.id)}>Delete</Button>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full border rounded-lg dark:border-gray-700">
+            <thead className="bg-gray-100 dark:bg-gray-800">
+              <tr>
+                <th className="p-2 border dark:border-gray-700">#</th>
+                <th className="p-2 border dark:border-gray-700">Item</th>
+                <th className="p-2 border dark:border-gray-700">Quantity</th>
+                <th className="p-2 border dark:border-gray-700">Unit Price</th>
+                <th className="p-2 border dark:border-gray-700">Date</th>
+                {user?.role === "admin" && <th className="p-2 border dark:border-gray-700">Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {paginate(purchases, purchasePage).map((p, i) => (
+                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                  <td className="p-2 border dark:border-gray-700">{(purchasePage - 1) * PAGE_SIZE + i + 1}</td>
+                  <td className="p-2 border dark:border-gray-700">{p.inventory_item_name}</td>
+                  <td className="p-2 border dark:border-gray-700">{p.quantity}</td>
+                  <td className="p-2 border dark:border-gray-700">{p.unit_price ?? "-"}</td>
+                  <td className="p-2 border dark:border-gray-700">{new Date(p.created_at).toLocaleString()}</td>
+                  {user?.role === "admin" && (
+                    <td className="p-2 border dark:border-gray-700 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setEditId(p.id);
+                          setForm({ inventory_item_id: p.inventory_item_id, quantity: p.quantity, unit_price: p.unit_price });
+                          setActiveTab("add");
+                        }}
+                      >
+                        Edit
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => { setDeleteId(p.id); setShowDeleteDialog(true); }}>
+                        Delete
+                      </Button>
                     </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-          <div className="flex justify-between mt-3">
-            <Button disabled={page === 1} onClick={() => setPage(page - 1)}>Prev</Button>
-            <span>Page {page} of {Math.ceil(purchases.length / PAGE_SIZE) || 1}</span>
-            <Button disabled={page * PAGE_SIZE >= purchases.length} onClick={() => setPage(page + 1)}>Next</Button>
-          </div>
-        </>
-      )}
-
-      {deleteId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-md shadow-md w-80 text-black dark:text-white">
-            <h4 className="font-semibold mb-2">Confirm Delete</h4>
-            <p className="mb-4">Are you sure you want to delete this purchase?</p>
-            <div className="flex justify-end gap-2">
-              <Button onClick={() => setDeleteId(null)}>Cancel</Button>
-              <Button variant="destructive" onClick={() => { handleDelete(deleteId); setDeleteId(null); }}>Delete</Button>
-            </div>
+          {/* Pagination */}
+          <div className="flex justify-between items-center mt-3">
+            <Button disabled={purchasePage === 1} onClick={() => setPurchasePage(purchasePage - 1)}>Prev</Button>
+            <span>Page {purchasePage} of {Math.ceil(purchases.length / PAGE_SIZE) || 1}</span>
+            <Button disabled={purchasePage * PAGE_SIZE >= purchases.length} onClick={() => setPurchasePage(purchasePage + 1)}>Next</Button>
           </div>
         </div>
       )}
+
+      {/* Delete Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+          </DialogHeader>
+          <p>Are you sure you want to delete this purchase?</p>
+          <DialogFooter className="flex justify-end gap-2">
+            <Button onClick={() => setShowDeleteDialog(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

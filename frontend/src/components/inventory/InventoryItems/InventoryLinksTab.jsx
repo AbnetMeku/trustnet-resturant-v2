@@ -16,6 +16,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -138,36 +139,70 @@ export default function InventoryLinksTab() {
   };
 
   const handleEditLinkSubmit = async () => {
-    if (!editingGroup) return;
+  if (!editingGroup) return;
 
-    try {
-      const { deduction_ratio, menu_item_ids: newMenuIds, inventory_item_id } =
-        editingGroup;
+  try {
+    const { deduction_ratio, menu_item_ids: newMenuIds, inventory_item_id } =
+      editingGroup;
 
-      // 1️⃣ Fetch current links
-      const currentLinks = await getInventoryLinks(inventory_item_id, token);
-      const flatLinks = currentLinks.flatMap((g) => g.menu_items);
+    // Fetch all existing links for this inventory item
+    const currentGroups = await getInventoryLinks(inventory_item_id, token);
+    const flatLinks = currentGroups.flatMap((g) => g.menu_items);
+
+    // Check if another group already exists with the same ratio (merge target)
+    const mergeTargetGroup = currentGroups.find(
+      (g) =>
+        g.deduction_ratio === parseFloat(deduction_ratio) &&
+        g.deduction_ratio !== parseFloat(editingGroup.original_ratio)
+    );
+
+    if (mergeTargetGroup) {
+      // Merge logic
+      const mergedMenuIds = Array.from(
+        new Set([...mergeTargetGroup.menu_item_ids, ...newMenuIds])
+      );
+
+      // Delete all old links for both groups
+      const toDelete = [
+        ...mergeTargetGroup.ids,
+        ...editingGroup.ids,
+      ];
+      for (const id of toDelete) {
+        await deleteInventoryLink(id, token);
+      }
+
+      // Recreate a single merged group
+      await createInventoryLinks(
+        inventory_item_id,
+        [
+          {
+            menu_item_ids: mergedMenuIds,
+            deduction_ratio: parseFloat(deduction_ratio),
+          },
+        ],
+        token
+      );
+
+      toast.success("Groups merged successfully!");
+    } else {
+      // Normal update path
       const currentMenuIds = flatLinks.map((l) => l.menu_item_id);
-
-      // 2️⃣ Determine which links to add, update, or remove
       const toAdd = newMenuIds.filter((id) => !currentMenuIds.includes(id));
       const toRemove = currentMenuIds.filter((id) => !newMenuIds.includes(id));
       const toUpdate = flatLinks.filter((l) => newMenuIds.includes(l.menu_item_id));
 
-      // 3️⃣ Update deduction_ratio for existing links
       for (const link of toUpdate) {
         await updateInventoryLink(
           link.id,
           {
             deduction_ratio: parseFloat(deduction_ratio),
             menu_item_id: link.menu_item_id,
-            inventory_item_id, // always same
+            inventory_item_id,
           },
           token
         );
       }
 
-      // 4️⃣ Add new links
       if (toAdd.length > 0) {
         await createInventoryLinks(
           inventory_item_id,
@@ -181,7 +216,6 @@ export default function InventoryLinksTab() {
         );
       }
 
-      // 5️⃣ Delete removed links
       if (toRemove.length > 0) {
         const linksToDelete = flatLinks.filter((l) => toRemove.includes(l.menu_item_id));
         for (const link of linksToDelete) {
@@ -190,6 +224,7 @@ export default function InventoryLinksTab() {
       }
 
       toast.success("Links updated successfully!");
+    }
       setEditLinkModalOpen(false);
       loadData();
     } catch (err) {
@@ -210,6 +245,8 @@ export default function InventoryLinksTab() {
       toast.error("Failed to delete links");
     }
   };
+  // ---------------- Helpers ----------------
+  const allLinkedMenuIds = links.flatMap((l) => l.menu_item_ids);
 
   // ---------------- Render ----------------
   return (
@@ -223,6 +260,9 @@ export default function InventoryLinksTab() {
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Link Menu Items to Inventory</DialogTitle>
+              <DialogDescription>
+                Select an inventory item, menu items, and set deduction quantity.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
               {/* Inventory Selection */}
@@ -238,9 +278,9 @@ export default function InventoryLinksTab() {
                     <SelectValue placeholder="Select an inventory item" />
                   </SelectTrigger>
                   <SelectContent>
-                    {items.map((i, idx) => (
+                    {items.map((i) => (
                       <SelectItem key={i.id} value={i.id}>
-                        {idx + 1}. {i.name}
+                        {i.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -249,17 +289,25 @@ export default function InventoryLinksTab() {
 
               {/* Menu Items Multi Select */}
               <div>
-                <label className="block text-sm font-medium mb-1">Menu Items</label>
+                <label className="block text-sm font-medium mb-1">
+                  Menu Items
+                </label>
                 <ReactSelect
                   isMulti
-                  options={menuItems.map((m) => ({ value: m.id, label: m.name }))}
+                  options={menuItems
+                    .filter((m) => !allLinkedMenuIds.includes(m.id))
+                    .map((m) => ({ value: m.id, label: m.name }))}
                   value={selectedMenuItems
                     .map((id) => {
                       const menuItem = menuItems.find((m) => m.id === id);
-                      return menuItem ? { value: menuItem.id, label: menuItem.name } : null;
+                      return menuItem
+                        ? { value: menuItem.id, label: menuItem.name }
+                        : null;
                     })
                     .filter(Boolean)}
-                  onChange={(selected) => setSelectedMenuItems(selected.map((s) => s.value))}
+                  onChange={(selected) =>
+                    setSelectedMenuItems(selected.map((s) => s.value))
+                  }
                 />
               </div>
 
@@ -278,7 +326,11 @@ export default function InventoryLinksTab() {
               </div>
             </div>
             <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={closeLinkModal} disabled={linkSubmitting}>
+              <Button
+                variant="outline"
+                onClick={closeLinkModal}
+                disabled={linkSubmitting}
+              >
                 Cancel
               </Button>
               <Button onClick={handleLinkSubmit} disabled={linkSubmitting}>
@@ -294,13 +346,17 @@ export default function InventoryLinksTab() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Link</DialogTitle>
+            <DialogDescription>
+              Update menu items or deduction quantity for this inventory item.
+            </DialogDescription>
           </DialogHeader>
           {editingGroup && (
             <div className="space-y-3">
-              {/* Inventory Item (GRAYED OUT) */}
               <div>
-                <label className="block text-sm font-medium mb-1">Inventory Item</label>
-                <Select value={editingGroup.inventory_item_id} disabled={true}>
+                <label className="block text-sm font-medium mb-1">
+                  Inventory Item
+                </label>
+                <Select value={editingGroup.inventory_item_id} disabled>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -314,37 +370,53 @@ export default function InventoryLinksTab() {
                 </Select>
               </div>
 
-              {/* Editable Menu Items */}
               <div>
-                <label className="block text-sm font-medium mb-1">Menu Items</label>
-                <ReactSelect
-                  isMulti
-                  options={menuItems.map((m) => ({ value: m.id, label: m.name }))}
-                  value={editingGroup.menu_item_ids
-                    .map((id) => {
-                      const menuItem = menuItems.find((m) => m.id === id);
-                      return menuItem ? { value: menuItem.id, label: menuItem.name } : null;
-                    })
-                    .filter(Boolean)}
-                  onChange={(selected) =>
-                    setEditingGroup({
-                      ...editingGroup,
-                      menu_item_ids: selected.map((s) => s.value),
-                      menu_items: selected.map((s) => ({ menu_item_id: s.value, menu_item_name: s.label })),
-                    })
-                  }
-                />
+                <label className="block text-sm font-medium mb-1">
+                  Menu Items
+                </label>
+<ReactSelect
+  isMulti
+  options={menuItems
+    .filter((m) =>
+      // Keep items that are already part of this group
+      editingGroup.menu_item_ids.includes(m.id) ||
+      // Or items that are not linked at all yet
+      !allLinkedMenuIds.includes(m.id)
+    )
+    .map((m) => ({ value: m.id, label: m.name }))}
+  value={editingGroup.menu_item_ids
+    .map((id) => {
+      const menuItem = menuItems.find((m) => m.id === id);
+      return menuItem ? { value: menuItem.id, label: menuItem.name } : null;
+    })
+    .filter(Boolean)}
+  onChange={(selected) =>
+    setEditingGroup({
+      ...editingGroup,
+      menu_item_ids: selected.map((s) => s.value),
+      menu_items: selected.map((s) => ({
+        menu_item_id: s.value,
+        menu_item_name: s.label,
+      })),
+    })
+  }
+/>
+
               </div>
 
-              {/* Editable Deduction Ratio */}
               <div>
-                <label className="block text-sm font-medium mb-1">Deduction Quantity</label>
+                <label className="block text-sm font-medium mb-1">
+                  Deduction Quantity
+                </label>
                 <Input
                   type="number"
                   step="any"
                   value={editingGroup.deduction_ratio}
                   onChange={(e) =>
-                    setEditingGroup({ ...editingGroup, deduction_ratio: e.target.value })
+                    setEditingGroup({
+                      ...editingGroup,
+                      deduction_ratio: e.target.value,
+                    })
                   }
                   className="w-32"
                 />
@@ -352,7 +424,10 @@ export default function InventoryLinksTab() {
             </div>
           )}
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setEditLinkModalOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setEditLinkModalOpen(false)}
+            >
               Cancel
             </Button>
             <Button onClick={handleEditLinkSubmit}>Update</Button>
@@ -366,7 +441,6 @@ export default function InventoryLinksTab() {
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b bg-muted text-muted-foreground">
-                <th className="px-4 py-2 text-left">#</th>
                 <th className="px-4 py-2 text-left">Inventory Item</th>
                 <th className="px-4 py-2 text-left">Menu Items</th>
                 <th className="px-4 py-2 text-left">Deduction Ratio</th>
@@ -376,26 +450,33 @@ export default function InventoryLinksTab() {
             <tbody>
               {loadingLinks ? (
                 <tr>
-                  <td colSpan="5" className="text-center py-4 text-muted-foreground">
+                  <td
+                    colSpan="4"
+                    className="text-center py-4 text-muted-foreground"
+                  >
                     Loading...
                   </td>
                 </tr>
               ) : links.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="text-center py-4 text-muted-foreground">
+                  <td
+                    colSpan="4"
+                    className="text-center py-4 text-muted-foreground"
+                  >
                     No links found
                   </td>
                 </tr>
               ) : (
-                links.map((group, idx) => (
+                links.map((group) => (
                   <tr
                     key={group.inventory_item_id + "-" + group.deduction_ratio}
                     className="border-b hover:bg-muted/40 transition-colors"
                   >
-                    <td className="px-4 py-2">{idx + 1}</td>
                     <td className="px-4 py-2">{group.inventory_item_name}</td>
                     <td className="px-4 py-2">
-                      {group.menu_items.map((m) => m.menu_item_name).join(", ")}
+                      {group.menu_items
+                        .map((m) => m.menu_item_name)
+                        .join(", ")}
                     </td>
                     <td className="px-4 py-2">{group.deduction_ratio}</td>
                     <td className="px-4 py-2 space-x-2">

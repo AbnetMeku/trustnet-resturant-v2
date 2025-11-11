@@ -3,8 +3,25 @@ from flask_jwt_extended import jwt_required
 from app.extensions import db
 from app.models import InventoryItem, InventoryMenuLink, MenuItem
 from datetime import datetime
+from sqlalchemy.exc import IntegrityError
 
 inventory_items_bp = Blueprint("inventory_items_bp", __name__, url_prefix="/inventory/items")
+
+# --------------------- HELPER: CHECK EXISTING LINKS --------------------- #
+def check_existing_links(menu_item_ids):
+    """Return a list of menu items that are already linked."""
+    existing_links = InventoryMenuLink.query.filter(
+        InventoryMenuLink.menu_item_id.in_(menu_item_ids)
+    ).all()
+    conflicts = [
+        {
+            "menu_item_id": link.menu_item_id,
+            "menu_item_name": link.menu_item.name if link.menu_item else "Unknown",
+            "linked_inventory_item": link.inventory_item.name if link.inventory_item else "Unknown"
+        } for link in existing_links
+    ]
+    return conflicts
+
 
 # --------------------- CREATE INVENTORY ITEM --------------------- #
 @inventory_items_bp.route("/", methods=["POST"])
@@ -117,19 +134,24 @@ def create_inventory_links(inventory_item_id):
         menu_item_ids = group.get("menu_item_ids", [])
         deduction_ratio = group.get("deduction_ratio", 1.0)
 
+        # ----------------- Check conflicts first ----------------- #
+        conflicts = check_existing_links(menu_item_ids)
+        if conflicts:
+            return jsonify({
+                "msg": "Conflict: one or more menu items are already linked.",
+                "conflicts": [
+                    f"Menu '{c['menu_item_name']}' is already linked to inventory '{c['linked_inventory_item']}'"
+                    for c in conflicts
+                ]
+            }), 400
+
+        # ----------------- Create links safely ----------------- #
         for menu_item_id in menu_item_ids:
             menu_item = MenuItem.query.get(menu_item_id)
             if not menu_item:
                 skipped_links.append({"menu_item_id": menu_item_id, "reason": "Menu item not found"})
-                continue  # Skip invalid menu items
-
-            # Check if this menu item is already linked to any inventory item
-            existing_link = InventoryMenuLink.query.filter_by(menu_item_id=menu_item_id).first()
-            if existing_link:
-                skipped_links.append({"menu_item_id": menu_item_id, "reason": "Already linked to another inventory item"})
                 continue
 
-            # Create the new link
             new_link = InventoryMenuLink(
                 inventory_item_id=inventory_item_id,
                 menu_item_id=menu_item_id,
@@ -162,7 +184,6 @@ def get_inventory_links(inventory_item_id):
 
 
 # --------------------- UPDATE LINK (SAFE TRANSACTION) --------------------- #
-from sqlalchemy.exc import IntegrityError
 @inventory_items_bp.route("/links/<int:link_id>", methods=["PUT"])
 @jwt_required()
 def update_inventory_link(link_id):
@@ -175,7 +196,7 @@ def update_inventory_link(link_id):
     try:
         # Begin atomic transaction
         with db.session.begin_nested():
-            # Update deduction_ratio precisely (no rounding)
+            # Update deduction_ratio precisely
             if "deduction_ratio" in data:
                 try:
                     link.deduction_ratio = float(data["deduction_ratio"])
@@ -183,14 +204,29 @@ def update_inventory_link(link_id):
                     db.session.rollback()
                     return jsonify({"msg": "Invalid deduction ratio"}), 400
 
-            # Allow changing linked menu_item or inventory_item if provided
+            # Update menu_item_id safely
             if "menu_item_id" in data:
-                menu_item = MenuItem.query.get(data["menu_item_id"])
+                new_menu_item_id = data["menu_item_id"]
+                menu_item = MenuItem.query.get(new_menu_item_id)
                 if not menu_item:
                     db.session.rollback()
                     return jsonify({"msg": "Menu item not found"}), 404
-                link.menu_item_id = data["menu_item_id"]
 
+                # Check for conflicts excluding this link
+                existing_link = InventoryMenuLink.query.filter(
+                    InventoryMenuLink.menu_item_id == new_menu_item_id,
+                    InventoryMenuLink.id != link_id
+                ).first()
+                if existing_link:
+                    db.session.rollback()
+                    return jsonify({
+                        "msg": f"Conflict: Menu '{existing_link.menu_item.name}' "
+                               f"is already linked to inventory '{existing_link.inventory_item.name}'"
+                    }), 400
+
+                link.menu_item_id = new_menu_item_id
+
+            # Update inventory_item_id
             if "inventory_item_id" in data:
                 inventory_item = InventoryItem.query.get(data["inventory_item_id"])
                 if not inventory_item:
@@ -200,7 +236,6 @@ def update_inventory_link(link_id):
 
             db.session.add(link)
 
-        # Commit the transaction safely
         db.session.commit()
         return jsonify({"msg": "Link updated successfully"}), 200
 
