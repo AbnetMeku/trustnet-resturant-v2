@@ -134,7 +134,12 @@ export default function InventoryLinksTab() {
 
   // ---------------- Edit Link ----------------
   const openEditLinkModal = (group) => {
-    setEditingGroup({ ...group });
+    // Store original deduction ratio to prevent the "needs 2 clicks" issue
+    setEditingGroup({
+      ...group,
+      original_ratio: group.deduction_ratio,
+      original_menu_ids: [...group.menu_item_ids],
+    });
     setEditLinkModalOpen(true);
   };
 
@@ -142,9 +147,10 @@ export default function InventoryLinksTab() {
   if (!editingGroup) return;
 
   try {
-    const { deduction_ratio, menu_item_ids: newMenuIds, inventory_item_id } =
+    const { deduction_ratio, menu_item_ids: newMenuIds, inventory_item_id , original_ratio } =
       editingGroup;
 
+    const ratio = parseFloat(deduction_ratio);
     // Fetch all existing links for this inventory item
     const currentGroups = await getInventoryLinks(inventory_item_id, token);
     const flatLinks = currentGroups.flatMap((g) => g.menu_items);
@@ -152,8 +158,8 @@ export default function InventoryLinksTab() {
     // Check if another group already exists with the same ratio (merge target)
     const mergeTargetGroup = currentGroups.find(
       (g) =>
-        g.deduction_ratio === parseFloat(deduction_ratio) &&
-        g.deduction_ratio !== parseFloat(editingGroup.original_ratio)
+        g.deduction_ratio === ratio &&
+        g.deduction_ratio !== parseFloat(original_ratio)
     );
 
     if (mergeTargetGroup) {
@@ -177,7 +183,7 @@ export default function InventoryLinksTab() {
         [
           {
             menu_item_ids: mergedMenuIds,
-            deduction_ratio: parseFloat(deduction_ratio),
+            deduction_ratio: ratio,
           },
         ],
         token
@@ -195,7 +201,7 @@ export default function InventoryLinksTab() {
         await updateInventoryLink(
           link.id,
           {
-            deduction_ratio: parseFloat(deduction_ratio),
+            deduction_ratio: ratio,
             menu_item_id: link.menu_item_id,
             inventory_item_id,
           },
@@ -209,7 +215,7 @@ export default function InventoryLinksTab() {
           [
             {
               menu_item_ids: toAdd,
-              deduction_ratio: parseFloat(deduction_ratio),
+              deduction_ratio: ratio,
             },
           ],
           token
@@ -374,34 +380,32 @@ export default function InventoryLinksTab() {
                 <label className="block text-sm font-medium mb-1">
                   Menu Items
                 </label>
-<ReactSelect
-  isMulti
-  options={menuItems
-    .filter((m) =>
-      // Keep items that are already part of this group
-      editingGroup.menu_item_ids.includes(m.id) ||
-      // Or items that are not linked at all yet
-      !allLinkedMenuIds.includes(m.id)
-    )
-    .map((m) => ({ value: m.id, label: m.name }))}
-  value={editingGroup.menu_item_ids
-    .map((id) => {
-      const menuItem = menuItems.find((m) => m.id === id);
-      return menuItem ? { value: menuItem.id, label: menuItem.name } : null;
-    })
-    .filter(Boolean)}
-  onChange={(selected) =>
-    setEditingGroup({
-      ...editingGroup,
-      menu_item_ids: selected.map((s) => s.value),
-      menu_items: selected.map((s) => ({
-        menu_item_id: s.value,
-        menu_item_name: s.label,
-      })),
-    })
-  }
-/>
-
+                <ReactSelect
+                  isMulti
+                  options={menuItems
+                    .filter(
+                      (m) =>
+                        editingGroup.menu_item_ids.includes(m.id) ||
+                        !allLinkedMenuIds.includes(m.id)
+                    )
+                    .map((m) => ({ value: m.id, label: m.name }))}
+                  value={editingGroup.menu_item_ids
+                    .map((id) => {
+                      const menuItem = menuItems.find((m) => m.id === id);
+                      return menuItem ? { value: menuItem.id, label: menuItem.name } : null;
+                    })
+                    .filter(Boolean)}
+                  onChange={(selected) =>
+                    setEditingGroup({
+                      ...editingGroup,
+                      menu_item_ids: selected.map((s) => s.value),
+                      menu_items: selected.map((s) => ({
+                        menu_item_id: s.value,
+                        menu_item_name: s.label,
+                      })),
+                    })
+                  }
+                />
               </div>
 
               <div>

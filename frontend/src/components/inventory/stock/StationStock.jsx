@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { getStations, getStationStockWithSales } from "@/api/inventory";
+import { getAllStationStock } from "@/api/inventory/stock";
+import { getStations } from "@/api/stations";
 import { useAuth } from "@/context/AuthContext";
 import { Card } from "@/components/ui/card";
 import { toast } from "react-hot-toast";
@@ -9,32 +10,22 @@ export default function StationStock() {
 
   const [stations, setStations] = useState([]);
   const [selectedStation, setSelectedStation] = useState("");
-// UTC "today" in YYYY-MM-DD
-const [snapshotDate, setSnapshotDate] = useState(() => {
-  // ✅ Force pure UTC "today" (no local offset)
-  const now = new Date();
-  const utcYear = now.getUTCFullYear();
-  const utcMonth = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const utcDay = String(now.getUTCDate()).padStart(2, "0");
-  return `${utcYear}-${utcMonth}-${utcDay}`;
-});
-
   const [stationStock, setStationStock] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Load Stations once
+  // Load stations
   useEffect(() => {
     const loadStations = async () => {
       try {
         const data = await getStations(token);
         const filteredStations = data.filter(
-          (s) => s.name !== "Kitchen" && s.name !== "Butcher"
+          (s) => s.name !== "Kitch" && s.name !== "But"
         );
         setStations(filteredStations);
 
         // Auto-select first station if available
         if (filteredStations.length > 0) {
-          setSelectedStation(filteredStations[0].name);
+          setSelectedStation(filteredStations[0].id);
         }
       } catch (err) {
         toast.error(err.message || "Failed to load stations");
@@ -44,16 +35,13 @@ const [snapshotDate, setSnapshotDate] = useState(() => {
     loadStations();
   }, [token]);
 
-  // Load stock only when station or date changes (no timer)
+  // Load station stock
   useEffect(() => {
     const loadStationStock = async () => {
       if (!selectedStation) return;
       setLoading(true);
       try {
-        const data = await getStationStockWithSales(
-          { station: selectedStation, date: snapshotDate },
-          token
-        );
+        const data = await getAllStationStock(selectedStation, token);
         setStationStock(data);
       } catch (err) {
         toast.error(err.message || "Failed to load station stock");
@@ -63,42 +51,30 @@ const [snapshotDate, setSnapshotDate] = useState(() => {
     };
 
     loadStationStock();
-  }, [selectedStation, snapshotDate, token]);
+  }, [selectedStation, token]);
 
   return (
     <Card className="p-4 w-full">
       <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">
-        View Station Stock
+        Station Stock (Latest)
       </h2>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4 mb-4">
-        {/* Station */}
-        <div className="flex items-center gap-2">
-          <label className="font-medium">Station:</label>
-          <select
-            className="p-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
-            value={selectedStation}
-            onChange={(e) => setSelectedStation(e.target.value)}
-          >
-            {stations.map((s) => (
-              <option key={s.id} value={s.name}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Date */}
-        <div className="flex items-center gap-2">
-          <label className="font-medium">Date:</label>
-          <input
-            type="date"
-            className="p-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
-            value={snapshotDate}
-            onChange={(e) => setSnapshotDate(e.target.value)}
-          />
-        </div>
+      {/* Station Selector */}
+      <div className="flex items-center gap-2 mb-4">
+        <label className="font-medium text-gray-700 dark:text-gray-200">
+          Station:
+        </label>
+        <select
+          className="p-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
+          value={selectedStation}
+          onChange={(e) => setSelectedStation(e.target.value)}
+        >
+          {stations.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Stock Table */}
@@ -106,7 +82,7 @@ const [snapshotDate, setSnapshotDate] = useState(() => {
         <div className="text-center py-6 text-gray-500">Loading...</div>
       ) : stationStock.length === 0 ? (
         <div className="text-center py-6 text-gray-500">
-          No data available for this date/station.
+          No stock data available for this station.
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -116,17 +92,11 @@ const [snapshotDate, setSnapshotDate] = useState(() => {
                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left text-gray-700 dark:text-gray-200">
                   Item Name
                 </th>
-                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-gray-700 dark:text-gray-200">
-                  Opening
-                </th>
-                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-gray-700 dark:text-gray-200">
-                  Added
-                </th>
-                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-gray-700 dark:text-gray-200">
-                  Sold
-                </th>
                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-indigo-600 dark:text-indigo-400 font-semibold">
-                  Remaining
+                  Quantity
+                </th>
+                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-gray-500 dark:text-gray-400">
+                  Last Updated
                 </th>
               </tr>
             </thead>
@@ -134,19 +104,13 @@ const [snapshotDate, setSnapshotDate] = useState(() => {
               {stationStock.map((row, i) => (
                 <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                    {row.menu_item}
+                    {row.inventory_item_name}
                   </td>
-                  <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
-                    {row.start_of_day_quantity}
+                  <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right font-medium">
+                    {row.quantity}
                   </td>
-                  <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
-                    {row.added_quantity}
-                  </td>
-                  <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
-                    {row.sold_quantity}
-                  </td>
-                  <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">
-                    {row.remaining_quantity}
+                  <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-sm text-gray-500 dark:text-gray-400">
+                    {new Date(row.updated_at).toLocaleString()}
                   </td>
                 </tr>
               ))}
