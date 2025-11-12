@@ -78,3 +78,65 @@ def adjust_inventory_for_order_item(station_name, menu_item_id, quantity, revers
         snapshot.remaining_quantity = snapshot.start_of_day_quantity + snapshot.added_quantity - snapshot.sold_quantity
 
     db.session.commit()
+
+# --------------------------- Transfer ----------------------------#
+def adjust_inventory_for_addition(station_name, inventory_item_id, quantity):
+    """
+    Add inventory to a station (e.g. from transfer or purchase).
+    Updates StationStock and StationStockSnapshot.added_quantity.
+    """
+    if quantity <= 0:
+        return
+
+    station = Station.query.filter_by(name=station_name).first()
+    if not station:
+        return
+
+    today = date.today()
+
+    # ---- Get or create StationStock ----
+    station_stock = StationStock.query.filter_by(
+        station_id=station.id,
+        inventory_item_id=inventory_item_id
+    ).first()
+
+    if not station_stock:
+        station_stock = StationStock(
+            station_id=station.id,
+            inventory_item_id=inventory_item_id,
+            quantity=0
+        )
+        db.session.add(station_stock)
+
+    # Record pre-addition value
+    previous_quantity = station_stock.quantity
+
+    # Increase stock
+    station_stock.quantity += quantity
+
+    # ---- Update today's snapshot ----
+    snapshot = StationStockSnapshot.query.filter_by(
+        station_id=station.id,
+        inventory_item_id=inventory_item_id,
+        snapshot_date=today
+    ).first()
+
+    if not snapshot:
+        snapshot = StationStockSnapshot(
+            station_id=station.id,
+            inventory_item_id=inventory_item_id,
+            snapshot_date=today,
+            start_of_day_quantity=previous_quantity,
+            added_quantity=0,
+            sold_quantity=0,
+            remaining_quantity=previous_quantity
+        )
+        db.session.add(snapshot)
+
+    # Increment added quantity and recalc remaining
+    snapshot.added_quantity += quantity
+    snapshot.remaining_quantity = (
+        snapshot.start_of_day_quantity + snapshot.added_quantity - snapshot.sold_quantity
+    )
+
+    db.session.commit()

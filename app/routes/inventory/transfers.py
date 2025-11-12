@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from app.extensions import db
 from app.models import InventoryItem, StoreStock, StationStock, StockTransfer, Station
+from app.services.inventory_service import adjust_inventory_for_addition
 from datetime import datetime
 
 inventory_transfer_bp = Blueprint("inventory_transfer_bp", __name__, url_prefix="/inventory/transfers")
@@ -30,12 +31,12 @@ def create_transfer():
     if not station:
         return jsonify({"msg": "Station not found"}), 404
 
-    # Check store stock availability
+    # ✅ Check store stock availability
     store_stock = StoreStock.query.filter_by(inventory_item_id=inventory_item_id).first()
     if not store_stock or store_stock.quantity < quantity:
         return jsonify({"msg": "Insufficient store stock"}), 400
 
-    # Deduct from store stock
+    # Deduct from store
     store_stock.quantity -= quantity
 
     # Add to station stock
@@ -53,7 +54,7 @@ def create_transfer():
         )
         db.session.add(station_stock)
 
-    # Record the transfer
+    # ✅ Record transfer
     transfer = StockTransfer(
         inventory_item_id=inventory_item_id,
         station_id=station_id,
@@ -62,10 +63,12 @@ def create_transfer():
         created_at=datetime.utcnow()
     )
     db.session.add(transfer)
+
+    # ✅ Update today's snapshot (live tracking)
+    adjust_inventory_for_addition(station.name, inventory_item_id, quantity)
+
     db.session.commit()
-
     return jsonify({"msg": "Stock transferred successfully", "transfer_id": transfer.id}), 201
-
 
 # --------------------- GET ALL TRANSFERS --------------------- #
 @inventory_transfer_bp.route("/", methods=["GET"])
@@ -124,33 +127,41 @@ def update_transfer(transfer_id):
 
     data = request.get_json()
     new_quantity = data.get("quantity", transfer.quantity)
-
     if new_quantity <= 0:
         return jsonify({"msg": "Quantity must be greater than zero"}), 400
 
-    # Calculate difference
     diff = new_quantity - transfer.quantity
+    if diff == 0:
+        return jsonify({"msg": "No change in quantity"}), 200
 
-    # Update store stock
+    # ✅ Update store stock
     store_stock = StoreStock.query.filter_by(inventory_item_id=transfer.inventory_item_id).first()
-    if not store_stock or store_stock.quantity < diff * (diff > 0):
+    if diff > 0 and (not store_stock or store_stock.quantity < diff):
         return jsonify({"msg": "Insufficient store stock for update"}), 400
     store_stock.quantity -= diff
 
-    # Update station stock
+    # ✅ Update station stock
     station_stock = StationStock.query.filter_by(
         inventory_item_id=transfer.inventory_item_id,
         station_id=transfer.station_id
     ).first()
-    if station_stock:
-        station_stock.quantity += diff
-    else:
+    if not station_stock:
         station_stock = StationStock(
             inventory_item_id=transfer.inventory_item_id,
             station_id=transfer.station_id,
             quantity=new_quantity
         )
         db.session.add(station_stock)
+    else:
+        station_stock.quantity += diff
+
+    # ✅ Update snapshot only if increased
+    station = Station.query.get(transfer.station_id)
+    if diff > 0:
+        adjust_inventory_for_addition(station.name, transfer.inventory_item_id, diff)
+    elif diff < 0:
+        # Reverse (remove from added quantity)
+        adjust_inventory_for_addition(station.name, transfer.inventory_item_id, diff)
 
     transfer.quantity = new_quantity
     transfer.status = "Updated"
@@ -167,7 +178,7 @@ def delete_transfer(transfer_id):
     if not transfer:
         return jsonify({"msg": "Transfer not found"}), 404
 
-    # Reverse stock movement
+    # ✅ Reverse movement
     store_stock = StoreStock.query.filter_by(inventory_item_id=transfer.inventory_item_id).first()
     if store_stock:
         store_stock.quantity += transfer.quantity
@@ -176,11 +187,16 @@ def delete_transfer(transfer_id):
         inventory_item_id=transfer.inventory_item_id,
         station_id=transfer.station_id
     ).first()
-    if station_stock and station_stock.quantity >= transfer.quantity:
+    if station_stock:
         station_stock.quantity -= transfer.quantity
+
+    # ✅ Reverse snapshot addition (negative)
+    station = Station.query.get(transfer.station_id)
+    adjust_inventory_for_addition(station.name, transfer.inventory_item_id, -transfer.quantity)
 
     transfer.status = "Deleted"
     db.session.delete(transfer)
     db.session.commit()
 
     return jsonify({"msg": "Transfer deleted and stock quantities adjusted"}), 200
+
