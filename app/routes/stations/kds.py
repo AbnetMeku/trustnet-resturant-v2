@@ -5,7 +5,7 @@ from app.extensions import db
 from sqlalchemy import asc, desc
 from datetime import datetime
 from app.routes.orders.order import recalc_order_total
-
+from app.services.inventory_service import adjust_inventory_for_order_item
 stations_kds_bp = Blueprint("stations_kds_bp", __name__, url_prefix="/stations/kds")
 
 def parse_station_identity(identity):
@@ -121,10 +121,21 @@ def update_order_item_status(order_item_id):
     item.status = new_status
     item.updated_at = datetime.utcnow()
 
-    # Deduct stock only if marking ready
     if prev_status != "ready" and new_status == "ready":
-        from app.routes.inventory.inventory import deduct_station_stock
-        deduct_station_stock(item)
+        # Deduct inventory
+        adjust_inventory_for_order_item(
+            station_name=item.station,
+            menu_item_id=item.menu_item_id,
+            quantity=float(item.quantity)
+        )
+    elif prev_status == "ready" and new_status == "void":
+        # Revert inventory for voided item
+        adjust_inventory_for_order_item(
+            station_name=item.station,
+            menu_item_id=item.menu_item_id,
+            quantity=float(item.quantity),
+            reverse=True
+        )
 
     # Recalculate order totals after status change (ready or void)
     recalc_order_total(item.order)

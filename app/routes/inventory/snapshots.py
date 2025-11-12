@@ -54,16 +54,39 @@ def create_snapshot():
 @inventory_snapshot_bp.route("/", methods=["GET"])
 @jwt_required()
 def get_all_snapshots():
+    # Get query params
     station_id = request.args.get("station_id")
     inventory_item_id = request.args.get("inventory_item_id")
+    snapshot_date = request.args.get("snapshot_date")  # optional YYYY-MM-DD
+
     query = StationStockSnapshot.query
 
+    # Validate station_id
     if station_id:
-        query = query.filter_by(station_id=station_id)
+        try:
+            station_id = int(station_id)
+            query = query.filter_by(station_id=station_id)
+        except ValueError:
+            return jsonify({"msg": "Invalid station_id, must be an integer"}), 422
+
+    # Validate inventory_item_id
     if inventory_item_id:
-        query = query.filter_by(inventory_item_id=inventory_item_id)
+        try:
+            inventory_item_id = int(inventory_item_id)
+            query = query.filter_by(inventory_item_id=inventory_item_id)
+        except ValueError:
+            return jsonify({"msg": "Invalid inventory_item_id, must be an integer"}), 422
+
+    # Validate snapshot_date
+    if snapshot_date:
+        try:
+            dt = datetime.strptime(snapshot_date, "%Y-%m-%d").date()
+            query = query.filter_by(snapshot_date=dt)
+        except ValueError:
+            return jsonify({"msg": "Invalid snapshot_date, use YYYY-MM-DD"}), 422
 
     snapshots = query.order_by(StationStockSnapshot.snapshot_date.desc()).all()
+
     result = [
         {
             "id": s.id,
@@ -79,6 +102,7 @@ def get_all_snapshots():
             "created_at": s.created_at,
         } for s in snapshots
     ]
+
     return jsonify(result), 200
 
 

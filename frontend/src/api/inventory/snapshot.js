@@ -28,7 +28,13 @@ export const createSnapshot = async (data, token = null) => {
 // Get all snapshots (optionally filter by stationId or inventoryItemId)
 export const getAllSnapshots = async (filters = {}, token = null) => {
   try {
-    const params = new URLSearchParams(filters).toString();
+    const query = {};
+
+    if (filters.station_id) query.station_id = parseInt(filters.station_id, 10);
+    if (filters.inventory_item_id) query.inventory_item_id = parseInt(filters.inventory_item_id, 10);
+    if (filters.snapshot_date) query.snapshot_date = filters.snapshot_date; // already a string in YYYY-MM-DD
+
+    const params = new URLSearchParams(query).toString();
     const url = params ? `${BASE_URL}/?${params}` : `${BASE_URL}/`;
     const res = await axios.get(url, { headers: getAuthHeader(token) });
     return res.data;

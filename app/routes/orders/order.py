@@ -10,7 +10,8 @@ from collections import defaultdict
 import logging
 from app.routes.print.print_jobs import create_station_print_jobs, create_cashier_print_job 
 from sqlalchemy.exc import IntegrityError
-from app.routes.inventory.inventory import deduct_station_stock
+from app.services.inventory_service import adjust_inventory_for_order_item
+
 
 orders_bp = Blueprint("orders_bp", __name__, url_prefix="/orders")
 
@@ -461,17 +462,34 @@ def update_order_item(order_id, item_id):
     if "notes" in data:
         order_item.notes = data["notes"]
 
+# ---------------- Deduct or revert stock ----------------
     if "status" in data:
-        if data["status"] not in {"pending", "ready"}:
-            return error_response("Invalid item status. Allowed: pending, ready.", 400)
+        if data["status"] not in {"pending", "ready", "void"}:
+            return error_response("Invalid item status. Allowed: pending, ready, void.", 400)
         
         prev_status = order_item.status
         order_item.status = data["status"]
 
-        # ---------------- Deduct stock if status changed to ready ----------------
-        # Deduct stock if status changed to ready (allow negative / ignore errors)
+        # ---------------- Deduct stock if status changed to ready ---------------- #
         if prev_status != "ready" and data["status"] == "ready":
-            deduct_station_stock(order_item)  # just deduct; don't block status update
+                adjust_inventory_for_order_item(
+                    station_name=order_item.station,
+                    menu_item_id=order_item.menu_item_id,
+                    quantity=float(order_item.quantity))
+            # Revert inventory if moving from ready to void
+        elif prev_status == "ready" and data["status"] == "void":
+                adjust_inventory_for_order_item(
+                    station_name=order_item.station,
+                    menu_item_id=order_item.menu_item_id,
+                    quantity=float(order_item.quantity),
+                    reverse=True)
+            # Optional: handle unvoid back to ready
+        elif prev_status == "void" and data["status"] == "ready":
+                adjust_inventory_for_order_item(
+                    station_name=order_item.station,
+                    menu_item_id=order_item.menu_item_id,
+                    quantity=float(order_item.quantity))
+                
     # ---------------- Commit ----------------
     recalc_order_total(order)
     try:
@@ -517,7 +535,7 @@ def void_order_item(order_id, item_id):
     order = db.session.get(Order, order_id)
     user_id = safe_int_identity()
 
-    # ✅ Waiter restriction
+    # Waiter restriction
     if "waiter" in get_jwt().get("roles", []):
         user = db.session.get(User, user_id)
         table = db.session.get(Table, order.table_id)
@@ -525,10 +543,19 @@ def void_order_item(order_id, item_id):
             return error_response("You are not assigned to this table.", 403)
 
     try:
-        # ✅ Mark item as void
+        prev_status = order_item.status
         order_item.status = "void"
 
-        # ✅ Recalculate order total (excluding voided)
+        # Adjust inventory if item was previously ready
+        if prev_status == "ready":
+            adjust_inventory_for_order_item(
+                station_name=order_item.station,
+                menu_item_id=order_item.menu_item_id,
+                quantity=float(order_item.quantity),
+                reverse=True  # return stock
+            )
+
+        # Recalculate order total (excluding voided)
         recalc_order_total(order)
 
         db.session.commit()
@@ -538,13 +565,26 @@ def void_order_item(order_id, item_id):
         return error_response(f"Database error: {str(e)}", 500)
 
     return jsonify(order_to_dict(order)), 200
+
+# ------------------- OrderItems: unvoid ----------------------
+
 @orders_bp.route("/<int:order_id>/items/<int:item_id>/unvoid", methods=["PATCH"])
 @jwt_required()
 def unvoid_order_item(order_id, item_id):
     item = OrderItem.query.filter_by(order_id=order_id, id=item_id).first()
     if not item:
         return error_response("Item not found", 404)
-    
-    item.status = "ready"  # or whatever default status you use
+
+    prev_status = item.status
+    item.status = "ready"  # default back to ready
+
+    # Adjust inventory if previously voided
+    if prev_status == "void":
+        adjust_inventory_for_order_item(
+            station_name=item.station,
+            menu_item_id=item.menu_item_id,
+            quantity=float(item.quantity)  # deduct stock
+        )
     db.session.commit()
+    logger.info(f"Unvoided order item {item.id} in order {order_id}")
     return jsonify({"message": "Item unvoided", "item_id": item.id}), 200
