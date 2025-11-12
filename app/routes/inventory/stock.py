@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required
 from app.extensions import db
 from app.models import InventoryItem, StoreStock, StationStock, Station
 from datetime import datetime
+from sqlalchemy import func
 
 inventory_stock_bp = Blueprint("inventory_stock_bp", __name__, url_prefix="/inventory/stock")
 
@@ -176,3 +177,37 @@ def delete_station_stock(stock_id):
     db.session.delete(stock)
     db.session.commit()
     return jsonify({"msg": "Station stock deleted"}), 200
+
+# --------------------- GET OVERALL STOCK --------------------- #
+@inventory_stock_bp.route("/overall", methods=["GET"])
+@jwt_required()
+def get_overall_stock():
+    # Get all inventory items
+    items = InventoryItem.query.all()
+    result = []
+
+    for item in items:
+        # Total store quantity
+        store_qty = (
+            db.session.query(func.coalesce(func.sum(StoreStock.quantity), 0))
+            .filter(StoreStock.inventory_item_id == item.id)
+            .scalar()
+        )
+
+        # Total quantity from all stations
+        station_qty = (
+            db.session.query(func.coalesce(func.sum(StationStock.quantity), 0))
+            .filter(StationStock.inventory_item_id == item.id)
+            .scalar()
+        )
+
+        total = (store_qty or 0) + (station_qty or 0)
+        result.append({
+            "inventory_item_id": item.id,
+            "menu_item": item.name,
+            "store_quantity": store_qty or 0,
+            "station_quantity": station_qty or 0,
+            "total_quantity": total
+        })
+
+    return jsonify(result), 200

@@ -111,3 +111,17 @@ export const deleteStationStock = async (id, token = null) => {
     handleError(error, "Failed to delete station stock");
   }
 };
+
+// ============================================================
+// 📊 OVERALL STOCK SUMMARY
+// ============================================================
+export const getOverallStock = async (token = null) => {
+  try {
+    const res = await axios.get(`${BASE_URL}/overall`, {
+      headers: getAuthHeader(token),
+    });
+    return res.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.msg || "Failed to fetch overall stock");
+  }
+};
