@@ -55,3 +55,11 @@ export const deleteMenuItem = async (id, token = null) => {
   });
   return res.data;
 };
+// api/menu_item.js  (add this)
+export const getMenuItemsByCategory = async (category_id, token = null) => {
+  if (!category_id) return [];
+  const res = await axios.get(`${BASE_URL}/menu-items/by-category/${category_id}`, {
+    headers: getAuthHeader(token),
+  });
+  return res.data;
+};

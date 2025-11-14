@@ -81,23 +81,33 @@ def get_order_summary():
     pending_amount = 0.0
     total_items = 0.0
     item_map = {}
+    voided_items_map = {}
 
     waiter_map = {}
 
     for order in orders:
-        # Paid/pending totals
-        order_total = float(order.total_amount or 0)
+        # Calculate totals for paid/pending orders (exclude voided items)
+        order_total = 0.0
+        for item in order.items:
+            qty = float(item.quantity or 0)
+            price = float(item.price or 0.0)
+
+            if item.status == "void":
+                # Track voided items separately
+                voided_items_map[item.menu_item.name] = voided_items_map.get(item.menu_item.name, 0) + qty
+                continue  # Skip voided items from totals
+
+            order_total += price * qty
+
+            # Accumulate item quantities
+            item_map[item.menu_item.name] = item_map.get(item.menu_item.name, 0) + qty
+            total_items += qty
+
+        # Totals per order
         if order.status == "paid":
             paid_amount += order_total
         else:
             pending_amount += order_total
-
-        # Items
-        for item in order.items:
-            item_name = item.menu_item.name  # ✅ fix
-            qty = float(item.quantity or 0)
-            total_items += qty
-            item_map[item_name] = item_map.get(item_name, 0) + qty
 
         # Waiter aggregation
         if order.user:
@@ -118,12 +128,14 @@ def get_order_summary():
             else:
                 waiter_map[waiter_id]["pendingAmount"] += order_total
 
+            # Waiter item totals (exclude voided)
             for item in order.items:
-                waiter_map[waiter_id]["totalItems"] += float(item.quantity or 0)
+                if item.status != "void":
+                    waiter_map[waiter_id]["totalItems"] += float(item.quantity or 0)
 
-    daily_items_summary = [
-        {"name": name, "quantity": qty} for name, qty in item_map.items()
-    ]
+    # Build summaries
+    daily_items_summary = [{"name": name, "quantity": qty} for name, qty in item_map.items()]
+    daily_voided_items_summary = [{"name": name, "quantity": qty} for name, qty in voided_items_map.items()]
     waiter_summary = list(waiter_map.values())
 
     summary = {
@@ -132,6 +144,7 @@ def get_order_summary():
         "pendingAmount": round(pending_amount, 2),
         "totalItems": total_items,
         "dailyItemsSummary": daily_items_summary,
+        "dailyVoidedItemsSummary": daily_voided_items_summary,  # ✅ new field for front end
         "waiterSummary": waiter_summary,
     }
 
@@ -249,3 +262,86 @@ def get_order_summary_range():
     }
 
     return jsonify(summary), 200
+
+# ---------------------- GET /order-history/raw ---------------------- #
+@order_history_bp.route("/raw", methods=["GET"])
+@jwt_required()
+@roles_required("admin", "manager", "waiter", "cashier")
+def get_order_history_raw():
+    """
+    Returns all orders with each OrderItem separately (no aggregation),
+    preserving OrderItem IDs for frontend edits/deletes.
+    Optional filters: date, status, user_id
+    """
+    query = Order.query
+
+    # --- Date filter (required for day view) ---
+    date_str = request.args.get("date")
+    if date_str:
+        try:
+            day = datetime.strptime(date_str, "%Y-%m-%d").date()
+            query = query.filter(db.func.date(Order.created_at) == day)
+        except ValueError:
+            return error_response("Invalid date format. Use YYYY-MM-DD.", 400)
+    else:
+        return error_response("date query param is required", 400)
+
+    # --- Status filter (optional) ---
+    status = request.args.get("status")
+    if status:
+        if status not in {"open", "closed", "paid"}:
+            return error_response("Invalid status filter.", 400)
+        query = query.filter(Order.status == status)
+
+    # --- User filter (optional) ---
+    user_id = request.args.get("user_id")
+    if user_id:
+        try:
+            query = query.filter(Order.user_id == int(user_id))
+        except ValueError:
+            return error_response("Invalid user_id.", 400)
+
+    # --- Waiter restriction (if role is waiter) ---
+    jwt_data = get_jwt()
+    roles = jwt_data.get("roles", [])
+    if "waiter" in roles:
+        query = query.filter(Order.user_id == int(jwt_data["sub"]))
+
+    # --- Fetch orders ---
+    orders = query.order_by(Order.created_at.desc()).all()
+
+    # --- Serialize orders without aggregating items ---
+    def order_to_dict_raw(order: Order):
+        return {
+            "id": order.id,
+            "table_id": order.table_id,
+            "table": {
+                "id": order.table.id,
+                "number": order.table.number,
+                "is_vip": order.table.is_vip,
+            },
+            "user_id": order.user_id,
+            "user": {
+                "id": order.user.id if order.user else None,
+                "username": order.user.username if order.user else None,
+                "role": order.user.role if order.user else None,
+            },
+            "status": order.status,
+            "total_amount": float(order.total_amount or 0.0),
+            "created_at": order.created_at.isoformat(),
+            "updated_at": order.updated_at.isoformat(),
+            "items": [
+                {
+                    "id": item.id,
+                    "name": item.menu_item.name if item.menu_item else None,
+                    "quantity": float(item.quantity or 0),
+                    "price": float(item.price or 0.0),
+                    "status": item.status,
+                    "created_at": item.created_at.isoformat() if item.created_at else None,
+                    "prep_tag": item.prep_tag,
+                }
+                for item in order.items
+            ],
+        }
+
+    return jsonify([order_to_dict_raw(o) for o in orders]), 200

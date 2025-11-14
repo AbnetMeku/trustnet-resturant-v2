@@ -1,11 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import {
-  fetchOrders,
-  deleteOrder,
-  deleteOrderItem,
-  updateOrderItem,
-} from "@/api/orders";
+import { fetchOrderHistoryRaw } from "@/api/order_history";
+import { updateOrderItem, voidOrderItem, unvoidOrderItem, deleteOrder } from "@/api/orders";
 import { getUsers } from "@/api/users";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +14,7 @@ export default function AdminOrders() {
 
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editMode, setEditMode] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState(null);
+  const [itemToVoid, setItemToVoid] = useState(null);
   const [orderToDelete, setOrderToDelete] = useState(null);
 
   const [waiters, setWaiters] = useState([]);
@@ -26,12 +22,10 @@ export default function AdminOrders() {
   const [filterTable, setFilterTable] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
-  // Date filter: default today
   const todayStr = new Date().toISOString().slice(0, 10);
-  const [dateFrom, setDateFrom] = useState(todayStr);
-  const [dateTo, setDateTo] = useState(todayStr);
+  const [selectedDate, setSelectedDate] = useState(todayStr);
 
-  // Fetch waiters
+  // Load waiters
   useEffect(() => {
     async function loadWaiters() {
       try {
@@ -44,13 +38,13 @@ export default function AdminOrders() {
     loadWaiters();
   }, []);
 
-  // Fetch orders
+  // Load orders for a given day
   useEffect(() => {
-    if (!authToken) return;
+    if (!authToken || !selectedDate) return;
     const loadOrders = async () => {
       setLoading(true);
       try {
-        const data = await fetchOrders(authToken);
+        const data = await fetchOrderHistoryRaw(authToken, { date: selectedDate });
         setOrders(data);
       } catch (err) {
         toast.error(err.message || "Failed to load orders");
@@ -59,18 +53,14 @@ export default function AdminOrders() {
       }
     };
     loadOrders();
-  }, [authToken]);
+  }, [authToken, selectedDate]);
 
   // Filtered orders
   const filteredOrders = orders.filter((order) => {
-    const orderDate = order.created_at.slice(0, 10); // YYYY-MM-DD
     return (
       (filterWaiter ? order.user?.id?.toString() === filterWaiter : true) &&
-      (filterTable
-        ? order.table.number.toString().includes(filterTable)
-        : true) &&
-      (filterStatus ? order.status === filterStatus : true) &&
-      (orderDate >= dateFrom && orderDate <= dateTo)
+      (filterTable ? order.table.number.toString().includes(filterTable) : true) &&
+      (filterStatus ? order.status === filterStatus : true)
     );
   });
 
@@ -79,7 +69,7 @@ export default function AdminOrders() {
       case "open":
         return "🟢 Open";
       case "closed":
-        return "⏳ Pending Payment";
+        return "⏳ Closed";
       case "paid":
         return "✅ Paid";
       default:
@@ -87,39 +77,82 @@ export default function AdminOrders() {
     }
   };
 
-  // Handlers
+  // --- Handlers ---
   const handleSaveChanges = async () => {
     try {
+      const updatedItems = [];
       for (const item of selectedOrder.items) {
-        await updateOrderItem(authToken, selectedOrder.id, item.id, {
-          quantity: item.quantity,
-        });
+        if (item.status !== "void") {
+          await updateOrderItem(authToken, selectedOrder.id, item.id, {
+            quantity: item.quantity,
+          });
+        }
+        updatedItems.push(item);
       }
-      const updatedTotal = selectedOrder.items.reduce(
-        (acc, i) => acc + i.price * i.quantity,
-        0
+
+      const updatedTotal = updatedItems
+        .filter((i) => i.status !== "void")
+        .reduce((acc, i) => acc + i.price * i.quantity, 0);
+
+      const updatedOrder = { ...selectedOrder, items: updatedItems, total_amount: updatedTotal };
+      setSelectedOrder(updatedOrder);
+      setOrders((prev) =>
+        prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
       );
-      setSelectedOrder((prev) => ({ ...prev, total_amount: updatedTotal }));
+
       toast.success("Order updated successfully");
       setEditMode(false);
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Failed to update order");
     }
   };
 
-  const handleDeleteItem = async () => {
+  const handleVoidItem = async () => {
     try {
-      await deleteOrderItem(authToken, selectedOrder.id, itemToDelete.id);
-      setSelectedOrder((prev) => ({
-        ...prev,
-        items: prev.items.filter((i) => i.id !== itemToDelete.id),
-        total_amount:
-          prev.total_amount - itemToDelete.price * itemToDelete.quantity,
-      }));
-      toast.success("Item removed");
-      setItemToDelete(null);
+      await voidOrderItem(authToken, selectedOrder.id, itemToVoid.id);
+
+      const updatedItems = selectedOrder.items.map((i) =>
+        i.id === itemToVoid.id ? { ...i, status: "void" } : i
+      );
+
+      const updatedTotal = updatedItems
+        .filter((i) => i.status !== "void")
+        .reduce((acc, i) => acc + i.price * i.quantity, 0);
+
+      const updatedOrder = { ...selectedOrder, items: updatedItems, total_amount: updatedTotal };
+      setSelectedOrder(updatedOrder);
+      setOrders((prev) =>
+        prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
+      );
+
+      toast.success("Item voided");
+      setItemToVoid(null);
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Failed to void item");
+    }
+  };
+
+  const handleUnvoidItem = async (item) => {
+    try {
+      await unvoidOrderItem(authToken, selectedOrder.id, item.id);
+
+      const updatedItems = selectedOrder.items.map((i) =>
+        i.id === item.id ? { ...i, status: "pending" } : i
+      );
+
+      const updatedTotal = updatedItems
+        .filter((i) => i.status !== "void")
+        .reduce((acc, i) => acc + i.price * i.quantity, 0);
+
+      const updatedOrder = { ...selectedOrder, items: updatedItems, total_amount: updatedTotal };
+      setSelectedOrder(updatedOrder);
+      setOrders((prev) =>
+        prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
+      );
+
+      toast.success("Item unvoided successfully");
+    } catch (err) {
+      toast.error(err.message || "Failed to unvoid item");
     }
   };
 
@@ -131,22 +164,28 @@ export default function AdminOrders() {
       toast.success("Order deleted");
       setOrderToDelete(null);
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Failed to delete order");
     }
   };
 
   return (
     <div className="space-y-6">
       <h2 className="text-3xl font-semibold text-gray-800 dark:text-gray-100">
-        All Orders (Admin)
+        Orders for {selectedDate} (Admin)
       </h2>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+        />
         <select
-          className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100"
           value={filterWaiter}
           onChange={(e) => setFilterWaiter(e.target.value)}
+          className="border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
         >
           {waiters.map((w) => (
             <option key={w.id} value={w.id}>
@@ -154,105 +193,68 @@ export default function AdminOrders() {
             </option>
           ))}
         </select>
-
         <input
           type="text"
           placeholder="Filter by table"
-          className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100"
           value={filterTable}
           onChange={(e) => setFilterTable(e.target.value)}
+          className="border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
         />
-
         <select
-          className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100"
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
+          className="border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
         >
           <option value="">All Status</option>
           <option value="open">Open</option>
           <option value="closed">Closed</option>
           <option value="paid">Paid</option>
         </select>
-
-        {/* Date filter */}
-        <div className="flex gap-2 items-center">
-          <label className="text-sm text-gray-700 dark:text-gray-300">From:</label>
-          <input
-            type="date"
-            className="border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100"
-            value={dateFrom}
-            max={dateTo}
-            onChange={(e) => setDateFrom(e.target.value)}
-          />
-          <label className="text-sm text-gray-700 dark:text-gray-300">To:</label>
-          <input
-            type="date"
-            className="border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100"
-            value={dateTo}
-            min={dateFrom}
-            onChange={(e) => setDateTo(e.target.value)}
-          />
-        </div>
-
-        {/* Orders count */}
-        <span className="text-gray-700 dark:text-gray-300 font-medium">
+        <span className="text-gray-800 dark:text-gray-200">
           Showing {filteredOrders.length} orders
         </span>
       </div>
 
-      {/* Orders Grid */}
+      {/* Orders List */}
       {loading ? (
-        <p className="text-gray-500 dark:text-gray-400">Loading...</p>
+        <p className="text-gray-800 dark:text-gray-200">Loading...</p>
       ) : filteredOrders.length === 0 ? (
-        <p className="text-gray-500 dark:text-gray-400">No orders found.</p>
+        <p className="text-gray-800 dark:text-gray-200">No orders found.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredOrders.map((order) => (
             <Card
               key={order.id}
-              className="shadow-sm dark:shadow-none rounded-xl border border-gray-200 dark:border-gray-700 p-5 flex flex-col justify-between bg-gray-50 dark:bg-gray-800 hover:shadow-md transition"
+              className="p-5 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
             >
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-lg font-medium text-gray-800 dark:text-gray-100">
-                    Table {order.table.number}
-                  </h3>
-                  <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
-                    ID: {order.id}
-                  </span>
+              <div className="flex justify-between items-start">
+                <div className="flex flex-col">
+                  <h3 className="font-medium">Order #{order.id}</h3>
+                  <p>Total: ${order.total_amount.toFixed(2)}</p>
+                  <p>Waiter: {order.user?.username || "—"}</p>
+                  <p>Items: {order.items.length}</p>
+                  <p>Time: {new Date(order.created_at).toLocaleTimeString()}</p>
+                  <p>{statusBadge(order.status)}</p>
                 </div>
-
-                <p className="text-gray-700 dark:text-gray-300 mb-1">
-                  Total:{" "}
-                  <span className="font-semibold">
-                    ${order.total_amount.toFixed(2)}
-                  </span>
-                </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-                  Waiter: {order.user?.username || "—"}
-                </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-                  Items: {order.items.length}
-                </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                  Time: {new Date(order.created_at).toLocaleTimeString()}
-                </p>
-
-                <span className="inline-block px-2 py-1 text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 rounded-full text-xs font-medium">
-                  {statusBadge(order.status)}
-                </span>
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  Table {order.table.number}
+                </div>
               </div>
 
-              <div className="mt-4">
+              <div className="mt-3 space-x-2">
                 <Button
-                  variant="outline"
-                  className="text-gray-800 dark:text-gray-100 border-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-full"
                   onClick={() => {
                     setSelectedOrder(order);
                     setEditMode(false);
                   }}
                 >
-                  More Details
+                  Details
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => setOrderToDelete(order)}
+                >
+                  Delete
                 </Button>
               </div>
             </Card>
@@ -260,130 +262,125 @@ export default function AdminOrders() {
         </div>
       )}
 
-      {/* Selected Order Modal */}
+      {/* --- Details Modal --- */}
       {selectedOrder && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg w-full max-w-lg p-6 overflow-hidden">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
-              Table {selectedOrder.table.number} - Order #{selectedOrder.id}
-            </h3>
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 p-6 rounded shadow w-full max-w-lg max-h-[80vh] overflow-y-auto text-gray-900 dark:text-gray-100">
+            <h3 className="text-xl mb-3">Order #{selectedOrder.id}</h3>
+            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+              {selectedOrder.items.map((item, idx) => (
+                <li
+                  key={idx}
+                  className="flex flex-col md:flex-row md:justify-between py-1 items-start md:items-center gap-1 md:gap-0"
+                >
+                  <div className="flex flex-col">
+                    <span
+                      className={item.status === "void" ? "line-through text-red-500" : ""}
+                    >
+                      {item.name} {item.status === "void" && "(voided)"}
+                    </span>
+                    {item.prep_tag && (
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        Prep Tag: {item.prep_tag}
+                      </span>
+                    )}
+                    {item.created_at && (
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        Time: {new Date(item.created_at).toLocaleTimeString()}
+                      </span>
+                    )}
+                  </div>
 
-            <div className="max-h-80 overflow-y-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-600">
-                    <th className="py-2 text-gray-700 dark:text-gray-300">Item</th>
-                    <th className="py-2 text-gray-700 dark:text-gray-300">Qty</th>
-                    <th className="py-2 text-gray-700 dark:text-gray-300">Price</th>
-                    <th className="py-2 text-gray-700 dark:text-gray-300">Total</th>
-                    {editMode && <th className="py-2 text-gray-700 dark:text-gray-300">Action</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedOrder.items.map((item) => (
-                    <tr key={item.id} className="border-b border-gray-200 dark:border-gray-700">
-                      <td className="py-1 text-gray-800 dark:text-gray-100">{item.name}</td>
-                      <td className="py-1">
-                        {editMode ? (
-                          <input
-                            type="number"
-                            value={item.quantity}
-                            min={1}
-                            className="w-16 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                            onChange={(e) =>
-                              setSelectedOrder((prev) => ({
-                                ...prev,
-                                items: prev.items.map((i) =>
-                                  i.id === item.id
-                                    ? { ...i, quantity: Number(e.target.value) }
-                                    : i
-                                ),
-                              }))
-                            }
-                          />
-                        ) : (
-                          <span className="text-gray-800 dark:text-gray-100">{item.quantity}</span>
-                        )}
-                      </td>
-                      <td className="py-1 text-gray-800 dark:text-gray-100">${item.price.toFixed(2)}</td>
-                      <td className="py-1 text-gray-800 dark:text-gray-100">${(item.price * item.quantity).toFixed(2)}</td>
-                      {editMode && (
-                        <td className="py-1">
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => setItemToDelete(item)}
-                          >
-                            ❌
-                          </Button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                  <div className="flex items-center gap-2 mt-1 md:mt-0">
+                    {editMode && item.status !== "void" ? (
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const qty = parseFloat(e.target.value);
+                          setSelectedOrder((prev) => {
+                            const items = [...prev.items];
+                            items[idx] = {
+                              ...items[idx],
+                              quantity: isNaN(qty) ? 0 : qty,
+                            };
+                            return { ...prev, items };
+                          });
+                        }}
+                        className="w-16 border px-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      />
+                    ) : (
+                      <span>
+                        {item.quantity} × ${item.price}
+                      </span>
+                    )}
+
+                    {editMode && item.status !== "void" && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setItemToVoid(item)}
+                      >
+                        Void
+                      </Button>
+                    )}
+
+                    {editMode && item.status === "void" && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleUnvoidItem(item)}
+                      >
+                        Unvoid
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-4 flex justify-between">
+              <Button onClick={() => setSelectedOrder(null)}>Close</Button>
+              {editMode ? (
+                <Button onClick={handleSaveChanges}>Save</Button>
+              ) : (
+                <Button onClick={() => setEditMode(true)}>Edit</Button>
+              )}
             </div>
+          </div>
+        </div>
+      )}
 
-            <p className="mt-4 font-semibold text-right text-gray-900 dark:text-gray-100">
-              Total: ${selectedOrder.items.reduce((acc, i) => acc + i.price * i.quantity, 0).toFixed(2)}
+      {/* --- Confirm Void Item Modal --- */}
+      {itemToVoid && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-900 p-6 rounded shadow text-gray-900 dark:text-gray-100">
+            <p>
+              Void item <strong>{itemToVoid.name}</strong>?
             </p>
-
-            <div className="flex justify-between mt-4">
-              <div className="flex gap-2">
-                <Button
-                  className="bg-gray-600 text-white hover:bg-gray-700"
-                  onClick={() => setSelectedOrder(null)}
-                >
-                  Close
-                </Button>
-                <Button
-                  className="bg-blue-600 hover:bg-blue-800 text-white"
-                  onClick={() => setEditMode((prev) => !prev)}
-                >
-                  {editMode ? "Cancel Edit" : "Edit"}
-                </Button>
-                {editMode && (
-                  <Button className="bg-green-600 hover:bg-green-800 text-white" onClick={handleSaveChanges}>
-                    Save Changes
-                  </Button>
-                )}
-              </div>
-
-              <Button
-                className="bg-red-600 hover:bg-red-800 text-white"
-                onClick={() => setOrderToDelete(selectedOrder)}
-              >
-                Delete Order
+            <div className="mt-3 flex gap-3">
+              <Button onClick={() => setItemToVoid(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={handleVoidItem}>
+                Void
               </Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Item Delete Confirmation */}
-      {itemToDelete && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50">
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
-            <p>Remove "{itemToDelete.name}" from order?</p>
-            <div className="flex gap-2 mt-2 justify-end">
-              <Button onClick={() => setItemToDelete(null)}>Cancel</Button>
-              <Button variant="destructive" onClick={handleDeleteItem}>
-                Yes
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Order Delete Confirmation */}
+      {/* --- Confirm Delete Order Modal --- */}
       {orderToDelete && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50">
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
-            <p>Are you sure you want to delete order #{orderToDelete.id}?</p>
-            <div className="flex gap-2 mt-2 justify-end">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-900 p-6 rounded shadow text-gray-900 dark:text-gray-100">
+            <p>
+              Delete order <strong>#{orderToDelete.id}</strong>?
+            </p>
+            <div className="mt-3 flex gap-3">
               <Button onClick={() => setOrderToDelete(null)}>Cancel</Button>
               <Button variant="destructive" onClick={handleDeleteOrder}>
-                Yes
+                Delete
               </Button>
             </div>
           </div>

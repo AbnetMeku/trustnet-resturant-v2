@@ -1,9 +1,8 @@
-# app/routes/users/users.py
 from flask import Blueprint, request, jsonify, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.extensions import db
 from app.models.models import User
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import generate_password_hash
 from app.utils.decorators import roles_required
 
 users_bp = Blueprint("users_bp", __name__, url_prefix="/users")
@@ -21,7 +20,7 @@ def user_to_dict(user):
 @users_bp.route("/", methods=["GET"])
 @users_bp.route("", methods=["GET"])
 @jwt_required()
-@roles_required("admin", "manager","cashier")
+@roles_required("admin", "manager", "cashier")
 def get_users():
     role = request.args.get("role", type=str)
     query = User.query
@@ -59,14 +58,14 @@ def create_user():
     if role == "waiter":
         existing_waiters = User.query.filter_by(role="waiter").all()
         for w in existing_waiters:
-            if check_password_hash(w.pin_hash, pin):
+            if w.pin_hash == pin:
                 abort(400, "This PIN is already taken")
 
     user = User(
         username=username if username else None,
         role=role,
         password_hash=generate_password_hash(password) if password else None,
-        pin_hash=generate_password_hash(pin) if pin else None,
+        pin_hash=pin if pin else None,
     )
 
     db.session.add(user)
@@ -101,9 +100,16 @@ def update_user(user_id):
         abort(404, "User not found")
 
     data = request.get_json()
+    new_username = data.get("username")
     new_password = data.get("password")
     new_pin = data.get("pin")
     new_role = data.get("role", user.role)
+
+    # ✅ Handle username update (ensure uniqueness)
+    if new_username and new_username != user.username:
+        if User.query.filter(User.username == new_username, User.id != user.id).first():
+            abort(400, "Username already exists")
+        user.username = new_username
 
     # Admin/Manager can update anyone except role restrictions
     if current_user.role in ["admin", "manager"]:
@@ -113,23 +119,22 @@ def update_user(user_id):
             user.password_hash = generate_password_hash(new_password)
         if new_pin and user.role == "waiter":
             # Check PIN uniqueness
-            existing_waiters = User.query.filter(User.id != user.id, User.role=="waiter").all()
+            existing_waiters = User.query.filter(User.id != user.id, User.role == "waiter").all()
             for w in existing_waiters:
-                if check_password_hash(w.pin_hash, new_pin):
+                if w.pin_hash == new_pin:
                     abort(400, "This PIN is already taken")
-            user.pin_hash = generate_password_hash(new_pin)
+            user.pin_hash = new_pin
 
-        # Update role for admin/manager only
         user.role = new_role
 
     # Waiter can only update own PIN
     elif current_user.role == "waiter" and current_user.id == user.id:
         if new_pin:
-            existing_waiters = User.query.filter(User.id != user.id, User.role=="waiter").all()
+            existing_waiters = User.query.filter(User.id != user.id, User.role == "waiter").all()
             for w in existing_waiters:
-                if check_password_hash(w.pin_hash, new_pin):
+                if w.pin_hash == new_pin:
                     abort(400, "This PIN is already taken")
-            user.pin_hash = generate_password_hash(new_pin)
+            user.pin_hash = new_pin
         if new_password:
             abort(403, "Waiter cannot update password")
 

@@ -40,7 +40,7 @@ def login():
     ), 200
 
 
-# ----------------- Waiter PIN Login ----------------- #
+# ----------------- Waiter PIN Login (Plain Text) ----------------- #
 @auth_bp.route('/pin/waiter', methods=['POST'])
 def login_waiter_pin():
     data = request.get_json() or {}
@@ -48,12 +48,11 @@ def login_waiter_pin():
     if not pin:
         return jsonify({"msg": "Missing PIN"}), 400
 
-    # Narrow the query: only waiters that actually have a pin hash
-    candidates = User.query.filter(
-        and_(User.role == 'waiter', User.pin_hash.isnot(None))
-    ).all()
+    # Find waiter directly by plain-text pin
+    user = User.query.filter(
+        and_(User.role == 'waiter', User.pin_hash == pin)
+    ).first()
 
-    user = next((u for u in candidates if check_password_hash(u.pin_hash, pin)), None)
     if not user:
         return jsonify({"msg": "Invalid PIN"}), 401
 
@@ -74,7 +73,7 @@ def login_station_pin():
     if not pin:
         return jsonify({"msg": "Missing PIN"}), 400
 
-    # Only stations with a stored hash
+    # Stations still use hashed passwords
     stations = Station.query.filter(Station.password_hash.isnot(None)).all()
     station = next((s for s in stations if check_password_hash(s.password_hash, pin)), None)
 
@@ -82,7 +81,7 @@ def login_station_pin():
         return jsonify({"msg": "Invalid PIN"}), 401
 
     access_token = create_access_token(
-        identity=str(station.id),   # ✅ clean station ID
+        identity=str(station.id),
         additional_claims={
             "role": "station",
             "station_id": station.id,

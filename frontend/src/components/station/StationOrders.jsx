@@ -39,21 +39,21 @@ export default function StationOrders() {
     }
   };
 
-  // Mark item ready
-  const markReady = async (itemId) => {
+  // Update item status ("ready" or "void")
+  const updateStatus = async (itemId, status) => {
     if (!stationToken) return;
     try {
-      await updateOrderItemStatus(stationToken, itemId);
+      await updateOrderItemStatus(stationToken, itemId, status);
       setOrders((prev) =>
         prev.map((order) => ({
           ...order,
           items: order.items.map((item) =>
-            item.item_id === itemId ? { ...item, status: "ready" } : item
+            item.item_id === itemId ? { ...item, status } : item
           ),
         }))
       );
     } catch (err) {
-      console.error("Failed to mark item ready:", err);
+      console.error(`Failed to mark item ${itemId} as ${status}:`, err);
     }
   };
 
@@ -63,11 +63,11 @@ export default function StationOrders() {
     return () => clearInterval(interval);
   }, [stationToken]);
 
-  // Filter out orders with no pending items
+  // Pending orders: exclude ready and void items
   const pendingOrders = orders
     .map((order) => ({
       ...order,
-      items: order.items.filter((item) => item.status !== "ready"),
+      items: order.items.filter((item) => item.status === "pending"),
     }))
     .filter((order) => order.items.length > 0);
 
@@ -109,7 +109,11 @@ export default function StationOrders() {
             {order.items.map((item) => (
               <li
                 key={item.item_id}
-                className="flex justify-between items-center bg-gray-100 dark:bg-gray-700 p-4 rounded-lg shadow-sm"
+                className={`flex justify-between items-center p-4 rounded-lg shadow-sm ${
+                  item.status === "void"
+                    ? "bg-gray-300 dark:bg-gray-600 line-through"
+                    : "bg-gray-100 dark:bg-gray-700"
+                }`}
               >
                 <div>
                   <span className="font-medium text-lg">{item.name}</span> x{item.quantity}
@@ -119,12 +123,35 @@ export default function StationOrders() {
                     </em>
                   )}
                 </div>
-                <button
-                  onClick={() => markReady(item.item_id)}
-                  className="px-4 py-2 rounded-full font-semibold text-white bg-rose-900 hover:bg-rose-600"
-                >
-                  ወቷል
-                </button>
+
+                <div className="flex space-x-2">
+                  {item.status === "pending" && (
+                    <>
+                      <button
+                        onClick={() => updateStatus(item.item_id, "ready")}
+                        className="px-4 py-2 rounded-full font-semibold text-white bg-rose-900 hover:bg-rose-600"
+                      >
+                        ወቷል
+                      </button>
+                      <button
+                        onClick={() => updateStatus(item.item_id, "void")}
+                        className="px-4 py-2 rounded-full font-semibold text-white bg-gray-500 hover:bg-gray-400"
+                      >
+                        የለም
+                      </button>
+                    </>
+                  )}
+                  {item.status === "ready" && (
+                    <span className="px-3 py-1 rounded-full bg-green-500 text-white text-sm font-semibold">
+                      Ready
+                    </span>
+                  )}
+                  {item.status === "void" && (
+                    <span className="px-3 py-1 rounded-full bg-gray-500 text-white text-sm font-semibold">
+                      Voided
+                    </span>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

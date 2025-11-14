@@ -7,15 +7,18 @@ import { Button } from "@/components/ui/button";
 
 // 🔹 Translation dictionary (English → Amharic)
 const categoryTranslations = {
-  "Alcohols": "ውስኪ",
-  "Drink": "መጠጥ",
   "Food": "ምግብ",
+  "Drink": "መጠጥ",
+  "Shot" : "ሾት",
+  "Alcohols": "ቦትል"
 };
 
 const subcategoryTranslations = {
-  "Beer": "ቢራ",
+  "Bottles": "ቦትል",
   "Wine": "ወይን",
-  "Beef": "በሬ ስጋ",
+  "Butchery": "ስጋ ቤት",
+  "Feyel":"ፍየል",
+  "Beef": "በሬ ስጋ"
 };
 
 export default function MenuSelection({
@@ -43,6 +46,11 @@ export default function MenuSelection({
       try {
         const cats = await getCategories();
         setCategories(cats);
+                        // ✅ Auto-select "Food" if found
+        const defaultCat = cats.find(
+          (cat) => cat.name?.toLowerCase() === "food"
+        );
+        if (defaultCat) setSelectedCategory(defaultCat.id);
       } catch (err) {
         console.error("Failed to load categories:", err);
       }
@@ -106,7 +114,8 @@ const updatedItems = items
     const subcategoryName = (subcategory.name || "Unknown").trim();
 
     const increment =
-      categoryName.toLowerCase() === "alcohols" || subcategoryName.toLowerCase() === "butchery"
+      categoryName.toLowerCase() === "alcohols" || subcategoryName.toLowerCase() === "butchery" 
+      || subcategoryName.toLowerCase() === "feyel"
         ? 0.5
         : 1;
 

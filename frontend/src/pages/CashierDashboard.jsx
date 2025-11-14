@@ -7,6 +7,7 @@ import {
   FaSignOutAlt,
   FaSun,
   FaMoon,
+  FaMale,
 } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,7 +15,8 @@ import { useAuth } from "@/context/AuthContext";
 
 import OpenOrders from "@/components/cashiers/OpenOrders";
 import ClosedOrders from "@/components/cashiers/ClosedOrders";
-import OrderHistory from "@/components/cashiers/OrderHistory";
+import SalesSummaryReport from "@/components/admin/SalesSummaryReport";
+import WaiterSummaryReport from "@/components/admin/WaiterSummaryReport";
 
 export default function CashierDashboard() {
   const { user, logout } = useAuth();
@@ -54,7 +56,8 @@ export default function CashierDashboard() {
   const menuItems = [
     { id: "openOrders", icon: FaFolderOpen, label: "Open Orders" },
     { id: "closedOrders", icon: FaLockOpen, label: "Closed Orders" },
-    { id: "orderHistory", icon: FaHistory, label: "Order History" },
+    { id: "reports", icon: FaHistory, label: "Reports" },
+    { id: "waiterReport", icon: FaMale, label: "Waiter Report" },
   ];
 
   return (
@@ -136,7 +139,8 @@ export default function CashierDashboard() {
           <main className="flex-1 overflow-y-auto overflow-x-hidden p-4">
             {active === "openOrders" && <OpenOrders />}
             {active === "closedOrders" && <ClosedOrders />}
-            {active === "orderHistory" && <OrderHistory />}
+            {active === "reports" && <SalesSummaryReport />}
+            {active === "waiterReport" && <WaiterSummaryReport />}
           </main>
         </div>
       </div>

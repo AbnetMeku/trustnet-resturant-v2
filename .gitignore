@@ -10,4 +10,7 @@ instance/
 .pytest_cache/
 .vscode/
 app/workers/test.py
+app/workers/SummitPrint.py
+app/workers/print_worker.py
 frontend/vite.config.js
+migrations

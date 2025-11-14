@@ -20,29 +20,41 @@ export const fetchKDSOrders = async (stationToken) => {
   }
 };
 
-// Mark a specific order item as ready
-export const updateOrderItemStatus = async (stationToken, orderItemId) => {
+/**
+ * Mark a specific order item with a new status: "ready" or "void"
+ * @param {string} stationToken 
+ * @param {number} orderItemId 
+ * @param {string} status - "ready" | "void"
+ */
+export const updateOrderItemStatus = async (stationToken, orderItemId, status = "ready") => {
   if (!stationToken) throw new Error("Station token is required");
+  if (!["ready", "void"].includes(status)) throw new Error("Invalid status");
+
   try {
     const res = await axios.put(
       `${BASE_URL}/orders/${orderItemId}/status`,
-      {},
+      { status }, // send status in request body
       { headers: getAuthHeader(stationToken) }
     );
     return res.data;
   } catch (error) {
-    console.error(`Failed to mark item ${orderItemId} ready:`, error);
+    console.error(`Failed to mark item ${orderItemId} as ${status}:`, error);
     throw error;
   }
 };
 
-// Fetch all ready items (history) for this station
-export const fetchReadyOrdersHistory = async (stationToken) => {
+// Fetch ready items (history) for this station — supports filters including date
+export const fetchReadyOrdersHistory = async (
+  stationToken,
+  filters = {} // { waiter_id?: number, table_number?: number, date?: string }
+) => {
   if (!stationToken) throw new Error("Station token is required");
   try {
-    const res = await axios.get(`${BASE_URL}/orders/history`, {
-      headers: getAuthHeader(stationToken),
-    });
+    const query = new URLSearchParams(filters).toString();
+    const res = await axios.get(
+      `${BASE_URL}/orders/history${query ? `?${query}` : ""}`,
+      { headers: getAuthHeader(stationToken) }
+    );
     return res.data;
   } catch (error) {
     console.error("Failed to fetch ready orders history:", error);

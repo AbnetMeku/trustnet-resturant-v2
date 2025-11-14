@@ -10,6 +10,8 @@ from collections import defaultdict
 import logging
 from app.routes.print.print_jobs import create_station_print_jobs, create_cashier_print_job 
 from sqlalchemy.exc import IntegrityError
+from app.services.inventory_service import adjust_inventory_for_order_item
+
 
 orders_bp = Blueprint("orders_bp", __name__, url_prefix="/orders")
 
@@ -54,14 +56,19 @@ def order_item_to_dict(item: OrderItem):
 
 def order_to_dict(order: Order):
     """
-    Returns order dict with aggregated items by menu_item_id
+    Returns order dict with aggregated items by menu_item_id, 
+    separated into active and voided for frontend highlighting
     """
-    aggregated_items = {}
     table = db.session.get(Table, order.table_id)
+
+    active_items = {}
+    voided_items = {}
+
     for item in order.items:
+        target_dict = voided_items if item.status == "void" else active_items
         key = item.menu_item_id
-        if key not in aggregated_items:
-            aggregated_items[key] = {
+        if key not in target_dict:
+            target_dict[key] = {
                 "id": item.id,
                 "menu_item_id": item.menu_item_id,
                 "name": item.menu_item.name if item.menu_item else None,
@@ -73,7 +80,7 @@ def order_to_dict(order: Order):
                 "status": set(),
                 "prep_tag": set(),
             }
-        agg = aggregated_items[key]
+        agg = target_dict[key]
         agg["quantity"] += float(item.quantity)
         if item.notes:
             agg["notes"].append(item.notes)
@@ -82,11 +89,13 @@ def order_to_dict(order: Order):
         if item.prep_tag:
             agg["prep_tag"].add(item.prep_tag)
 
-    # Convert sets to list or comma-separated strings
-    for agg in aggregated_items.values():
-        agg["status"] = list(agg["status"])
-        agg["prep_tag"] = list(agg["prep_tag"])
-        agg["notes"] = "; ".join(agg["notes"]) if agg["notes"] else None
+    # Convert sets to list / join notes
+    def finalize(items_dict):
+        for agg in items_dict.values():
+            agg["status"] = list(agg["status"])
+            agg["prep_tag"] = list(agg["prep_tag"])
+            agg["notes"] = "; ".join(agg["notes"]) if agg["notes"] else None
+        return list(items_dict.values())
 
     return {
         "id": order.id,
@@ -97,7 +106,7 @@ def order_to_dict(order: Order):
             "is_vip": order.table.is_vip,
         },
         "user_id": order.user_id,
-        "user": {  # ✅ Add this
+        "user": {
             "id": order.user.id if order.user else None,
             "username": order.user.username if order.user else None,
             "role": order.user.role if order.user else None
@@ -106,19 +115,37 @@ def order_to_dict(order: Order):
         "total_amount": float(order.total_amount) if order.total_amount else 0.0,
         "created_at": order.created_at.isoformat(),
         "updated_at": order.updated_at.isoformat(),
-        "items": list(aggregated_items.values()),
+        "active_items": finalize(active_items),
+        "voided_items": finalize(voided_items),
     }
 
 
+# def recalc_order_total(order: Order) -> None:
+#     total = Decimal("0.00")
+#     table = db.session.get(Table, order.table_id)
+#     for i in order.items:
+#         price = i.vip_price if table.is_vip and i.vip_price is not None else i.price
+#         if price is None:
+#             continue
+#         total += Decimal(price) * Decimal(i.quantity)
+#     order.total_amount = total
+# from decimal import Decimal
+
 def recalc_order_total(order: Order) -> None:
+    """Recalculate the total amount of an order, excluding voided items."""
     total = Decimal("0.00")
     table = db.session.get(Table, order.table_id)
     for i in order.items:
+        # 🚫 Skip voided items
+        if i.status == "void":
+            continue
+        # Choose VIP or regular price
         price = i.vip_price if table.is_vip and i.vip_price is not None else i.price
         if price is None:
             continue
         total += Decimal(price) * Decimal(i.quantity)
     order.total_amount = total
+    db.session.flush()  # ensure it's updated in the current session
 
 # ---------------- Orders: Create ----------------
 @orders_bp.route("/", methods=["POST"])
@@ -192,7 +219,7 @@ def create_order():
         if len(station) > 20:
             return error_response(f"Station name '{station}' exceeds 20 characters.", 400)
 
-        default_increment = Decimal("0.5") if category_name.lower() in {"alcohol", "butchery"} else Decimal("1.0")
+        default_increment = Decimal("0.5") if category_name.lower() in {"alcohol", "butchery","feyel"} else Decimal("1.0")
         quantity_to_add = Decimal(str(payload.get("quantity", default_increment)))
 
         try:
@@ -269,7 +296,7 @@ def add_order_item(order_id):
         if len(station) > 20:
             return error_response(f"Station name '{station}' exceeds 20 characters.", 400)
 
-        default_increment = Decimal("0.5") if category_name.lower() == "alcohol" or subcategory_name.lower() == "butchery" else Decimal("1.0")
+        default_increment = Decimal("0.5") if category_name.lower() == "alcohol" or subcategory_name.lower() == "butchery" or subcategory_name.lower() == "feyel" else Decimal("1.0")
         quantity_to_add = Decimal(str(payload.get("quantity", default_increment)))
 
         # Create a new OrderItem row instead of updating existing one
@@ -370,8 +397,6 @@ def list_orders():
 
     return jsonify([order_to_dict(o) for o in orders]), 200
 
-
-# ---------------- Orders: Get Single ----------------
 # ---------------- Orders: Get Single ----------------
 @orders_bp.route("/<int:order_id>", methods=["GET"])
 @jwt_required()
@@ -437,11 +462,34 @@ def update_order_item(order_id, item_id):
     if "notes" in data:
         order_item.notes = data["notes"]
 
+# ---------------- Deduct or revert stock ----------------
     if "status" in data:
-        if data["status"] not in {"pending", "ready"}:
-            return error_response("Invalid item status. Allowed: pending, ready.", 400)
+        if data["status"] not in {"pending", "ready", "void"}:
+            return error_response("Invalid item status. Allowed: pending, ready, void.", 400)
+        
+        prev_status = order_item.status
         order_item.status = data["status"]
 
+        # ---------------- Deduct stock if status changed to ready ---------------- #
+        if prev_status != "ready" and data["status"] == "ready":
+                adjust_inventory_for_order_item(
+                    station_name=order_item.station,
+                    menu_item_id=order_item.menu_item_id,
+                    quantity=float(order_item.quantity))
+            # Revert inventory if moving from ready to void
+        elif prev_status == "ready" and data["status"] == "void":
+                adjust_inventory_for_order_item(
+                    station_name=order_item.station,
+                    menu_item_id=order_item.menu_item_id,
+                    quantity=float(order_item.quantity),
+                    reverse=True)
+            # Optional: handle unvoid back to ready
+        elif prev_status == "void" and data["status"] == "ready":
+                adjust_inventory_for_order_item(
+                    station_name=order_item.station,
+                    menu_item_id=order_item.menu_item_id,
+                    quantity=float(order_item.quantity))
+                
     # ---------------- Commit ----------------
     recalc_order_total(order)
     try:
@@ -475,17 +523,19 @@ def delete_order(order_id):
         return error_response(f"Database error: {str(e)}", 500)
     return jsonify({"message": "Order deleted"}), 200
 
-# ---------------- OrderItems: Delete one item ----------------
+# ---------------- OrderItems: Delete(void) one item ----------------
 @orders_bp.route("/<int:order_id>/items/<int:item_id>", methods=["DELETE"])
 @jwt_required()
 @roles_required("admin", "manager", "waiter")
-def delete_order_item(order_id, item_id):
+def void_order_item(order_id, item_id):
     order_item = db.session.get(OrderItem, item_id)
     if not order_item or order_item.order_id != order_id:
         return error_response("Order item not found.", 404)
 
     order = db.session.get(Order, order_id)
     user_id = safe_int_identity()
+
+    # Waiter restriction
     if "waiter" in get_jwt().get("roles", []):
         user = db.session.get(User, user_id)
         table = db.session.get(Table, order.table_id)
@@ -493,12 +543,48 @@ def delete_order_item(order_id, item_id):
             return error_response("You are not assigned to this table.", 403)
 
     try:
-        db.session.delete(order_item)
-        db.session.flush()
+        prev_status = order_item.status
+        order_item.status = "void"
+
+        # Adjust inventory if item was previously ready
+        if prev_status == "ready":
+            adjust_inventory_for_order_item(
+                station_name=order_item.station,
+                menu_item_id=order_item.menu_item_id,
+                quantity=float(order_item.quantity),
+                reverse=True  # return stock
+            )
+
+        # Recalculate order total (excluding voided)
         recalc_order_total(order)
+
         db.session.commit()
-        logger.info(f"Deleted order item {item_id} from order {order_id} by user {user_id}")
+        logger.info(f"Voided order item {item_id} from order {order_id} by user {user_id}")
     except Exception as e:
         db.session.rollback()
         return error_response(f"Database error: {str(e)}", 500)
+
     return jsonify(order_to_dict(order)), 200
+
+# ------------------- OrderItems: unvoid ----------------------
+
+@orders_bp.route("/<int:order_id>/items/<int:item_id>/unvoid", methods=["PATCH"])
+@jwt_required()
+def unvoid_order_item(order_id, item_id):
+    item = OrderItem.query.filter_by(order_id=order_id, id=item_id).first()
+    if not item:
+        return error_response("Item not found", 404)
+
+    prev_status = item.status
+    item.status = "ready"  # default back to ready
+
+    # Adjust inventory if previously voided
+    if prev_status == "void":
+        adjust_inventory_for_order_item(
+            station_name=item.station,
+            menu_item_id=item.menu_item_id,
+            quantity=float(item.quantity)  # deduct stock
+        )
+    db.session.commit()
+    logger.info(f"Unvoided order item {item.id} in order {order_id}")
+    return jsonify({"message": "Item unvoided", "item_id": item.id}), 200

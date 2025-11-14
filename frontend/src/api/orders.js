@@ -240,7 +240,7 @@ export const updateOrderItem = async (token, orderId, itemId, updates) => {
   }
 };
 
-export const deleteOrderItem = async (token, orderId, itemId) => {
+export const voidOrderItem = async (token, orderId, itemId) => {
   try {
     if (!token || typeof token !== "string") {
       throw new Error("Invalid token: must be a non-empty string");
@@ -251,14 +251,27 @@ export const deleteOrderItem = async (token, orderId, itemId) => {
     if (!Number.isInteger(itemId) || itemId <= 0) {
       throw new Error("Invalid itemId: must be a positive integer");
     }
-    const res = await axiosInstance.delete(
-      `/orders/${orderId}/items/${itemId}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
+
+    // Still uses DELETE, backend just marks as 'void'
+    const res = await axiosInstance.delete(`/orders/${orderId}/items/${itemId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    return res.data;
+  } catch (error) {
+    throw handleAxiosError(error, "voidOrderItem");
+  }
+};
+
+export const unvoidOrderItem = async (token, orderId, itemId) => {
+  try {
+    const res = await axiosInstance.patch(
+      `/orders/${orderId}/items/${itemId}/unvoid`,
+      {},
+      { headers: { Authorization: `Bearer ${token}` } }
     );
     return res.data;
   } catch (error) {
-    throw handleAxiosError(error, "deleteOrderItem");
+    throw handleAxiosError(error, "unvoidOrderItem");
   }
 };
