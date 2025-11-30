@@ -103,14 +103,19 @@ export default function TransferManagement() {
     if (!quantity || isNaN(quantity) || quantity <= 0)
       return toast.error("Enter a valid quantity greater than zero.");
 
-    const available = getStockQty(parseInt(inventory_item_id));
+    // Include previous quantity if editing
+    const previousQty = editId
+      ? transfers.find((t) => t.id === editId)?.quantity || 0
+      : 0;
+
+    const available = getStockQty(parseInt(inventory_item_id)) + previousQty;
     if (parseFloat(quantity) > available)
       return toast.error(`Not enough stock. Only ${available} left.`);
 
     const payload = {
       inventory_item_id: parseInt(inventory_item_id),
       station_id: parseInt(station_id),
-      quantity: parseFloat(parseFloat(quantity).toFixed(3))
+      quantity: parseFloat(parseFloat(quantity).toFixed(3)),
     };
 
     try {
@@ -291,7 +296,7 @@ export default function TransferManagement() {
         </div>
       )}
 
-      {/* History tab same as before */}
+      {/* History tab */}
       {activeTab === "history" && (
         <div className="mt-4 overflow-x-auto">
           <table className="w-full border rounded-lg dark:border-gray-700">
@@ -322,9 +327,7 @@ export default function TransferManagement() {
                   <td className="p-2 border dark:border-gray-700">
                     {t.station_name}
                   </td>
-                  <td className="p-2 border dark:border-gray-700">
-                    {t.quantity}
-                  </td>
+                  <td className="p-2 border dark:border-gray-700">{t.quantity}</td>
                   <td className="p-2 border dark:border-gray-700">
                     {new Date(t.created_at).toLocaleString()}
                   </td>
@@ -371,8 +374,7 @@ export default function TransferManagement() {
               Prev
             </Button>
             <span>
-              Page {transferPage} of{" "}
-              {Math.ceil(transfers.length / PAGE_SIZE) || 1}
+              Page {transferPage} of {Math.ceil(transfers.length / PAGE_SIZE) || 1}
             </span>
             <Button
               disabled={transferPage * PAGE_SIZE >= transfers.length}

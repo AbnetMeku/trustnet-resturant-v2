@@ -10,15 +10,17 @@ const categoryTranslations = {
   "Food": "ምግብ",
   "Drink": "መጠጥ",
   "Shot" : "ሾት",
-  "Alcohols": "ቦትል"
+  "Alcohols": "ውስኪ",
+  "Staff Martials ": "ስታፍ እቃ",
 };
 
 const subcategoryTranslations = {
   "Bottles": "ቦትል",
+  "Bottle": "ቦትል",
   "Wine": "ወይን",
   "Butchery": "ስጋ ቤት",
   "Feyel":"ፍየል",
-  "Beef": "በሬ ስጋ"
+  "Beef": "በሬ ስጋ",
 };
 
 export default function MenuSelection({

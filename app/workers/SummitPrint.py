@@ -16,8 +16,8 @@ from app.models.models import PrintJob, OrderItem, Station
 # -----------------------------
 DATABASE_URI = os.environ.get(
     "DATABASE_URI"
-  #) or "postgresql://trustnet_pos:trustnet_pos_password@localhost:5432/trustnet_pos_db"  
-  ) or "postgresql://postgres:abnet@localhost:5432/postgres"
+ # ) or "postgresql://trustnet_pos:trustnet_pos_password@localhost:5432/trustnet_pos_db"  
+  ) or "postgresql://postgres:abnet@localhost:5433/postgres"
 
 FONT_PATH = os.path.join(os.path.dirname(__file__), "NotoSansEthiopic.ttf")
 LOGO_PATH = os.path.join(os.path.dirname(__file__), "TNS.png")
@@ -41,14 +41,14 @@ def load_font(size=20):
         return ImageFont.load_default()
 
 def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="station"):
-    font_header = load_font(20)  # For restaurant name Cashire
-    font_regular = load_font(35) # For Header Deatails  
-    font_bold = load_font(60)    # For prep tag
-    line_height = font_regular.getbbox("A")[3] - font_regular.getbbox("A")[1] + 13
-    bold_line_height = font_bold.getbbox("A")[3] - font_bold.getbbox("A")[1] + 16
-    header_line_height = font_header.getbbox("A")[3] - font_header.getbbox("A")[1] + 1
+    font_header = load_font(30)  # For restaurant name
+    font_regular = load_font(20)  # For body text
+    font_bold = load_font(30)    # For prep tag
+    line_height = font_regular.getbbox("A")[3] - font_regular.getbbox("A")[1] + 4
+    bold_line_height = font_bold.getbbox("A")[3] - font_bold.getbbox("A")[1] + 4
+    header_line_height = font_header.getbbox("A")[3] - font_header.getbbox("A")[1] + 4
 
-    logo_height = 10
+    logo_height = 0
     if os.path.exists(LOGO_PATH):
         try:
             logo = Image.open(LOGO_PATH).convert("1")
@@ -69,9 +69,9 @@ def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="stat
         lines.append((f"DATE: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}", font_header, 'la'))
         waiter_name = job.items_data.get("waiter", "Unknown")
         table_number = job.items_data.get("table", "N/A")
-        lines.append((f"WAITER: {waiter_name}", font_header, 'la'))
-        lines.append((f"TABLE: {table_number}", font_header, 'la'))
-        lines.append(("-" * 92, font_header, 'ma'))
+        lines.append((f"WAITER: {waiter_name}", font_regular, 'la'))
+        lines.append((f"TABLE: {table_number}", font_regular, 'la'))
+        lines.append(("-" * 92, font_regular, 'ma'))
 
         # Items with aligned columns
         subtotal = 0
@@ -85,9 +85,9 @@ def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="stat
 
         # Footer (only TOTAL, no SUBTOTAL)
         footer_lines = [
-            ("-" * 92, font_header, 'ma'),
-            (f"TOTAL: {job.items_data.get('total', subtotal):.2f}ETB ", font_header, 'ra'),
-            ("THANK YOU!", font_header, 'ma')
+            ("-" * 92, font_regular, 'ma'),
+            (f"TOTAL: {job.items_data.get('total', subtotal):.2f}ETB ", font_regular, 'ra'),
+            ("THANK YOU!", font_regular, 'ma')
         ]
 
         # Height calculation
@@ -128,19 +128,19 @@ def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="stat
         # ↑ You can tweak these values if spacing looks off on your printer
 
         # Column headers
-        draw.text((col_item_x, y), "Item", font=font_header, fill=0)
-        draw.text((col_qty_x, y), "Qty x Price", font=font_header, fill=0)
-        draw.text((col_total_x, y), "Total", font=font_header, fill=0)
+        draw.text((col_item_x, y), "Item", font=font_regular, fill=0)
+        draw.text((col_qty_x, y), "Qty x Price", font=font_regular, fill=0)
+        draw.text((col_total_x, y), "Total", font=font_regular, fill=0)
         y += line_height + 5
         draw.line((10, y, PRINTER_WIDTH_PX - 10, y), fill=0)  # underline
         y += 5
 
         # Draw items in 3 columns
         for name, qty_price, total in item_rows:
-            draw.text((col_item_x, y), name[:28], font=font_header, fill=0)  # longer item name allowed
-            draw.text((col_qty_x, y), qty_price, font=font_header, fill=0)
-            bbox = draw.textbbox((0, 0), total, font=font_header)
-            draw.text((col_total_x, y), total, font=font_header, fill=0)
+            draw.text((col_item_x, y), name[:28], font=font_regular, fill=0)  # longer item name allowed
+            draw.text((col_qty_x, y), qty_price, font=font_regular, fill=0)
+            bbox = draw.textbbox((0, 0), total, font=font_regular)
+            draw.text((col_total_x, y), total, font=font_regular, fill=0)
             y += line_height + 5
 
         # Footer
@@ -180,9 +180,7 @@ def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="stat
             if item.get("prep_tag"):
                 lines.append(f"{item['prep_tag']}")
                 break
-        # lines.append(station_name)    
         lines.append(f"Order ID: {job.order_id}")
-        lines.append("." * 28) 
         lines.append(f"Time: {datetime.now().strftime('%H:%M:%S')}")
         waiter_name = job.items_data.get("waiter", "Unknown")
         table_number = job.items_data.get("table", "N/A")
@@ -292,7 +290,7 @@ def print_job(job: PrintJob):
     session = Session()
     try:
         station = session.get(Station, job.station_id) if job.station_id else None
-        printer_ip = station.printer_identifier if station else "192.168.1.103"
+        printer_ip = station.printer_identifier if station else "192.168.8.222"
         copy_type = job.items_data.get("copy", "station")
         if copy_type == "customer":
             items = job.items_data.get("items", [])

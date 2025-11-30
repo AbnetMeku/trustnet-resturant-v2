@@ -10,11 +10,13 @@ const categoryTranslations = {
   "Food": "ምግብ",
   "Drink": "መጠጥ",
   "Shot" : "ሾት",
-  "Alcohols": "ቦትል"
+  "Staff Martials ": "ስታፍ እቃ",
+  "Alcohols": "ውስኪ"
 };
 
 const subcategoryTranslations = {
   "Bottles": "ቦትል",
+  "Bottle": "ቦትል",
   "Wine": "ወይን",
   "Butchery": "ስጋ ቤት",
   "Feyel":"ፍየል",

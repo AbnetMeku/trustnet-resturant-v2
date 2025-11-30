@@ -12,16 +12,30 @@ export default function StationStockHistory() {
   const [loading, setLoading] = useState(false);
   const [snapshots, setSnapshots] = useState([]);
   const [stations, setStations] = useState([]);
-  const [selectedStation, setSelectedStation] = useState("");
-  const [selectedDate, setSelectedDate] = useState("");
 
-  // Load stations and default to first station
+  // hide these stations
+  const blockedStations = ["Kitchen", "Butcher"];
+
+  const [selectedStation, setSelectedStation] = useState("");
+  const [selectedDate, setSelectedDate] = useState(
+    new Date().toISOString().split("T")[0] // 🎯 default = today
+  );
+
+  // Load stations and default to the first allowed one
   useEffect(() => {
     const fetchStations = async () => {
       try {
         const res = await getStations(token);
-        setStations(res || []);
-        if (res && res.length > 0) setSelectedStation(res[0].id); // default first station
+
+        const allowedStations = (res || []).filter(
+          (s) => !blockedStations.includes(s.name.trim())
+        );
+
+        setStations(allowedStations);
+
+        if (allowedStations.length > 0) {
+          setSelectedStation(allowedStations[0].id);
+        }
       } catch (err) {
         toast.error("Failed to fetch stations");
       }
@@ -34,15 +48,19 @@ export default function StationStockHistory() {
     const fetchSnapshots = async () => {
       if (!selectedStation) return;
       setLoading(true);
+
       try {
-        const filters = {};
-        if (selectedStation) filters.station_id = selectedStation;
-        if (selectedDate) filters.snapshot_date = selectedDate;
+        const filters = {
+          station_id: selectedStation,
+          snapshot_date: selectedDate,
+        };
 
         const res = await getAllSnapshots(filters, token);
+
         const sorted = (res || []).sort(
           (a, b) => new Date(b.snapshot_date) - new Date(a.snapshot_date)
         );
+
         setSnapshots(sorted);
       } catch (err) {
         toast.error("Failed to load snapshots");
@@ -50,22 +68,24 @@ export default function StationStockHistory() {
         setLoading(false);
       }
     };
+
     fetchSnapshots();
   }, [selectedStation, selectedDate, token]);
 
   const handleReset = () => {
     if (stations.length > 0) setSelectedStation(stations[0].id);
-    setSelectedDate("");
+    setSelectedDate(new Date().toISOString().split("T")[0]); // reset to today
   };
 
   return (
     <Card className="p-6 space-y-6 bg-white dark:bg-gray-800">
       <div className="flex flex-wrap justify-between items-center gap-3">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
-          Stations Stock
+          Station Stock History
         </h2>
 
         <div className="flex flex-wrap items-center gap-3">
+
           {/* Station Picker */}
           <div className="flex flex-col">
             <label className="text-sm text-gray-600 dark:text-gray-300 mb-1">

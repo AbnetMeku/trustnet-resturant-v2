@@ -133,12 +133,12 @@ export default function StationOrders() {
                       >
                         ወቷል
                       </button>
-                      <button
+                      {/* <button
                         onClick={() => updateStatus(item.item_id, "void")}
                         className="px-4 py-2 rounded-full font-semibold text-white bg-gray-500 hover:bg-gray-400"
                       >
                         የለም
-                      </button>
+                      </button> */}
                     </>
                   )}
                   {item.status === "ready" && (

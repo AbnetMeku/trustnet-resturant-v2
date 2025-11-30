@@ -2,14 +2,10 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from app.extensions import db
 from app.models import InventoryItem, StoreStock, StationStock, StockTransfer, Station
-from app.services.inventory_service import adjust_inventory_for_addition
+from app.services.inventory_service import adjust_inventory_for_addition, get_or_create_today_snapshot
 from datetime import datetime
 
 inventory_transfer_bp = Blueprint("inventory_transfer_bp", __name__, url_prefix="/inventory/transfers")
-
-# ============================================================
-# 🔄 STOCK TRANSFER MANAGEMENT (Store → Station)
-# ============================================================
 
 # --------------------- CREATE TRANSFER --------------------- #
 @inventory_transfer_bp.route("/", methods=["POST"])
@@ -31,19 +27,23 @@ def create_transfer():
     if not station:
         return jsonify({"msg": "Station not found"}), 404
 
-    # ✅ Check store stock availability
+    # Check store stock availability
     store_stock = StoreStock.query.filter_by(inventory_item_id=inventory_item_id).first()
     if not store_stock or store_stock.quantity < quantity:
         return jsonify({"msg": "Insufficient store stock"}), 400
 
+    # Ensure today's snapshot exists BEFORE modifying station stock
+    get_or_create_today_snapshot(station.name, inventory_item_id)
+
     # Deduct from store
     store_stock.quantity -= quantity
 
-    # Add to station stock
+    # Add to station stock (create or update)
     station_stock = StationStock.query.filter_by(
         inventory_item_id=inventory_item_id,
         station_id=station_id
     ).first()
+
     if station_stock:
         station_stock.quantity += quantity
     else:
@@ -54,7 +54,10 @@ def create_transfer():
         )
         db.session.add(station_stock)
 
-    # ✅ Record transfer
+    # Update snapshot's added_quantity
+    adjust_inventory_for_addition(station.name, inventory_item_id, quantity)
+
+    # Record transfer
     transfer = StockTransfer(
         inventory_item_id=inventory_item_id,
         station_id=station_id,
@@ -63,10 +66,6 @@ def create_transfer():
         created_at=datetime.utcnow()
     )
     db.session.add(transfer)
-
-    # ✅ Update today's snapshot (live tracking)
-    adjust_inventory_for_addition(station.name, inventory_item_id, quantity)
-
     db.session.commit()
     return jsonify({"msg": "Stock transferred successfully", "transfer_id": transfer.id}), 201
 
@@ -130,17 +129,29 @@ def update_transfer(transfer_id):
     if new_quantity <= 0:
         return jsonify({"msg": "Quantity must be greater than zero"}), 400
 
-    diff = new_quantity - transfer.quantity
-    if diff == 0:
-        return jsonify({"msg": "No change in quantity"}), 200
+    station = transfer.station
 
-    # ✅ Update store stock
+    # Ensure snapshot exists BEFORE changing station stock
+    get_or_create_today_snapshot(station.name, transfer.inventory_item_id)
+
+    # Get or create store stock
     store_stock = StoreStock.query.filter_by(inventory_item_id=transfer.inventory_item_id).first()
-    if diff > 0 and (not store_stock or store_stock.quantity < diff):
-        return jsonify({"msg": "Insufficient store stock for update"}), 400
-    store_stock.quantity -= diff
+    if not store_stock:
+        store_stock = StoreStock(inventory_item_id=transfer.inventory_item_id, quantity=0)
+        db.session.add(store_stock)
+        db.session.flush()
 
-    # ✅ Update station stock
+    # Undo previous transfer
+    store_stock.quantity += transfer.quantity
+
+    # Check if store has enough for the new transfer
+    if store_stock.quantity < new_quantity:
+        return jsonify({"msg": "Insufficient store stock for update"}), 400
+
+    # Deduct new transfer quantity
+    store_stock.quantity -= new_quantity
+
+    # Update station stock
     station_stock = StationStock.query.filter_by(
         inventory_item_id=transfer.inventory_item_id,
         station_id=transfer.station_id
@@ -153,20 +164,14 @@ def update_transfer(transfer_id):
         )
         db.session.add(station_stock)
     else:
-        station_stock.quantity += diff
+        station_stock.quantity += (new_quantity - transfer.quantity)
 
-    # ✅ Update snapshot only if increased
-    station = Station.query.get(transfer.station_id)
-    if diff > 0:
-        adjust_inventory_for_addition(station.name, transfer.inventory_item_id, diff)
-    elif diff < 0:
-        # Reverse (remove from added quantity)
-        adjust_inventory_for_addition(station.name, transfer.inventory_item_id, diff)
+    # Update snapshot added_quantity
+    adjust_inventory_for_addition(station.name, transfer.inventory_item_id, new_quantity - transfer.quantity)
 
     transfer.quantity = new_quantity
     transfer.status = "Updated"
     db.session.commit()
-
     return jsonify({"msg": "Transfer updated successfully"}), 200
 
 
@@ -178,11 +183,16 @@ def delete_transfer(transfer_id):
     if not transfer:
         return jsonify({"msg": "Transfer not found"}), 404
 
-    # ✅ Reverse movement
+    station = transfer.station
+    # Ensure snapshot exists BEFORE reversing stock
+    get_or_create_today_snapshot(station.name, transfer.inventory_item_id)
+
+    # Reverse store stock
     store_stock = StoreStock.query.filter_by(inventory_item_id=transfer.inventory_item_id).first()
     if store_stock:
         store_stock.quantity += transfer.quantity
 
+    # Reverse station stock
     station_stock = StationStock.query.filter_by(
         inventory_item_id=transfer.inventory_item_id,
         station_id=transfer.station_id
@@ -190,13 +200,10 @@ def delete_transfer(transfer_id):
     if station_stock:
         station_stock.quantity -= transfer.quantity
 
-    # ✅ Reverse snapshot addition (negative)
-    station = Station.query.get(transfer.station_id)
+    # Reverse snapshot added_quantity
     adjust_inventory_for_addition(station.name, transfer.inventory_item_id, -transfer.quantity)
 
     transfer.status = "Deleted"
     db.session.delete(transfer)
     db.session.commit()
-
     return jsonify({"msg": "Transfer deleted and stock quantities adjusted"}), 200
-
