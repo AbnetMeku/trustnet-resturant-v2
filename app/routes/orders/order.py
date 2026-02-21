@@ -10,7 +10,7 @@ from collections import defaultdict
 import logging
 from app.routes.print.print_jobs import create_station_print_jobs, create_cashier_print_job 
 from sqlalchemy.exc import IntegrityError
-from app.services.inventory_service import adjust_inventory_for_order_item
+from app.services.inventory_integration import send_inventory_adjustment_or_queue
 
 
 orders_bp = Blueprint("orders_bp", __name__, url_prefix="/orders")
@@ -472,23 +472,26 @@ def update_order_item(order_id, item_id):
 
         # ---------------- Deduct stock if status changed to ready ---------------- #
         if prev_status != "ready" and data["status"] == "ready":
-                adjust_inventory_for_order_item(
-                    station_name=order_item.station,
-                    menu_item_id=order_item.menu_item_id,
-                    quantity=float(order_item.quantity))
-            # Revert inventory if moving from ready to void
-        elif prev_status == "ready" and data["status"] == "void":
-                adjust_inventory_for_order_item(
+                send_inventory_adjustment_or_queue(
                     station_name=order_item.station,
                     menu_item_id=order_item.menu_item_id,
                     quantity=float(order_item.quantity),
-                    reverse=True)
-            # Optional: handle unvoid back to ready
-        elif prev_status == "void" and data["status"] == "ready":
-                adjust_inventory_for_order_item(
+                )
+            # Revert inventory if moving from ready to void
+        elif prev_status == "ready" and data["status"] == "void":
+                send_inventory_adjustment_or_queue(
                     station_name=order_item.station,
                     menu_item_id=order_item.menu_item_id,
-                    quantity=float(order_item.quantity))
+                    quantity=float(order_item.quantity),
+                    reverse=True,
+                )
+            # Optional: handle unvoid back to ready
+        elif prev_status == "void" and data["status"] == "ready":
+                send_inventory_adjustment_or_queue(
+                    station_name=order_item.station,
+                    menu_item_id=order_item.menu_item_id,
+                    quantity=float(order_item.quantity),
+                )
                 
     # ---------------- Commit ----------------
     recalc_order_total(order)
@@ -548,11 +551,11 @@ def void_order_item(order_id, item_id):
 
         # Adjust inventory if item was previously ready
         if prev_status == "ready":
-            adjust_inventory_for_order_item(
+            send_inventory_adjustment_or_queue(
                 station_name=order_item.station,
                 menu_item_id=order_item.menu_item_id,
                 quantity=float(order_item.quantity),
-                reverse=True  # return stock
+                reverse=True,  # return stock
             )
 
         # Recalculate order total (excluding voided)
@@ -580,10 +583,10 @@ def unvoid_order_item(order_id, item_id):
 
     # Adjust inventory if previously voided
     if prev_status == "void":
-        adjust_inventory_for_order_item(
+        send_inventory_adjustment_or_queue(
             station_name=item.station,
             menu_item_id=item.menu_item_id,
-            quantity=float(item.quantity)  # deduct stock
+            quantity=float(item.quantity),  # deduct stock
         )
     db.session.commit()
     logger.info(f"Unvoided order item {item.id} in order {order_id}")

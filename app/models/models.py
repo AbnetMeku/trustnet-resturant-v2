@@ -150,3 +150,21 @@ class SubCategory(db.Model):
     __table_args__ = (
         db.UniqueConstraint('category_id', 'name', name='uq_subcategory_name_per_category'),
     )
+
+
+class InventoryOutbox(db.Model):
+    __tablename__ = "inventory_outbox"
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_type = db.Column(db.String(50), nullable=False)
+    payload = db.Column(db.JSON, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="pending")
+    retry_count = db.Column(db.Integer, nullable=False, default=0)
+    last_error = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
