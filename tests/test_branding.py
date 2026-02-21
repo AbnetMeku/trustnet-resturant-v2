@@ -1,3 +1,6 @@
+import io
+import os
+
 import pytest
 from flask_jwt_extended import create_access_token
 
@@ -6,8 +9,9 @@ from app.models.models import BrandingSettings, User
 
 
 @pytest.fixture
-def app():
+def app(tmp_path):
     app = create_app("testing")
+    app.config["BRANDING_UPLOAD_DIR"] = str(tmp_path / "branding")
     with app.app_context():
         db.create_all()
         yield app
@@ -71,3 +75,29 @@ def test_waiter_cannot_update_branding(client, app):
         headers=auth_headers(token),
     )
     assert response.status_code == 403
+
+
+def test_admin_can_upload_logo_asset(client, app):
+    with app.app_context():
+        admin = User(username="admin_upload_brand", password_hash="hash", role="admin")
+        db.session.add(admin)
+        db.session.commit()
+        token = create_access_token(identity=str(admin.id), additional_claims={"role": "admin"})
+
+    response = client.post(
+        "/api/branding/upload/logo",
+        data={"file": (io.BytesIO(b"\x89PNG\r\n\x1a\n"), "logo.png", "image/png")},
+        headers=auth_headers(token),
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["custom_logo_url"].startswith("/api/branding/assets/logo_")
+
+    asset_response = client.get(data["custom_logo_url"])
+    assert asset_response.status_code == 200
+    assert asset_response.data.startswith(b"\x89PNG")
+
+    saved_name = os.path.basename(data["custom_logo_url"])
+    expected_path = os.path.join(app.config["BRANDING_UPLOAD_DIR"], saved_name)
+    assert os.path.exists(expected_path)

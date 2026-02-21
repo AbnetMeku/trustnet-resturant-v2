@@ -27,3 +27,15 @@ export const updateBrandingSettings = async (brandingData, token = null) => {
   });
   return { ...DEFAULT_BRANDING, ...(res.data || {}) };
 };
+
+export const uploadBrandingAsset = async (assetType, file, token = null) => {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await axios.post(`${BASE_URL}/upload/${assetType}`, formData, {
+    headers: {
+      ...getAuthHeader(token),
+    },
+  });
+  return { ...DEFAULT_BRANDING, ...(res.data || {}) };
+};

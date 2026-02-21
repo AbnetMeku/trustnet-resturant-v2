@@ -5,11 +5,18 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { DEFAULT_BRANDING, getBrandingSettings, updateBrandingSettings } from "@/api/branding";
+import {
+  DEFAULT_BRANDING,
+  getBrandingSettings,
+  updateBrandingSettings,
+  uploadBrandingAsset,
+} from "@/api/branding";
 
 export default function BrandingManagement() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingBackground, setUploadingBackground] = useState(false);
   const [form, setForm] = useState({
     logo_url: "",
     background_url: "",
@@ -68,6 +75,26 @@ export default function BrandingManagement() {
     }
   };
 
+  const handleUpload = async (assetType, file) => {
+    if (!file) return;
+
+    const setLoadingState = assetType === "logo" ? setUploadingLogo : setUploadingBackground;
+    setLoadingState(true);
+    try {
+      const data = await uploadBrandingAsset(assetType, file);
+      setForm({
+        logo_url: data.custom_logo_url || "",
+        background_url: data.custom_background_url || "",
+      });
+      setPreview(data);
+      toast.success(`${assetType === "logo" ? "Logo" : "Background"} uploaded`);
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Upload failed");
+    } finally {
+      setLoadingState(false);
+    }
+  };
+
   if (loading) {
     return <div className="text-sm text-gray-500 dark:text-gray-300">Loading branding settings...</div>;
   }
@@ -76,6 +103,44 @@ export default function BrandingManagement() {
     <div className="space-y-4">
       <Card className="p-4 space-y-4">
         <div>
+          <Label htmlFor="branding-logo-upload">Upload Logo (offline recommended)</Label>
+          <Input
+            id="branding-logo-upload"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              handleUpload("logo", file);
+              e.target.value = "";
+            }}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Allowed: PNG, JPG, JPEG, WEBP (max 5 MB).
+          </p>
+          {uploadingLogo && <p className="text-xs text-blue-600 mt-1">Uploading logo...</p>}
+        </div>
+
+        <div>
+          <Label htmlFor="branding-background-upload">Upload Background (offline recommended)</Label>
+          <Input
+            id="branding-background-upload"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              handleUpload("background", file);
+              e.target.value = "";
+            }}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Allowed: PNG, JPG, JPEG, WEBP (max 5 MB).
+          </p>
+          {uploadingBackground && (
+            <p className="text-xs text-blue-600 mt-1">Uploading background...</p>
+          )}
+        </div>
+
+        <div>
           <Label htmlFor="branding-logo">Logo URL</Label>
           <Input
             id="branding-logo"
@@ -83,7 +148,9 @@ export default function BrandingManagement() {
             value={form.logo_url}
             onChange={(e) => handleChange("logo_url", e.target.value)}
           />
-          <p className="text-xs text-gray-500 mt-1">Leave empty to use default `/logo.png`.</p>
+          <p className="text-xs text-gray-500 mt-1">
+            Optional. Leave empty to use default `/logo.png`.
+          </p>
         </div>
 
         <div>
@@ -94,7 +161,9 @@ export default function BrandingManagement() {
             value={form.background_url}
             onChange={(e) => handleChange("background_url", e.target.value)}
           />
-          <p className="text-xs text-gray-500 mt-1">Leave empty to use default `/Background.jpeg`.</p>
+          <p className="text-xs text-gray-500 mt-1">
+            Optional. Leave empty to use default `/Background.jpeg`.
+          </p>
         </div>
 
         <Button onClick={handleSave} disabled={saving}>

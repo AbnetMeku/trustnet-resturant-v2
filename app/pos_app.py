@@ -1,5 +1,6 @@
 from flask import Flask
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
 
@@ -20,6 +21,10 @@ def create_pos_app(config_name="development"):
     config_class = config_map.get(config_name, DevelopmentConfig)
     app.config.from_object(config_class)
     app.url_map.strict_slashes = False
+    app.config.setdefault(
+        "BRANDING_UPLOAD_DIR",
+        os.path.join(app.root_path, "static", "branding"),
+    )
 
     db.init_app(app)
     migrate.init_app(app, db)

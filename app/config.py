@@ -22,6 +22,7 @@ class Config:
     INVENTORY_OUTBOX_RETRY_INTERVAL_SECONDS = int(
         os.environ.get("INVENTORY_OUTBOX_RETRY_INTERVAL_SECONDS", "10")
     )
+    BRANDING_MAX_UPLOAD_BYTES = int(os.environ.get("BRANDING_MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
 
 class DevelopmentConfig(Config):
     DEBUG = True
