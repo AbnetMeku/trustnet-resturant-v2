@@ -75,6 +75,9 @@ def create_pos_app(config_name="development"):
     from .routes.orders.order_history import order_history_bp
     register_api(order_history_bp)
 
+    from .routes.branding.branding import branding_bp
+    register_api(branding_bp)
+
     if not app.config.get("TESTING"):
         start_inventory_outbox_worker(app)
 

@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/context/AuthContext";
+import { useBranding } from "@/hooks/useBranding";
 
 import OpenOrders from "@/components/cashiers/OpenOrders";
 import ClosedOrders from "@/components/cashiers/ClosedOrders";
@@ -20,6 +21,7 @@ import WaiterSummaryReport from "@/components/admin/WaiterSummaryReport";
 
 export default function CashierDashboard() {
   const { user, logout } = useAuth();
+  const branding = useBranding();
   const [active, setActive] = useState("openOrders");
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 900);
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
@@ -75,7 +77,7 @@ export default function CashierDashboard() {
           {/* Sidebar Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center space-x-2">
-              <img src="/logo.png" alt="Logo" className="w-8 h-8" />
+              <img src={branding.logo_url} alt="Logo" className="w-8 h-8 object-contain" />
               {!isMobile && sidebarOpen && (
                 <span className="font-bold text-lg">Cashier Panel</span>
               )}

@@ -3,9 +3,11 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { FaBackspace } from 'react-icons/fa';
+import { useBranding } from '@/hooks/useBranding';
 
 export default function StationLogin() {
   const { loginStation } = useAuth();
+  const branding = useBranding();
   const navigate = useNavigate();
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
@@ -56,11 +58,11 @@ const handleSubmit = async (submittedPin = pin) => {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center p-4 md:p-8">
-      <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/Background.jpeg')" }}></div>
+      <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${branding.background_url}')` }}></div>
       <div className="absolute inset-0 bg-black opacity-60"></div>
 
       <div className="relative z-10 bg-white/20 backdrop-blur-md shadow-2xl rounded-xl p-6 md:p-10 w-full max-w-xs md:max-w-sm flex flex-col items-center">
-        <img src="/logo.png" alt="TrustNet Logo" className="w-20 md:w-24 mx-auto mb-6" />
+        <img src={branding.logo_url} alt="TrustNet Logo" className="w-20 md:w-24 mx-auto mb-6 object-contain" />
         <h2 className="text-2xl md:text-3xl font-bold mb-4 text-center text-white">ማዘጋጃ ስፍራ ቁጥር</h2>
         {error && <p className="text-red-500 text-center mb-4 text-sm md:text-base">{error}</p>}
 

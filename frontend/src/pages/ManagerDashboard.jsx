@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { useBranding } from "@/hooks/useBranding";
 
 import UserManagement from "@/components/admin/UserManagement";
 import TableManagement from "@/components/admin/TableManagement";
@@ -18,6 +19,7 @@ import MenuManagement from "@/components/admin/MenuManagement";
 
 export default function ManagerDashboard() {
   const { user, logout } = useAuth();
+  const branding = useBranding();
   const navigate = useNavigate();
   const [active, setActive] = useState("overview");
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 900);
@@ -82,7 +84,7 @@ export default function ManagerDashboard() {
           {/* Sidebar Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center space-x-2">
-              <img src="/logo.png" alt="Logo" className="w-8 h-8" />
+              <img src={branding.logo_url} alt="Logo" className="w-8 h-8 object-contain" />
               {!isMobile && sidebarOpen && (
                 <span className="font-bold text-lg">Manager Panel</span>
               )}

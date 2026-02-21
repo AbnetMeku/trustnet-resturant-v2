@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useBranding } from '@/hooks/useBranding';
 
 export default function Login() {
   const { login } = useAuth();
+  const branding = useBranding();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -46,7 +48,7 @@ export default function Login() {
       {/* Background */}
       <div
         className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: "url('/Background.jpeg')" }}
+        style={{ backgroundImage: `url('${branding.background_url}')` }}
       ></div>
       <div className="absolute inset-0 bg-black opacity-60"></div>
 
@@ -55,7 +57,7 @@ export default function Login() {
         onSubmit={handleSubmit}
         className="relative z-10 bg-white/20 backdrop-blur-md shadow-2xl rounded-xl p-6 md:p-10 w-full max-w-xs md:max-w-sm transform transition-transform duration-500 ease-out scale-95 animate-fade-in flex flex-col items-center"
       >
-        <img src="/logo.png" alt="TrustNet Logo" className="w-20 md:w-24 mx-auto mb-6" />
+        <img src={branding.logo_url} alt="TrustNet Logo" className="w-20 md:w-24 mx-auto mb-6 object-contain" />
         <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center text-white">
           Sign In
         </h2>

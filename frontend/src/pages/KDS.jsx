@@ -9,12 +9,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { useBranding } from "@/hooks/useBranding";
 
 import StationOrders from "@/components/station/StationOrders";
 import StationHistory from "@/components/station/StationHistory";
 
 export default function StationDashboard() {
   const { station, logout } = useAuth();
+  const branding = useBranding();
   const navigate = useNavigate();
 
   const [active, setActive] = useState("orders");
@@ -73,7 +75,7 @@ export default function StationDashboard() {
             </button>
 
             <img
-              src="/logo.png"
+              src={branding.logo_url}
               alt="Logo"
               className="w-7 h-7 sm:w-8 sm:h-8 object-contain"
             />

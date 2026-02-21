@@ -10,6 +10,7 @@ import {
   FaPrint,
   FaFileAlt,
   FaBoxes,
+  FaPalette,
 } from "react-icons/fa";
 
 import { Button } from "@/components/ui/button";
@@ -25,9 +26,12 @@ import SalesSummaryReport from "@/components/admin/SalesSummaryReport";
 import OverView from "@/components/admin/OverView";
 import OrderTracker from "@/components/admin/OrderTracker";
 import PrintJobs from "@/components/admin/PrintJobs";
+import BrandingManagement from "@/components/admin/BrandingManagement";
+import { useBranding } from "@/hooks/useBranding";
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
+  const branding = useBranding();
   const navigate = useNavigate();
   const [active, setActive] = useState("overview");
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 900);
@@ -74,6 +78,7 @@ export default function AdminDashboard() {
     { id: "menu", icon: FaUtensils, label: "Menu" },
     { id: "order", icon: FaReceipt, label: "Order Tracker" },
     { id: "print", icon: FaPrint, label: "Print Jobs" },
+    { id: "branding", icon: FaPalette, label: "Branding" },
     { id: "reports", icon: FaFileAlt, label: "Reports" },
     { id: "inventory", icon: FaBoxes, label: "Inventory" },
   ];
@@ -91,7 +96,7 @@ export default function AdminDashboard() {
         >
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center space-x-2">
-              <img src="/logo.png" alt="Logo" className="w-8 h-8" />
+              <img src={branding.logo_url} alt="Logo" className="w-8 h-8 object-contain" />
               {!isMobile && sidebarOpen && (
                 <span className="font-bold text-lg">Admin Panel</span>
               )}
@@ -197,6 +202,13 @@ export default function AdminDashboard() {
             {active === "print" && (
               <Card className="p-6 w-full overflow-auto max-h-[80vh]">
                 <PrintJobs />
+              </Card>
+            )}
+
+            {active === "branding" && (
+              <Card className="p-6 w-full overflow-auto max-h-[80vh]">
+                <h2 className="text-xl font-bold mb-4">Branding</h2>
+                <BrandingManagement />
               </Card>
             )}
           </main>

@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { useBranding } from "@/hooks/useBranding";
 
 import OrdersHub from "@/components/waiter/OrdersHub";
 import HistoryPage from "@/components/waiter/HistoryPage";
@@ -17,6 +18,7 @@ import MyTables from "@/components/waiter/MyTables";
 
 export default function WaiterDashboard() {
   const { user, logout } = useAuth();
+  const branding = useBranding();
   const navigate = useNavigate();
 
   const [active, setActive] = useState("orders");
@@ -72,7 +74,7 @@ export default function WaiterDashboard() {
             </button>
 
             {/* Logo */}
-            <img src="/logo.png" alt="Logo" className="w-7 h-7 sm:w-8 sm:h-8" />
+            <img src={branding.logo_url} alt="Logo" className="w-7 h-7 sm:w-8 sm:h-8 object-contain" />
             {/* <span className="font-bold text-base sm:text-lg hidden sm:inline">
               Waiter Panel
             </span> */}

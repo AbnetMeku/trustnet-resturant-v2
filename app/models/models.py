@@ -155,6 +155,15 @@ class SubCategory(db.Model):
     )
 
 
+class BrandingSettings(db.Model):
+    __tablename__ = "branding_settings"
+
+    id = db.Column(db.Integer, primary_key=True, default=1)
+    logo_url = db.Column(db.Text, nullable=True)
+    background_url = db.Column(db.Text, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class InventoryOutbox(db.Model):
     __tablename__ = "inventory_outbox"
 
