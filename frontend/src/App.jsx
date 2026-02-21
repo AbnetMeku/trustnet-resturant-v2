@@ -8,6 +8,7 @@ import WaiterDashboard from './pages/WaiterDashboard';
 import WaiterLogin from './pages/WaiterLogin';
 import StationLogin from './pages/StationLogin';
 import KDS from './pages/KDS';
+import InventoryDashboard from './pages/InventoryDashboard';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Toaster } from "react-hot-toast";
 // ----------------- Protected Route for normal users ----------------- //
@@ -71,6 +72,14 @@ function App() {
             element={
               <ProtectedRoute roles={['cashier']}>
                 <CashierDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inventory"
+            element={
+              <ProtectedRoute roles={['admin', 'manager']}>
+                <InventoryDashboard />
               </ProtectedRoute>
             }
           />

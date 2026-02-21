@@ -1,12 +1,21 @@
 import React, { useState, useEffect } from "react";
 import {
-  FaUserPlus, FaTable, FaStore, FaUtensils, FaBars, FaChartBar,
-  FaUsers, FaReceipt, FaPrint, FaFileAlt, FaBoxes, FaCashRegister
+  FaTable,
+  FaStore,
+  FaUtensils,
+  FaBars,
+  FaChartBar,
+  FaUsers,
+  FaReceipt,
+  FaPrint,
+  FaFileAlt,
+  FaBoxes,
 } from "react-icons/fa";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 import UserManagement from "@/components/admin/UserManagement";
 import TableManagement from "@/components/admin/TableManagement";
@@ -14,24 +23,19 @@ import StationManagement from "@/components/admin/StationManagement";
 import MenuManagement from "@/components/admin/MenuManagement";
 import SalesSummaryReport from "@/components/admin/SalesSummaryReport";
 import OverView from "@/components/admin/OverView";
-import OrderTracker from "@/components/admin/OrderTracker"; 
-import PrintJobs from "@/components/admin/PrintJobs"; 
-import PurchaseManagement from "@/components/inventory/PurchaseManagement";
-import TransferManagement from "@/components/inventory/TransferManagement";
-import StoreStationView from "@/components/inventory/ViewStock";
-import InventoryItemManagement from "@/components/inventory/InventoryItemManagement";
+import OrderTracker from "@/components/admin/OrderTracker";
+import PrintJobs from "@/components/admin/PrintJobs";
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [active, setActive] = useState("overview");
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 900);
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [darkMode, setDarkMode] = useState(
     localStorage.getItem("darkMode") === "true" || false
   );
-  const [expandedMenu, setExpandedMenu] = useState(null);
 
-  // ---------------- Handle resize ----------------
   useEffect(() => {
     const onResize = () => {
       const mobile = window.innerWidth <= 900;
@@ -44,7 +48,6 @@ export default function AdminDashboard() {
     return () => window.removeEventListener("resize", onResize);
   }, [sidebarOpen]);
 
-  // ---------------- Toggle Dark Mode ----------------
   const toggleDarkMode = () => {
     setDarkMode((prev) => {
       localStorage.setItem("darkMode", !prev);
@@ -52,19 +55,17 @@ export default function AdminDashboard() {
     });
   };
 
-  // ---------------- Sidebar Toggle ----------------
   const toggleSidebar = () => setSidebarOpen((prev) => !prev);
 
   const handleSelect = (id) => {
+    if (id === "inventory") {
+      navigate("/inventory");
+      return;
+    }
     setActive(id);
     if (isMobile) setSidebarOpen(false);
   };
 
-  const toggleExpand = (id) => {
-    setExpandedMenu(expandedMenu === id ? null : id);
-  };
-
-  // ---------------- Sidebar Items ----------------
   const menuItems = [
     { id: "overview", icon: FaChartBar, label: "Overview" },
     { id: "users", icon: FaUsers, label: "Users" },
@@ -74,26 +75,12 @@ export default function AdminDashboard() {
     { id: "order", icon: FaReceipt, label: "Order Tracker" },
     { id: "print", icon: FaPrint, label: "Print Jobs" },
     { id: "reports", icon: FaFileAlt, label: "Reports" },
-
-    // Inventory with new submenus
-    {
-      id: "inventory",
-      icon: FaBoxes,
-      label: "Inventory",
-      children: [
-        { id: "inventory-register", label: "Register" },
-        { id: "inventory-add", label: "Purchase" },
-        { id: "inventory-transfer", label: "Transfer" },
-        { id: "inventory-view", label: "View Stock" },
-      ],
-    },
+    { id: "inventory", icon: FaBoxes, label: "Inventory" },
   ];
 
   return (
     <div className={darkMode ? "dark" : ""}>
       <div className="flex h-screen w-screen overflow-hidden bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-
-        {/* ---------------- Sidebar ---------------- */}
         <aside
           className={`
             fixed md:relative z-30 top-0 left-0 h-full md:h-auto
@@ -102,7 +89,6 @@ export default function AdminDashboard() {
             ${isMobile ? (sidebarOpen ? "w-64" : "w-0") : sidebarOpen ? "w-64" : "w-16"}
           `}
         >
-          {/* Sidebar Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center space-x-2">
               <img src="/logo.png" alt="Logo" className="w-8 h-8" />
@@ -112,69 +98,23 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Sidebar Menu */}
           <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar">
-            {menuItems.map((item) => {
-              if (item.children) {
-                return (
-                  <div key={item.id}>
-                    {/* Parent item */}
-                    <div
-                      className={`flex items-center justify-between cursor-pointer px-4 py-3 rounded-md mx-2 mb-2
-                        hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors
-                        ${expandedMenu === item.id ? "bg-gray-300 dark:bg-gray-700 font-semibold" : ""}
-                      `}
-                      onClick={() => toggleExpand(item.id)}
-                    >
-                      <div className="flex items-center">
-                        <item.icon className="text-lg" />
-                        {sidebarOpen && <span className="ml-3">{item.label}</span>}
-                      </div>
-                      {sidebarOpen && (
-                        <span className="text-sm">{expandedMenu === item.id ? "▾" : "▸"}</span>
-                      )}
-                    </div>
-
-                    {/* Children items */}
-                    {expandedMenu === item.id && sidebarOpen && (
-                      <div className="ml-8">
-                        {item.children.map((child) => (
-                          <div
-                            key={child.id}
-                            className={`cursor-pointer px-4 py-2 rounded-md mb-1
-                              hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors
-                              ${active === child.id ? "bg-gray-300 dark:bg-gray-700 font-semibold" : ""}
-                            `}
-                            onClick={() => handleSelect(child.id)}
-                          >
-                            {child.label}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-
-              // Regular item
-              return (
-                <div
-                  key={item.id}
-                  className={`flex items-center cursor-pointer px-4 py-3 rounded-md mx-2 mb-2
-                    hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors
-                    ${active === item.id ? "bg-gray-300 dark:bg-gray-700 font-semibold" : ""}
-                  `}
-                  onClick={() => handleSelect(item.id)}
-                >
-                  <item.icon className="text-lg" />
-                  {sidebarOpen && <span className="ml-3">{item.label}</span>}
-                </div>
-              );
-            })}
+            {menuItems.map((item) => (
+              <div
+                key={item.id}
+                className={`flex items-center cursor-pointer px-4 py-3 rounded-md mx-2 mb-2
+                  hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors
+                  ${active === item.id ? "bg-gray-300 dark:bg-gray-700 font-semibold" : ""}
+                `}
+                onClick={() => handleSelect(item.id)}
+              >
+                <item.icon className="text-lg" />
+                {sidebarOpen && <span className="ml-3">{item.label}</span>}
+              </div>
+            ))}
           </nav>
         </aside>
 
-        {/* Backdrop for mobile */}
         {isMobile && sidebarOpen && (
           <div
             className="fixed inset-0 bg-black/50 z-20 md:hidden"
@@ -182,9 +122,7 @@ export default function AdminDashboard() {
           />
         )}
 
-        {/* ---------------- Main Content ---------------- */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Topbar */}
           <header className="flex justify-between items-center bg-white dark:bg-gray-800 shadow px-4 py-3">
             <div className="flex items-center space-x-4">
               <button
@@ -208,7 +146,6 @@ export default function AdminDashboard() {
             </div>
           </header>
 
-          {/* Content Area */}
           <main className="flex-1 overflow-y-auto overflow-x-hidden p-4">
             {active === "overview" && (
               <Card className="p-6 w-full">
@@ -262,37 +199,6 @@ export default function AdminDashboard() {
                 <PrintJobs />
               </Card>
             )}
-
-            {/* Inventory Views */}
-            {active === "inventory-register" && (
-              <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Register</h2>
-                <InventoryItemManagement />
-              </Card>
-            )}
-            
-            {active === "inventory-add" && (
-              <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Purchase</h2>
-                <PurchaseManagement />
-              </Card>
-            )}
-
-            {active === "inventory-transfer" && (
-              <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Transfer</h2>
-                <TransferManagement />
-              </Card>
-            )}
-
-            {active === "inventory-view" && (
-              <Card className="p-6 w-full">
-                {/* <h2 className="text-xl font-bold mb-4">Store & Station Stock</h2> */}
-                <StoreStationView />
-              </Card>
-            )}
-
-
           </main>
         </div>
       </div>

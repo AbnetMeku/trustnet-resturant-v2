@@ -7,7 +7,6 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.extensions import db
 from app.models.models import InventoryOutbox
-from app.services.inventory_service import adjust_inventory_for_order_item
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +21,6 @@ def _service_headers() -> dict:
         "Content-Type": "application/json",
         "X-Service-Key": current_app.config.get("INVENTORY_SERVICE_KEY", ""),
     }
-
-
-def _integration_mode() -> str:
-    return str(current_app.config.get("INVENTORY_INTEGRATION_MODE", "local")).lower()
 
 
 def _queue_outbox_event(event_type: str, payload: dict, error_message: Optional[str] = None) -> None:
@@ -65,15 +60,6 @@ def send_inventory_adjustment_or_queue(
     timeout = current_app.config.get("INVENTORY_SYNC_TIMEOUT_SECONDS", 2)
     url = _inventory_adjust_url()
     try:
-        if _integration_mode() == "local":
-            adjust_inventory_for_order_item(
-                station_name=station_name,
-                menu_item_id=int(menu_item_id),
-                quantity=float(quantity),
-                reverse=bool(reverse),
-            )
-            return
-
         resp = requests.post(
             url,
             json=payload,
@@ -124,28 +110,18 @@ def process_inventory_outbox_batch() -> int:
                 processed += 1
                 continue
 
-            if _integration_mode() == "local":
-                adjust_inventory_for_order_item(
-                    station_name=event.payload.get("station_name"),
-                    menu_item_id=int(event.payload.get("menu_item_id")),
-                    quantity=float(event.payload.get("quantity")),
-                    reverse=bool(event.payload.get("reverse", False)),
-                )
+            resp = requests.post(
+                _inventory_adjust_url(),
+                json=event.payload,
+                headers=_service_headers(),
+                timeout=timeout,
+            )
+            if 200 <= resp.status_code < 300:
                 event.status = "sent"
                 event.last_error = None
             else:
-                resp = requests.post(
-                    _inventory_adjust_url(),
-                    json=event.payload,
-                    headers=_service_headers(),
-                    timeout=timeout,
-                )
-                if 200 <= resp.status_code < 300:
-                    event.status = "sent"
-                    event.last_error = None
-                else:
-                    event.retry_count = (event.retry_count or 0) + 1
-                    event.last_error = f"HTTP {resp.status_code}"
+                event.retry_count = (event.retry_count or 0) + 1
+                event.last_error = f"HTTP {resp.status_code}"
             db.session.commit()
             processed += 1
         except Exception as exc:

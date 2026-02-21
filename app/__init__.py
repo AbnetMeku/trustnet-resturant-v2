@@ -1,108 +1,15 @@
-from dotenv import load_dotenv
-load_dotenv()
+from .extensions import db, jwt, migrate
+from .inventory_app import create_inventory_app
+from .pos_app import create_pos_app
 
-from flask import Flask
-from flask_cors import CORS
-from .config import DevelopmentConfig, TestingConfig, ProductionConfig
-from .extensions import db, migrate, jwt
-from .routes.cors.cors_setup import init_cors
-from .workers.outbox_worker import start_inventory_outbox_worker
+# Backward-compatible default app factory now points to POS service.
+create_app = create_pos_app
 
-config_map = {
-    "development": DevelopmentConfig,
-    "testing": TestingConfig,
-    "production": ProductionConfig,
-}
-
-def create_app(config_name="development"):
-    app = Flask(__name__)
-    config_class = config_map.get(config_name, DevelopmentConfig)
-    app.config.from_object(config_class)
-
-    # Ignore trailing slashes globally
-    app.url_map.strict_slashes = False
-
-    db.init_app(app)
-    migrate.init_app(app, db)
-    jwt.init_app(app)
-    init_cors(app)
-    
-    # Ensure models are imported
-    from . import models
-    from .models import inventory_models
-
-
-    # Helper function to register blueprints under /api
-    def register_api(bp):
-        prefix = "/api" + (bp.url_prefix or "")
-        app.register_blueprint(bp, url_prefix=prefix)
-
-    # ------------------- Register Blueprints -------------------
-    from .routes import main_bp
-    register_api(main_bp)
-
-    from .routes.auth.auth import auth_bp
-    register_api(auth_bp)
-
-    from .routes.users.users import users_bp
-    register_api(users_bp)
-
-    from .routes.tables.tables import tables_bp
-    register_api(tables_bp)
-    
-    from .routes.menu_items.menu_items import menu_items_bp
-    register_api(menu_items_bp)
-
-    from .routes.stations.stations import stations_bp
-    register_api(stations_bp)
-
-    from .routes.orders.order import orders_bp
-    register_api(orders_bp)
-
-    from .routes.stations.auth import stations_auth_bp
-    register_api(stations_auth_bp)
-
-    from .routes.stations.kds import stations_kds_bp
-    register_api(stations_kds_bp)
-
-    from .routes.categories.categories import categories_bp
-    register_api(categories_bp)
-
-    from .routes.categories.subcategories import subcategories_bp
-    register_api(subcategories_bp)
-
-    from .routes.reports.sales import reports_bp
-    register_api(reports_bp)
-
-    from .routes.print.print_jobs import print_jobs_bp
-    register_api(print_jobs_bp)
-
-    from .routes.orders.order_history import order_history_bp
-    register_api(order_history_bp)
- 
-# ------------------- Inventory Blueprint ------------------- #
-    # from .routes.inventory.inventory import inventory_bp
-    # register_api(inventory_bp)
-
-    from .routes.inventory.items import inventory_items_bp
-    register_api(inventory_items_bp)
-
-    from .routes.inventory.purchases import inventory_purchase_bp
-    register_api(inventory_purchase_bp)
-
-    from .routes.inventory.transfers import inventory_transfer_bp
-    register_api(inventory_transfer_bp)   
-
-    from .routes.inventory.stock import inventory_stock_bp
-    register_api(inventory_stock_bp)
-
-    from .routes.inventory.snapshots import inventory_snapshot_bp
-    register_api(inventory_snapshot_bp)    
-
-    from .routes.inventory.internal import inventory_internal_bp
-    register_api(inventory_internal_bp)
-
-    if not app.config.get("TESTING"):
-        start_inventory_outbox_worker(app)
-
-    return app
+__all__ = [
+    "create_app",
+    "create_pos_app",
+    "create_inventory_app",
+    "db",
+    "migrate",
+    "jwt",
+]

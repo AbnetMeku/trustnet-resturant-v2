@@ -5,10 +5,12 @@ import {
   FaUtensils,
   FaBars,
   FaChartBar,
+  FaBoxes,
 } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 import UserManagement from "@/components/admin/UserManagement";
 import TableManagement from "@/components/admin/TableManagement";
@@ -16,6 +18,7 @@ import MenuManagement from "@/components/admin/MenuManagement";
 
 export default function ManagerDashboard() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [active, setActive] = useState("overview");
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 900);
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
@@ -45,6 +48,10 @@ export default function ManagerDashboard() {
   const toggleSidebar = () => setSidebarOpen((prev) => !prev);
 
   const handleSelect = (id) => {
+    if (id === "inventory") {
+      navigate("/inventory");
+      return;
+    }
     setActive(id);
     if (isMobile) setSidebarOpen(false);
   };
@@ -56,6 +63,7 @@ export default function ManagerDashboard() {
     { id: "tables", icon: FaTable, label: "Tables" },
     { id: "menu", icon: FaUtensils, label: "Menu" },
     { id: "reports", icon: FaBars, label: "Reports" },
+    { id: "inventory", icon: FaBoxes, label: "Inventory" },
   ];
 
   return (

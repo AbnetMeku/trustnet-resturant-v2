@@ -1,13 +1,11 @@
 # TrustNet Restaurant - POS / Inventory Split (Phase 1)
 
-This repository now supports running POS and Inventory as separate Flask services while keeping the same database.
+This repository runs POS and Inventory as separate Flask services while keeping the same database.
 
 ## Services
 
 - POS service: `run_pos.py` (default port `5000`)
 - Inventory service: `run_inventory.py` (default port `5001`)
-
-The old combined app entry (`run.py`) is still available.
 
 ## Environment Variables
 
@@ -22,8 +20,7 @@ Required existing DB/env vars:
 
 New integration vars:
 
-- `INVENTORY_BASE_URL` (default: `http://127.0.0.1:5000` for combined mode, set `http://127.0.0.1:5001` for split mode)
-- `INVENTORY_INTEGRATION_MODE` (`local` by default, set `remote` for split mode)
+- `INVENTORY_BASE_URL` (default: `http://127.0.0.1:5001`)
 - `INVENTORY_SERVICE_KEY` (shared secret between services)
 - `INVENTORY_SYNC_TIMEOUT_SECONDS` (default: `2`)
 - `INVENTORY_OUTBOX_BATCH_SIZE` (default: `50`)
@@ -31,7 +28,7 @@ New integration vars:
 
 ## How POS-Inventory Communication Works
 
-1. POS tries to send inventory adjustment to Inventory service over HTTP.
+1. POS sends inventory adjustment to Inventory service over HTTP.
 2. If Inventory service is down/unreachable, POS writes the event into `inventory_outbox`.
 3. A background worker in POS retries pending outbox events.
 
