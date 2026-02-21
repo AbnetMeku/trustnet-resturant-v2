@@ -206,6 +206,7 @@ def create_order():
     menu_items = {
         mi.id: mi for mi in db.session.query(MenuItem).filter(MenuItem.id.in_(menu_item_ids)).all()
     }
+    created_item_ids = []
 
     for payload in items_data:
         menu_item_id = payload.get("menu_item_id")
@@ -254,11 +255,13 @@ def create_order():
             status="pending",
         )
         db.session.add(order_item)
+        db.session.flush()
+        created_item_ids.append(order_item.id)
 
     recalc_order_total(order)
     try:
         db.session.commit()
-        create_station_print_jobs(order)  # enqueue print jobs per station
+        create_station_print_jobs(order, only_new_items=True, item_ids=created_item_ids)
         logger.info(f"Created order {order.id} for table {table_id} by user {user_id}")
     except IntegrityError:
         db.session.rollback()
@@ -296,6 +299,7 @@ def add_order_item(order_id):
 
     menu_item_ids = [payload.get("menu_item_id") for payload in items_data]
     menu_items = {mi.id: mi for mi in db.session.query(MenuItem).filter(MenuItem.id.in_(menu_item_ids)).all()}
+    created_item_ids = []
 
     for payload in items_data:
         menu_item_id = payload.get("menu_item_id")
@@ -341,11 +345,13 @@ def add_order_item(order_id):
             status=status,
         )
         db.session.add(order_item)
+        db.session.flush()
+        created_item_ids.append(order_item.id)
 
     recalc_order_total(order)
     try:
         db.session.commit()
-        create_station_print_jobs(order, only_new_items=True)  # enqueue print jobs per station for new items only
+        create_station_print_jobs(order, only_new_items=True, item_ids=created_item_ids)
         logger.info(f"Added items to order {order.id} by user {user_id}")
     except Exception as e:
         db.session.rollback()

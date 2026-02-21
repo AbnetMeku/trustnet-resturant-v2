@@ -6,6 +6,7 @@ import {
   FaUserCircle,
   FaBars,
   FaTimes,
+  FaPrint,
 } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "../context/AuthContext";
@@ -15,6 +16,7 @@ import { useBranding } from "@/hooks/useBranding";
 import OrdersHub from "@/components/waiter/OrdersHub";
 import HistoryPage from "@/components/waiter/HistoryPage";
 import MyTables from "@/components/waiter/MyTables";
+import PrintFailures from "@/components/waiter/PrintFailures";
 
 export default function WaiterDashboard() {
   const { user, logout } = useAuth();
@@ -53,18 +55,17 @@ export default function WaiterDashboard() {
   };
 
   const menuSections = [
-    { id: "orders", icon: FaUtensils, label: "ማዘዣ" },
-    { id: "history", icon: FaHistory, label: "የቀኑ የተዘጉ ትዕዛዝ" },
-    { id: "tables", icon: FaTable, label: "ጠረጴዛዎች" },
+    { id: "orders", icon: FaUtensils, label: "Orders" },
+    { id: "history", icon: FaHistory, label: "History" },
+    { id: "tables", icon: FaTable, label: "Tables" },
+    { id: "prints", icon: FaPrint, label: "Prints" },
   ];
 
   return (
     <div className={darkMode ? "dark" : ""}>
       <div className="flex flex-col h-screen w-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-        {/* Top bar */}
         <header className="flex items-center justify-between bg-white dark:bg-gray-800 shadow px-3 sm:px-4 py-2 sm:py-3">
           <div className="flex items-center space-x-3 sm:space-x-4">
-            {/* Hamburger for small screens */}
             <button
               className="block md:hidden p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
               onClick={() => setMobileMenuOpen((open) => !open)}
@@ -73,14 +74,9 @@ export default function WaiterDashboard() {
               {mobileMenuOpen ? <FaTimes /> : <FaBars />}
             </button>
 
-            {/* Logo */}
             <img src={branding.logo_url} alt="Logo" className="w-7 h-7 sm:w-8 sm:h-8 object-contain" />
-            {/* <span className="font-bold text-base sm:text-lg hidden sm:inline">
-              Waiter Panel
-            </span> */}
           </div>
 
-          {/* Tablet/Desktop Menu */}
           <nav className="hidden md:flex space-x-3 lg:space-x-5">
             {menuSections.map(({ id, icon: Icon, label }) => (
               <button
@@ -98,7 +94,6 @@ export default function WaiterDashboard() {
             ))}
           </nav>
 
-          {/* User controls */}
           <div className="flex items-center space-x-2 sm:space-x-3">
             <span className="hidden sm:inline text-sm md:text-base">
               Hello, <strong>{user?.username || "Waiter"}</strong>
@@ -123,7 +118,6 @@ export default function WaiterDashboard() {
           </div>
         </header>
 
-        {/* Mobile sliding menu */}
         {mobileMenuOpen && (
           <aside className="fixed inset-y-0 left-0 w-48 sm:w-56 bg-white dark:bg-gray-800 shadow-lg z-40 p-4 flex flex-col">
             {menuSections.map(({ id, icon: Icon, label }) => (
@@ -143,7 +137,6 @@ export default function WaiterDashboard() {
           </aside>
         )}
 
-        {/* Overlay */}
         {mobileMenuOpen && (
           <div
             className="fixed inset-0 bg-black opacity-30 z-30"
@@ -151,11 +144,11 @@ export default function WaiterDashboard() {
           />
         )}
 
-        {/* Content */}
         <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 text-sm sm:text-base">
           {active === "orders" && <OrdersHub />}
           {active === "history" && <HistoryPage />}
           {active === "tables" && <MyTables />}
+          {active === "prints" && <PrintFailures />}
         </main>
       </div>
     </div>

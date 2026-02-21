@@ -4,11 +4,44 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")
 
 from datetime import datetime
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app.extensions import db
-from app.models.models import PrintJob, Order, Station, OrderItem, User
+from app.models.models import PrintJob, Order, Station, OrderItem
+from app.utils.decorators import extract_roles_from_claims
 
 print_jobs_bp = Blueprint("print_jobs", __name__, url_prefix="/print-jobs")
+
+
+def _safe_int_identity():
+    ident = get_jwt_identity()
+    try:
+        return int(ident)
+    except (TypeError, ValueError):
+        return None
+
+
+def _current_roles():
+    return extract_roles_from_claims(get_jwt())
+
+
+def _is_admin_or_manager(roles):
+    return "admin" in roles or "manager" in roles
+
+
+def _can_access_job(job: PrintJob, user_id: int, roles: set, claims: dict):
+    if _is_admin_or_manager(roles):
+        return True
+
+    if "waiter" in roles:
+        return job.order and job.order.user_id == user_id
+
+    if "station" in roles:
+        return job.station_id == claims.get("station_id")
+
+    if "cashier" in roles:
+        return job.type == "cashier"
+
+    return False
 
 # -----------------------------
 # Utility: Convert order item to dict for print
@@ -32,11 +65,22 @@ def order_item_to_dict(item: OrderItem):
 # -----------------------------
 # Create station print jobs
 # -----------------------------
-def create_station_print_jobs(order: Order, only_new_items=True):
+def create_station_print_jobs(order: Order, only_new_items=True, item_ids=None):
     stations = Station.query.all()
+    item_ids = set(item_ids or [])
 
     table_number = order.table.number if order.table else "Unknown"
     waiter_name = order.user.username if order.user else "Unknown"
+
+    target_items = []
+    for item in order.items:
+        if item.status in {"ready", "void"}:
+            continue
+        if not item.menu_item:
+            continue
+        if only_new_items and item_ids and item.id not in item_ids:
+            continue
+        target_items.append(item)
 
     for station in stations:
         if not station.printer_identifier:
@@ -44,9 +88,8 @@ def create_station_print_jobs(order: Order, only_new_items=True):
 
         station_items = [
             order_item_to_dict(item)
-            for item in order.items
+            for item in target_items
             if item.menu_item.station_id == station.id
-            and item.status != "ready"
         ]
 
         if not station_items:
@@ -161,6 +204,12 @@ def create_cashier_print_job(order_id: int):
 @jwt_required()
 def mark_job_printed(job_id: int):
     job = PrintJob.query.get_or_404(job_id)
+    user_id = _safe_int_identity()
+    claims = get_jwt()
+    roles = extract_roles_from_claims(claims)
+    if not _can_access_job(job, user_id, roles, claims):
+        return jsonify({"error": "Unauthorized"}), 403
+
     job.status = "printed"
     job.printed_at = datetime.utcnow()
     db.session.commit()
@@ -172,6 +221,12 @@ def mark_job_printed(job_id: int):
 @print_jobs_bp.route("/station/<int:station_id>/pending", methods=["GET"])
 @jwt_required()
 def get_pending_jobs(station_id: int):
+    claims = get_jwt()
+    roles = extract_roles_from_claims(claims)
+    if not _is_admin_or_manager(roles):
+        if "station" not in roles or claims.get("station_id") != station_id:
+            return jsonify({"error": "Unauthorized"}), 403
+
     jobs = PrintJob.query.filter_by(station_id=station_id, status="pending").all()
     return jsonify([
         {
@@ -192,21 +247,20 @@ def get_pending_jobs(station_id: int):
 @print_jobs_bp.route("/<int:job_id>/retry", methods=["POST"])
 @jwt_required()
 def retry_failed_job(job_id: int):
-    user_id = get_jwt_identity()
+    user_id = _safe_int_identity()
+    claims = get_jwt()
+    roles = extract_roles_from_claims(claims)
     job = PrintJob.query.get_or_404(job_id)
 
     # Only failed jobs can be retried
     if job.status != "failed":
         return jsonify({"error": "Job not failed"}), 403
 
-    # Fetch user and check permissions
-    user = User.query.get(user_id)
-    if job.order.user_id != user_id and user.role not in ["admin", "manager"]:
+    if not _can_access_job(job, user_id, roles, claims):
         return jsonify({"error": "Unauthorized"}), 403
 
     # Retry the job
     job.status = "pending"
-    job.attempts = (job.attempts or 0) + 1
     db.session.commit()
 
     return jsonify({"message": f"Print job {job.id} set to pending for retry"}), 200
@@ -218,6 +272,10 @@ def retry_failed_job(job_id: int):
 @print_jobs_bp.route("/station/manual", methods=["POST"])
 @jwt_required()
 def manual_station_print():
+    roles = _current_roles()
+    if not (_is_admin_or_manager(roles) or "cashier" in roles):
+        return jsonify({"error": "Unauthorized"}), 403
+
     data = request.get_json()
     order_id = data.get("order_id")
     station_id = data.get("station_id")
@@ -258,6 +316,10 @@ def manual_station_print():
 @print_jobs_bp.route("/cashier/manual", methods=["POST"])
 @jwt_required()
 def print_cashier_manual():
+    roles = _current_roles()
+    if not (_is_admin_or_manager(roles) or "cashier" in roles):
+        return jsonify({"error": "Unauthorized"}), 403
+
     data = request.get_json()
     order_id = data.get("order_id")
 
@@ -328,11 +390,28 @@ def print_cashier_manual():
 @print_jobs_bp.route("/", methods=["GET"])
 @jwt_required()
 def get_all_print_jobs():
+    user_id = _safe_int_identity()
+    claims = get_jwt()
+    roles = extract_roles_from_claims(claims)
+
     status = request.args.get("status")  # optional query param
     query = PrintJob.query
 
     if status:
         query = query.filter_by(status=status)
+
+    if _is_admin_or_manager(roles):
+        pass
+    elif "waiter" in roles:
+        if user_id is None:
+            return jsonify({"error": "Unauthorized"}), 403
+        query = query.join(Order, PrintJob.order_id == Order.id).filter(Order.user_id == user_id)
+    elif "station" in roles:
+        query = query.filter(PrintJob.station_id == claims.get("station_id"))
+    elif "cashier" in roles:
+        query = query.filter(PrintJob.type == "cashier")
+    else:
+        return jsonify({"error": "Unauthorized"}), 403
 
     jobs = query.order_by(PrintJob.created_at.desc()).all()
 
@@ -357,18 +436,13 @@ def get_all_print_jobs():
 @jwt_required()
 def delete_print_job(job_id: int):
     job = PrintJob.query.get_or_404(job_id)
-    user_id = get_jwt_identity()
+    user_id = _safe_int_identity()
+    claims = get_jwt()
+    roles = extract_roles_from_claims(claims)
 
-    # Only admin, manager, or creator of the order can delete
-    if job.order.user_id != user_id and not current_user_is_admin_or_manager(user_id):
+    if not _can_access_job(job, user_id, roles, claims):
         return jsonify({"error": "Unauthorized"}), 403
 
     db.session.delete(job)
     db.session.commit()
     return jsonify({"message": f"Print job {job.id} deleted"}), 200
-
-
-# Utility function to check role
-def current_user_is_admin_or_manager(user_id):
-    user = User.query.get(user_id)
-    return user and user.role.lower() in ["admin", "manager"]
