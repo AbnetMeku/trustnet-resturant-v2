@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useAuth } from "@/context/AuthContext";
 import TableSelection from "./TableSelection";
 import MenuSelection from "./MenuSelection";
 import OrderSummary from "./OrderSummary";
@@ -6,6 +7,7 @@ import { createOrder } from "@/api/orders";
 import { Button } from "@/components/ui/button";
 
 export default function NewOrder({ goBack, setError }) {
+  const { authToken } = useAuth();
   const [step, setStep] = useState("table"); // table | menu | review
   const [selectedTable, setSelectedTable] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
@@ -13,7 +15,7 @@ export default function NewOrder({ goBack, setError }) {
   const [loading, setLoading] = useState(false);
   const [successVisible, setSuccessVisible] = useState(false); // ✅ modal visibility
 
-  const token = localStorage.getItem("auth_token");
+  const token = authToken;
 
   useEffect(() => {
     if (!token) {
@@ -134,7 +136,8 @@ export default function NewOrder({ goBack, setError }) {
         goBack();
       }, 2000);
     } catch (err) {
-      if (err.response && err.response.status === 409) {
+      const isConflict = typeof err?.message === "string" && err.message.includes("[409]");
+      if (isConflict) {
         setLocalError("This table already has an active order.");
         setError("This table already has an active order.");
       } else {

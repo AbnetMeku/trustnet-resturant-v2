@@ -2,7 +2,7 @@
 import pytest
 from datetime import date, timedelta
 from app import create_app, db
-from app.models.models import User, Table, MenuItem, Order, OrderItem, KitchenTagCounter
+from app.models.models import User, Table, MenuItem, Order, OrderItem, KitchenTagCounter, Station
 from app.routes.orders.kitchen_tag import generate_kitchen_tag
 
 @pytest.fixture
@@ -20,7 +20,7 @@ def client(app):
 
 @pytest.fixture
 def sample_user(app):
-    user = User(name="Test User", username="testuser", password_hash="pass", role="waiter")
+    user = User(username="testuser", password_hash="pass", role="waiter")
     db.session.add(user)
     db.session.commit()
     return user
@@ -33,8 +33,20 @@ def sample_table(app):
     return table
 
 @pytest.fixture
-def sample_menu_item(app):
-    item = MenuItem(name="Steak", category="raw meat", price=10.0, is_available=True)
+def sample_station(app):
+    station = Station(name="butchery", password_hash="hash")
+    db.session.add(station)
+    db.session.commit()
+    return station
+
+@pytest.fixture
+def sample_menu_item(app, sample_station):
+    item = MenuItem(
+        name="Steak",
+        price=10.0,
+        is_available=True,
+        station_id=sample_station.id,
+    )
     db.session.add(item)
     db.session.commit()
     return item

@@ -112,11 +112,8 @@ const updatedItems = items
     const categoryName = (category.name || "Unknown").trim();
     const subcategoryName = (subcategory.name || "Unknown").trim();
 
-    const increment =
-      categoryName.toLowerCase() === "alcohols" ||
-      subcategoryName.toLowerCase() === "butchery" || subcategoryName.toLowerCase() === "feyel"
-        ? 0.5
-        : 1;
+    const incrementFromApi = Number(item.quantity_step);
+    const increment = incrementFromApi === 0.5 || incrementFromApi === 1 ? incrementFromApi : 1;
 
     const isVip = selectedOrder?.table?.is_vip || false;
     const usingVip = isVip && item.vip_price != null;

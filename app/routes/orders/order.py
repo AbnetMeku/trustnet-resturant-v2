@@ -4,7 +4,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app.extensions import db
 from app.models.models import Order, OrderItem, MenuItem, Table, User, Station, PrintJob
-from app.utils.decorators import roles_required
+from app.utils.decorators import roles_required, extract_roles_from_claims
 from app.routes.orders.kitchen_tag import generate_kitchen_tag
 from collections import defaultdict
 import logging
@@ -25,7 +25,13 @@ def safe_int_identity() -> int:
     try:
         return int(ident)
     except (TypeError, ValueError):
-        return error_response("Invalid token identity.", 401)
+        raise ValueError("Invalid token identity.")
+
+
+def jwt_roles(claims=None):
+    if claims is None:
+        claims = get_jwt()
+    return extract_roles_from_claims(claims)
 
 def error_response(message: str, status_code: int):
     return jsonify({"error": message}), status_code
@@ -177,8 +183,12 @@ def create_order():
     if existing_order:
         return error_response(f"Table {table.number} already has an active order.", 409)
 
-    user_id = safe_int_identity()
-    if "waiter" in get_jwt().get("roles", []):
+    try:
+        user_id = safe_int_identity()
+    except ValueError:
+        return error_response("Invalid token identity.", 401)
+
+    if "waiter" in jwt_roles():
         user = db.session.get(User, user_id)
         if table not in user.tables:
             return error_response("You are not assigned to this table.", 403)
@@ -219,7 +229,12 @@ def create_order():
         if len(station) > 20:
             return error_response(f"Station name '{station}' exceeds 20 characters.", 400)
 
-        default_increment = Decimal("0.5") if category_name.lower() in {"alcohol", "butchery","feyel"} else Decimal("1.0")
+        if menu_item.quantity_step is not None:
+            default_increment = Decimal(str(menu_item.quantity_step))
+        elif menu_item.subcategory and menu_item.subcategory.category and menu_item.subcategory.category.quantity_step is not None:
+            default_increment = Decimal(str(menu_item.subcategory.category.quantity_step))
+        else:
+            default_increment = Decimal("1.0")
         quantity_to_add = Decimal(str(payload.get("quantity", default_increment)))
 
         try:
@@ -264,8 +279,12 @@ def add_order_item(order_id):
         return error_response("Order not found.", 404)
 
     table = db.session.get(Table, order.table_id)
-    user_id = safe_int_identity()
-    if "waiter" in get_jwt().get("roles", []):
+    try:
+        user_id = safe_int_identity()
+    except ValueError:
+        return error_response("Invalid token identity.", 401)
+
+    if "waiter" in jwt_roles():
         user = db.session.get(User, user_id)
         if table not in user.tables:
             return error_response("You are not assigned to this table.", 403)
@@ -296,7 +315,12 @@ def add_order_item(order_id):
         if len(station) > 20:
             return error_response(f"Station name '{station}' exceeds 20 characters.", 400)
 
-        default_increment = Decimal("0.5") if category_name.lower() == "alcohol" or subcategory_name.lower() == "butchery" or subcategory_name.lower() == "feyel" else Decimal("1.0")
+        if menu_item.quantity_step is not None:
+            default_increment = Decimal(str(menu_item.quantity_step))
+        elif menu_item.subcategory and menu_item.subcategory.category and menu_item.subcategory.category.quantity_step is not None:
+            default_increment = Decimal(str(menu_item.subcategory.category.quantity_step))
+        else:
+            default_increment = Decimal("1.0")
         quantity_to_add = Decimal(str(payload.get("quantity", default_increment)))
 
         # Create a new OrderItem row instead of updating existing one
@@ -337,8 +361,12 @@ def update_order(order_id):
     if not order:
         return error_response("Order not found.", 404)
 
-    user_id = safe_int_identity()
-    if "waiter" in get_jwt().get("roles", []):
+    try:
+        user_id = safe_int_identity()
+    except ValueError:
+        return error_response("Invalid token identity.", 401)
+
+    if "waiter" in jwt_roles():
         user = db.session.get(User, user_id)
         table = db.session.get(Table, order.table_id)
         if table not in user.tables:
@@ -378,17 +406,19 @@ def list_orders():
         query = query.filter_by(status=status)
 
     jwt_data = get_jwt()
-    roles = jwt_data.get("roles", [])
+    roles = jwt_roles(jwt_data)
 
     orders = query.order_by(Order.created_at.desc()).all()
 
     # ---------------- Station restriction ----------------
     if "station" in roles:
-        station_id = jwt_data.get("station_id")
+        station_name = jwt_data.get("station_name")
+        if not station_name:
+            return error_response("Missing station_name claim.", 401)
         # keep only items from this station
         filtered_orders = []
         for order in orders:
-            station_items = [i for i in order.items if i.station_id == station_id]
+            station_items = [i for i in order.items if i.station == station_name]
             if station_items:  # only include orders that have at least one item for this station
                 o = order_to_dict(order)
                 o["items"] = [order_item_to_dict(i) for i in station_items]
@@ -407,11 +437,13 @@ def get_order(order_id):
         return error_response("Order not found.", 404)
 
     jwt_data = get_jwt()
-    roles = jwt_data.get("roles", [])
+    roles = jwt_roles(jwt_data)
 
     if "station" in roles:
-        station_id = jwt_data.get("station_id")
-        station_items = [i for i in order.items if i.station_id == station_id]
+        station_name = jwt_data.get("station_name")
+        if not station_name:
+            return error_response("Missing station_name claim.", 401)
+        station_items = [i for i in order.items if i.station == station_name]
         if not station_items:
             return error_response("No items for this station in this order.", 403)
         o = order_to_dict(order)
@@ -431,9 +463,12 @@ def update_order_item(order_id, item_id):
         return error_response("Order item not found.", 404)
 
     order = db.session.get(Order, order_id)
-    user_id = safe_int_identity()
+    try:
+        user_id = safe_int_identity()
+    except ValueError:
+        return error_response("Invalid token identity.", 401)
     jwt_data = get_jwt()
-    roles = jwt_data.get("roles", [])
+    roles = jwt_roles(jwt_data)
 
     # ---------------- Waiter restriction ----------------
     if "waiter" in roles:
@@ -444,8 +479,10 @@ def update_order_item(order_id, item_id):
 
     # ---------------- Station restriction ----------------
     if "station" in roles:
-        station_id = jwt_data.get("station_id")
-        if order_item.station_id != station_id:
+        station_name = jwt_data.get("station_name")
+        if not station_name:
+            return error_response("Missing station_name claim.", 401)
+        if order_item.station != station_name:
             return error_response("Unauthorized: Not your station item.", 403)
 
     # ---------------- Data update ----------------
@@ -516,7 +553,10 @@ def delete_order(order_id):
     if not order:
         return error_response("Order not found.", 404)
 
-    user_id = safe_int_identity()
+    try:
+        user_id = safe_int_identity()
+    except ValueError:
+        return error_response("Invalid token identity.", 401)
     try:
         db.session.delete(order)
         db.session.commit()
@@ -536,10 +576,13 @@ def void_order_item(order_id, item_id):
         return error_response("Order item not found.", 404)
 
     order = db.session.get(Order, order_id)
-    user_id = safe_int_identity()
+    try:
+        user_id = safe_int_identity()
+    except ValueError:
+        return error_response("Invalid token identity.", 401)
 
     # Waiter restriction
-    if "waiter" in get_jwt().get("roles", []):
+    if "waiter" in jwt_roles():
         user = db.session.get(User, user_id)
         table = db.session.get(Table, order.table_id)
         if table not in user.tables:

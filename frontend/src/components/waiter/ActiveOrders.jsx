@@ -14,8 +14,6 @@ export default function ActiveOrders({ goBack }) {
   const [step, setStep] = useState("list");
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [showErrorModal, setShowErrorModal] = useState(null);
   const [confirmCloseId, setConfirmCloseId] = useState(null);
   const [detailsOrder, setDetailsOrder] = useState(null);
 
@@ -112,17 +110,15 @@ export default function ActiveOrders({ goBack }) {
       }));
 
       await addOrderItems(authToken, selectedOrder.id, itemsToSend);
-      setShowSuccessModal(true);
       await refreshOrders();
 
       setTimeout(() => {
-        setShowSuccessModal(false);
         setStep("list");
         setSelectedOrder(null);
         setOrderItems([]);
       }, 2000);
     } catch (err) {
-      setShowErrorModal(err.message || "Failed to update order");
+      throw err;
     }
   };
 

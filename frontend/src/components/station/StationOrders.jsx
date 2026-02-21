@@ -17,23 +17,8 @@ export default function StationOrders() {
           new Date(b.order_created_at).getTime()
       );
 
-      setOrders((prevOrders) => {
-        // Merge and preserve statuses
-        return res.map((order) => {
-          const existing = prevOrders.find((o) => o.order_id === order.order_id);
-          if (!existing) return order;
-
-          return {
-            ...order,
-            items: order.items.map((item) => {
-              const oldItem = existing.items.find(
-                (i) => i.item_id === item.item_id
-              );
-              return oldItem ? { ...item, status: oldItem.status } : item;
-            }),
-          };
-        });
-      });
+      // Always trust server status to avoid stale local state across devices.
+      setOrders(res);
     } catch (err) {
       console.error("Failed to fetch KDS orders:", err);
     }

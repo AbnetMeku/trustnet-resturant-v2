@@ -36,9 +36,15 @@ export default function ActiveOrderSummary({
 
   const combinedTotal = (parseFloat(originalSubtotal) + parseFloat(newItemsSubtotal)).toFixed(2);
 
-  const handleSave = () => {
-    onSave();
-    setShowSuccessModal(true);
+  const handleSave = async () => {
+    try {
+      await onSave();
+      setShowSuccessModal(true);
+      setShowErrorModal(null);
+    } catch (err) {
+      setShowSuccessModal(false);
+      setShowErrorModal(err?.message || "Failed to save order changes.");
+    }
   };
 
   return (

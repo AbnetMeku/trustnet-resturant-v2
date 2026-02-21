@@ -2,6 +2,30 @@ from functools import wraps
 from flask_jwt_extended import verify_jwt_in_request, get_jwt
 from flask import jsonify, request
 
+
+def extract_roles_from_claims(claims):
+    """
+    Normalize JWT role claims to support both:
+    - role: "admin"
+    - roles: ["admin", ...] (legacy)
+    """
+    roles = set()
+
+    role = claims.get("role")
+    if isinstance(role, str) and role:
+        roles.add(role)
+
+    legacy_roles = claims.get("roles")
+    if isinstance(legacy_roles, list):
+        for value in legacy_roles:
+            if isinstance(value, str) and value:
+                roles.add(value)
+    elif isinstance(legacy_roles, str) and legacy_roles:
+        roles.add(legacy_roles)
+
+    return roles
+
+
 def roles_required(*allowed_roles):
     """
     Decorator to protect routes based on user roles.
@@ -20,9 +44,9 @@ def roles_required(*allowed_roles):
             # Get claims from the token
             claims = get_jwt()
 
-            # Check if 'role' is present in claims and allowed
-            user_role = claims.get('role', None)
-            if user_role is None or user_role not in allowed_roles:
+            # Support both current "role" and legacy "roles" claim shapes.
+            user_roles = extract_roles_from_claims(claims)
+            if not any(role in user_roles for role in allowed_roles):
                 return jsonify(msg="Forbidden: Insufficient role"), 403
 
             # Role allowed — proceed with the original function

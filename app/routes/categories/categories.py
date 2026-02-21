@@ -3,14 +3,18 @@ from flask_jwt_extended import jwt_required
 from app.extensions import db
 from app.models.models import Category
 from app.utils.decorators import roles_required
+from decimal import Decimal
 
 categories_bp = Blueprint("categories_bp", __name__, url_prefix="/categories")
+
+ALLOWED_QUANTITY_STEPS = {Decimal("0.5"), Decimal("1.0")}
 
 # ------------------ Helper ------------------
 def category_to_dict(cat):
     return {
         "id": cat.id,
         "name": cat.name,
+        "quantity_step": float(cat.quantity_step) if cat.quantity_step is not None else 1.0,
         "subcategories": [{"id": sc.id, "name": sc.name} for sc in cat.subcategories],
     }
 
@@ -46,13 +50,22 @@ def get_category(cat_id):
 def create_category():
     data = request.get_json() or {}
     name = data.get("name")
+    quantity_step = data.get("quantity_step", 1.0)
 
     if not name:
         return jsonify({"error": "Missing category name"}), 400
+
+    if not isinstance(quantity_step, (int, float, Decimal)):
+        return jsonify({"error": "quantity_step must be a number"}), 400
+
+    quantity_step = Decimal(str(quantity_step))
+    if quantity_step not in ALLOWED_QUANTITY_STEPS:
+        return jsonify({"error": "quantity_step must be 0.5 or 1.0"}), 400
+
     if Category.query.filter_by(name=name).first():
         return jsonify({"error": "Category already exists"}), 400
 
-    category = Category(name=name)
+    category = Category(name=name, quantity_step=quantity_step)
     db.session.add(category)
     db.session.commit()
     return jsonify(category_to_dict(category)), 201
@@ -69,6 +82,14 @@ def update_category(cat_id):
     data = request.get_json() or {}
     if "name" in data:
         category.name = data["name"]
+    if "quantity_step" in data:
+        quantity_step = data["quantity_step"]
+        if not isinstance(quantity_step, (int, float, Decimal)):
+            return jsonify({"error": "quantity_step must be a number"}), 400
+        quantity_step = Decimal(str(quantity_step))
+        if quantity_step not in ALLOWED_QUANTITY_STEPS:
+            return jsonify({"error": "quantity_step must be 0.5 or 1.0"}), 400
+        category.quantity_step = quantity_step
 
     db.session.commit()
     return jsonify(category_to_dict(category)), 200

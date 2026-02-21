@@ -43,6 +43,8 @@ class MenuItem(db.Model):
     description = db.Column(db.Text, nullable=True)
     price = db.Column(db.Numeric(10, 2), nullable=True) #Nullable to allow VIP-only items
     vip_price = db.Column(db.Numeric, nullable=True)   # NEW 
+    # Optional per-item override; when null, category default step is used.
+    quantity_step = db.Column(db.Numeric(3, 2), nullable=True)
     is_available = db.Column(db.Boolean, default=True)
     image_url = db.Column(db.Text, nullable=True)  # Changed to Text
 
@@ -126,6 +128,7 @@ class Category(db.Model):
     __tablename__ = "categories"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
+    quantity_step = db.Column(db.Numeric(3, 2), nullable=False, default=1.0)
     subcategories = db.relationship(
         "SubCategory",
         back_populates="category",
