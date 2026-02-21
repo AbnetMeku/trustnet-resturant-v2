@@ -13,6 +13,9 @@ menu_items_bp = Blueprint("menu_items_bp", __name__, url_prefix="/menu-items")
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+
+ALLOWED_QUANTITY_STEPS = {Decimal("0.5"), Decimal("1.0")}
+
 # Consistent error response function
 def error_response(message: str, status_code: int):
     logger.error(f"Error in menu_items endpoint: {message}")
@@ -22,12 +25,20 @@ def error_response(message: str, status_code: int):
 def menu_item_to_dict(item: MenuItem):
     # Safely access category and subcategory names
     category = item.subcategory.category if item.subcategory else None
+    category_step = Decimal(str(category.quantity_step)) if category and category.quantity_step is not None else Decimal("1.0")
+    menu_step = Decimal(str(item.quantity_step)) if item.quantity_step is not None else None
+    effective_step = menu_step if menu_step is not None else category_step
     return {
         "id": item.id,
         "name": item.name,
         "description": item.description,
         "price": float(item.price) if item.price is not None else None,
         "vip_price": float(item.vip_price) if item.vip_price is not None else None,
+        # Backward-compatible field: effective step used by waiter flows.
+        "quantity_step": float(effective_step),
+        # Explicit step fields for admin/edit flows.
+        "menu_quantity_step": float(menu_step) if menu_step is not None else None,
+        "category_quantity_step": float(category_step),
         "is_available": item.is_available,
         "image_url": item.image_url,
         "station_id": item.station_id,
@@ -86,6 +97,7 @@ def create_menu_item():
     description = data.get("description")
     price = data.get("price")
     vip_price = data.get("vip_price")
+    quantity_step = data.get("quantity_step", None)
     station_id = data.get("station_id")
     subcategory_id = data.get("subcategory_id")
     is_available = data.get("is_available", True)
@@ -101,6 +113,13 @@ def create_menu_item():
         return error_response("Price must be a non-negative number or null", 400)
     if vip_price is not None and (not isinstance(vip_price, (int, float, Decimal)) or vip_price < 0):
         return error_response("VIP price must be a non-negative number or null", 400)
+    parsed_quantity_step = None
+    if quantity_step is not None:
+        if not isinstance(quantity_step, (int, float, Decimal)):
+            return error_response("quantity_step must be a number or null", 400)
+        parsed_quantity_step = Decimal(str(quantity_step))
+        if parsed_quantity_step not in ALLOWED_QUANTITY_STEPS:
+            return error_response("quantity_step must be 0.5, 1.0, or null", 400)
     if not isinstance(station_id, int):
         return error_response("Station ID must be an integer", 400)
     if not isinstance(subcategory_id, int):
@@ -129,6 +148,7 @@ def create_menu_item():
         description=description,
         price=Decimal(str(price)) if price is not None else None,
         vip_price=Decimal(str(vip_price)) if vip_price is not None else None,
+        quantity_step=parsed_quantity_step,
         station_id=station_id,
         subcategory_id=subcategory_id,
         is_available=is_available,
@@ -201,6 +221,17 @@ def update_menu_item(item_id):
         if data["vip_price"] is not None and (not isinstance(data["vip_price"], (int, float, Decimal)) or data["vip_price"] < 0):
             return error_response("VIP price must be a non-negative number or null", 400)
         item.vip_price = Decimal(str(data["vip_price"])) if data["vip_price"] is not None else None
+
+    if "quantity_step" in data:
+        if data["quantity_step"] is None:
+            item.quantity_step = None
+        else:
+            if not isinstance(data["quantity_step"], (int, float, Decimal)):
+                return error_response("quantity_step must be a number or null", 400)
+            quantity_step = Decimal(str(data["quantity_step"]))
+            if quantity_step not in ALLOWED_QUANTITY_STEPS:
+                return error_response("quantity_step must be 0.5, 1.0, or null", 400)
+            item.quantity_step = quantity_step
 
     if "is_available" in data:
         if not isinstance(data["is_available"], bool):

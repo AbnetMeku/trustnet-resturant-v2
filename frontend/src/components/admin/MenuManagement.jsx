@@ -47,7 +47,11 @@ export default function MenuManagement() {
 
   // Categories / Subcategories
   const [categories, setCategories] = useState([]);
-  const [categoryForm, setCategoryForm] = useState({ id: null, name: "" });
+  const [categoryForm, setCategoryForm] = useState({
+    id: null,
+    name: "",
+    quantity_step: "1",
+  });
 
   const [subcategories, setSubcategories] = useState([]);
   const [subcategoryForm, setSubcategoryForm] = useState({
@@ -72,6 +76,7 @@ export default function MenuManagement() {
     description: "",
     price: "",
     vip_price: "",
+    quantity_step: "",
     station_id: "",
     subcategory_id: "",
     is_available: true,
@@ -107,6 +112,9 @@ export default function MenuManagement() {
         ...item,
         price: item.price != null ? Number(item.price) : null,
         vip_price: item.vip_price != null ? Number(item.vip_price) : null,
+        quantity_step: item.quantity_step != null ? Number(item.quantity_step) : 1,
+        menu_quantity_step:
+          item.menu_quantity_step != null ? Number(item.menu_quantity_step) : null,
       }));
 
       setCategories(cats);
@@ -179,13 +187,17 @@ export default function MenuManagement() {
 
   const handleSubmitCategory = async () => {
     try {
+      const payload = {
+        name: categoryForm.name,
+        quantity_step: parseFloat(categoryForm.quantity_step || "1"),
+      };
       if (categoryForm.id)
-        await updateCategory(categoryForm.id, { name: categoryForm.name });
-      else await createCategory({ name: categoryForm.name });
+        await updateCategory(categoryForm.id, payload);
+      else await createCategory(payload);
       toast.success(categoryForm.id ? "Category updated" : "Category created", {
         style: { background: "#e0f7fa", color: "#006064" },
       });
-      setCategoryForm({ id: null, name: "" });
+      setCategoryForm({ id: null, name: "", quantity_step: "1" });
       setModalOpen(false);
       fetchAll();
     } catch (err) {
@@ -233,6 +245,10 @@ export default function MenuManagement() {
         vip_price: menuForm.vip_price !== "" && !isNaN(parseFloat(menuForm.vip_price))
           ? parseFloat(menuForm.vip_price)
           : null,
+        quantity_step:
+          menuForm.quantity_step === ""
+            ? null
+            : parseFloat(menuForm.quantity_step),
         station_id: parseInt(menuForm.station_id),
         subcategory_id: parseInt(menuForm.subcategory_id),
         is_available: menuForm.is_available,
@@ -252,6 +268,7 @@ export default function MenuManagement() {
         description: "",
         price: "",
         vip_price: "",
+        quantity_step: "",
         station_id: "",
         subcategory_id: "",
         is_available: true,
@@ -271,7 +288,12 @@ export default function MenuManagement() {
   };
 
   const handleEdit = (item, setForm, type) => {
-    if (type === "category") setForm({ id: item.id, name: item.name });
+    if (type === "category")
+      setForm({
+        id: item.id,
+        name: item.name,
+        quantity_step: String(item.quantity_step ?? 1),
+      });
     if (type === "subcategory")
       setForm({ id: item.id, name: item.name, category_id: item.category_id });
     if (type === "menu")
@@ -281,6 +303,8 @@ export default function MenuManagement() {
         description: item.description,
         price: item.price != null ? item.price : "",
         vip_price: item.vip_price != null ? item.vip_price : "",
+        quantity_step:
+          item.menu_quantity_step != null ? String(item.menu_quantity_step) : "",
         station_id: item.station_id,
         subcategory_id: item.subcategory_id,
         is_available: item.is_available,
@@ -346,7 +370,8 @@ export default function MenuManagement() {
 
   const openAddModal = () => {
     setCurrentItem(null);
-    if (tab === "categories") setCategoryForm({ id: null, name: "" });
+    if (tab === "categories")
+      setCategoryForm({ id: null, name: "", quantity_step: "1" });
     if (tab === "subcategories")
       setSubcategoryForm({ id: null, name: "", category_id: "" });
     if (tab === "menu")
@@ -356,6 +381,7 @@ export default function MenuManagement() {
         description: "",
         price: "",
         vip_price: "",
+        quantity_step: "",
         station_id: "",
         subcategory_id: "",
         is_available: true,
@@ -456,6 +482,9 @@ export default function MenuManagement() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
+                <p className="text-xs text-gray-600 dark:text-gray-400 text-center mb-2">
+                  Default step: {Number(cat.quantity_step || 1) === 0.5 ? "0.5" : "1"}
+                </p>
                 <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 flex gap-2">
                   <Button
                     variant="outline"
@@ -596,7 +625,11 @@ export default function MenuManagement() {
                 </div>
               )}
 
-              <CardContent>
+                <CardContent>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                  Qty step: {Number(item.quantity_step || 1) === 0.5 ? "0.5" : "1"}
+                  {item.menu_quantity_step == null ? " (Category default)" : " (Menu override)"}
+                </p>
                 <CardTitle className="text-lg font-bold truncate">
                   {item.name}
                 </CardTitle>
@@ -645,14 +678,26 @@ export default function MenuManagement() {
               }}
             >
               {tab === "categories" && (
-                <input
-                  name="name"
-                  value={categoryForm.name || ""}
-                  onChange={handleChange(categoryForm, setCategoryForm)}
-                  placeholder="Category Name"
-                  className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
-                  required
-                />
+                <>
+                  <input
+                    name="name"
+                    value={categoryForm.name || ""}
+                    onChange={handleChange(categoryForm, setCategoryForm)}
+                    placeholder="Category Name"
+                    className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
+                    required
+                  />
+                  <select
+                    name="quantity_step"
+                    value={categoryForm.quantity_step || "1"}
+                    onChange={handleChange(categoryForm, setCategoryForm)}
+                    className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
+                    required
+                  >
+                    <option value="1">Default increase by 1</option>
+                    <option value="0.5">Default increase by 0.5</option>
+                  </select>
+                </>
               )}
 
               {tab === "subcategories" && (
@@ -719,6 +764,17 @@ export default function MenuManagement() {
                       className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
                     />
                   </div>
+
+                  <select
+                    name="quantity_step"
+                    value={menuForm.quantity_step ?? ""}
+                    onChange={handleChange(menuForm, setMenuForm)}
+                    className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
+                  >
+                    <option value="">Use category default</option>
+                    <option value="1">Override: increase by 1</option>
+                    <option value="0.5">Override: increase by 0.5</option>
+                  </select>
 
                   <select
                     name="station_id"
