@@ -3,7 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt
 from app.extensions import db
 from app.models.models import Order, OrderItem, User
 from app.routes.orders.order import order_to_dict, error_response
-from app.utils.decorators import roles_required
+from app.utils.decorators import roles_required, extract_roles_from_claims
 from datetime import datetime
 
 order_history_bp = Blueprint("order_history_bp", __name__, url_prefix="/order-history")
@@ -37,7 +37,7 @@ def get_order_history():
             return error_response("Invalid user_id.", 400)
 
     jwt_data = get_jwt()
-    roles = jwt_data.get("roles", [])
+    roles = extract_roles_from_claims(jwt_data)
     if "waiter" in roles:
         query = query.filter(Order.user_id == int(jwt_data["sub"]))
 
@@ -71,7 +71,7 @@ def get_order_summary():
         query = query.filter(Order.user_id == int(user_id))
 
     jwt_data = get_jwt()
-    roles = jwt_data.get("roles", [])
+    roles = extract_roles_from_claims(jwt_data)
     if "waiter" in roles:
         query = query.filter(Order.user_id == int(jwt_data["sub"]))
 
@@ -182,7 +182,7 @@ def get_order_summary_range():
         query = query.filter(Order.user_id == int(user_id))
 
     jwt_data = get_jwt()
-    roles = jwt_data.get("roles", [])
+    roles = extract_roles_from_claims(jwt_data)
     if "waiter" in roles:
         query = query.filter(Order.user_id == int(jwt_data["sub"]))
 
@@ -303,7 +303,7 @@ def get_order_history_raw():
 
     # --- Waiter restriction (if role is waiter) ---
     jwt_data = get_jwt()
-    roles = jwt_data.get("roles", [])
+    roles = extract_roles_from_claims(jwt_data)
     if "waiter" in roles:
         query = query.filter(Order.user_id == int(jwt_data["sub"]))
 

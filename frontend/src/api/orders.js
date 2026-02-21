@@ -7,7 +7,7 @@ const handleAxiosError = (error, operation) => {
   console.error(`Error in ${operation}:`, error);
   if (error.response) {
     const { data, status } = error.response;
-    const message = data.error || "Unknown error occurred";
+    const message = data.error || data.msg || "Unknown error occurred";
     throw new Error(`[${status}] ${message}`);
   } else if (error.request) {
     throw new Error("No response from server. Please check your connection.");
@@ -68,10 +68,10 @@ const validateOrderItemUpdates = (updates, operation) => {
   }
   if (
     updates.status !== undefined &&
-    !["pending", "ready"].includes(updates.status)
+    !["pending", "ready", "void"].includes(updates.status)
   ) {
     throw new Error(
-      `Invalid status in ${operation}: must be 'pending' or 'ready'`
+      `Invalid status in ${operation}: must be 'pending', 'ready', or 'void'`
     );
   }
 };
