@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
+from sqlalchemy.orm import joinedload
 from app.extensions import db
-from app.models.models import Order, OrderItem, User
+from app.models.models import Order, OrderItem, Table, User
 from app.routes.orders.order import order_to_dict, error_response
 from app.utils.decorators import roles_required, extract_roles_from_claims
 from datetime import datetime
@@ -274,7 +275,7 @@ def get_order_history_raw():
     """
     Returns all orders with each OrderItem separately (no aggregation),
     preserving OrderItem IDs for frontend edits/deletes.
-    Optional filters: date, status, user_id
+    Optional filters: date, status, user_id, table
     """
     query = Order.query
 
@@ -304,14 +305,42 @@ def get_order_history_raw():
         except ValueError:
             return error_response("Invalid user_id.", 400)
 
+    # --- Table filter (optional partial table number match) --- #
+    table_filter = request.args.get("table")
+    if table_filter:
+        query = query.join(Order.table).filter(Table.number.ilike(f"%{table_filter}%"))
+
     # --- Waiter restriction (if role is waiter) ---
     jwt_data = get_jwt()
     roles = extract_roles_from_claims(jwt_data)
     if "waiter" in roles:
         query = query.filter(Order.user_id == int(jwt_data["sub"]))
 
+    # --- Pagination ---
+    page_str = request.args.get("page", "1")
+    page_size_str = request.args.get("page_size", "50")
+    try:
+        page = max(int(page_str), 1)
+        page_size = int(page_size_str)
+    except ValueError:
+        return error_response("Invalid pagination params. page and page_size must be integers.", 400)
+
+    # Guardrail for heavy daily datasets.
+    page_size = min(max(page_size, 1), 200)
+
     # --- Fetch orders ---
-    orders = query.order_by(Order.created_at.desc()).all()
+    total = query.count()
+    orders = (
+        query.options(
+            joinedload(Order.table),
+            joinedload(Order.user),
+            joinedload(Order.items).joinedload(OrderItem.menu_item),
+        )
+        .order_by(Order.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
 
     # --- Serialize orders without aggregating items ---
     def order_to_dict_raw(order: Order):
@@ -347,4 +376,17 @@ def get_order_history_raw():
             ],
         }
 
-    return jsonify([order_to_dict_raw(o) for o in orders]), 200
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+    return jsonify(
+        {
+            "orders": [order_to_dict_raw(o) for o in orders],
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total": total,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_prev": page > 1,
+            },
+        }
+    ), 200

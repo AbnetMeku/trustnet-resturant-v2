@@ -1,16 +1,26 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchOrderHistoryRaw } from "@/api/order_history";
 import { updateOrderItem, voidOrderItem, unvoidOrderItem, deleteOrder } from "@/api/orders";
 import { getUsers } from "@/api/users";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import Select from "react-select";
 import toast from "react-hot-toast";
 
 export default function AdminOrders() {
   const { authToken } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    page_size: 24,
+    total: 0,
+    total_pages: 1,
+    has_next: false,
+    has_prev: false,
+  });
 
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editMode, setEditMode] = useState(false);
@@ -24,6 +34,84 @@ export default function AdminOrders() {
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  const isDarkMode = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
+  const waiterOptions = useMemo(
+    () =>
+      waiters.map((w) => ({
+        value: String(w.id ?? ""),
+        label: w.username || w.name || "Unknown",
+      })),
+    [waiters]
+  );
+  const selectedWaiterOption = useMemo(
+    () => waiterOptions.find((opt) => opt.value === String(filterWaiter)) || waiterOptions[0] || null,
+    [filterWaiter, waiterOptions]
+  );
+  const selectThemeStyles = useMemo(
+    () => ({
+      control: (base, state) => ({
+        ...base,
+        minHeight: "2.5rem",
+        borderRadius: "0.5rem",
+        borderColor: state.isFocused ? "#f59e0b" : isDarkMode ? "#334155" : "#cbd5e1",
+        boxShadow: state.isFocused ? "0 0 0 2px rgba(245, 158, 11, 0.25)" : "none",
+        backgroundColor: isDarkMode ? "#0f172a" : "#ffffff",
+      }),
+      menuPortal: (base) => ({
+        ...base,
+        zIndex: 9999,
+      }),
+      singleValue: (base) => ({
+        ...base,
+        color: isDarkMode ? "#f1f5f9" : "#0f172a",
+      }),
+      input: (base) => ({
+        ...base,
+        color: isDarkMode ? "#f1f5f9" : "#0f172a",
+      }),
+      menu: (base) => ({
+        ...base,
+        backgroundColor: isDarkMode ? "#0f172a" : "#ffffff",
+        border: `1px solid ${isDarkMode ? "#334155" : "#e2e8f0"}`,
+      }),
+      menuList: (base) => ({
+        ...base,
+        maxHeight: 280,
+      }),
+      option: (base, state) => ({
+        ...base,
+        backgroundColor: state.isFocused
+          ? isDarkMode
+            ? "#1e293b"
+            : "#f8fafc"
+          : isDarkMode
+            ? "#0f172a"
+            : "#ffffff",
+        color: isDarkMode ? "#f1f5f9" : "#0f172a",
+      }),
+      dropdownIndicator: (base, state) => ({
+        ...base,
+        color: state.isFocused ? "#f59e0b" : isDarkMode ? "#94a3b8" : "#64748b",
+      }),
+      clearIndicator: (base) => ({
+        ...base,
+        color: isDarkMode ? "#94a3b8" : "#64748b",
+      }),
+      indicatorSeparator: (base) => ({
+        ...base,
+        backgroundColor: isDarkMode ? "#334155" : "#cbd5e1",
+      }),
+      placeholder: (base) => ({
+        ...base,
+        color: isDarkMode ? "#94a3b8" : "#64748b",
+      }),
+    }),
+    [isDarkMode]
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedDate, filterStatus, filterWaiter, filterTable]);
 
   useEffect(() => {
     async function loadWaiters() {
@@ -43,8 +131,36 @@ export default function AdminOrders() {
     const loadOrders = async () => {
       setLoading(true);
       try {
-        const data = await fetchOrderHistoryRaw(authToken, { date: selectedDate });
-        setOrders(data);
+        const filters = { date: selectedDate };
+        if (filterStatus) filters.status = filterStatus;
+        if (filterWaiter) filters.user_id = filterWaiter;
+        if (filterTable.trim()) filters.table = filterTable.trim();
+        filters.page = page;
+        filters.page_size = 24;
+        const data = await fetchOrderHistoryRaw(authToken, filters);
+        if (Array.isArray(data)) {
+          setOrders(data);
+          setPagination((prev) => ({
+            ...prev,
+            page,
+            total: data.length,
+            total_pages: 1,
+            has_next: false,
+            has_prev: false,
+          }));
+        } else {
+          setOrders(data?.orders || []);
+          setPagination(
+            data?.pagination || {
+              page: 1,
+              page_size: 24,
+              total: 0,
+              total_pages: 1,
+              has_next: false,
+              has_prev: false,
+            }
+          );
+        }
       } catch (err) {
         toast.error(err.message || "Failed to load orders");
       } finally {
@@ -53,15 +169,9 @@ export default function AdminOrders() {
     };
 
     loadOrders();
-  }, [authToken, selectedDate]);
+  }, [authToken, selectedDate, filterStatus, filterWaiter, filterTable, page]);
 
-  const filteredOrders = orders.filter((order) => {
-    return (
-      (filterWaiter ? order.user?.id?.toString() === filterWaiter : true) &&
-      (filterTable ? order.table.number.toString().includes(filterTable) : true) &&
-      (filterStatus ? order.status === filterStatus : true)
-    );
-  });
+  const filteredOrders = orders;
 
   const statusBadge = (status) => {
     switch (status) {
@@ -75,17 +185,35 @@ export default function AdminOrders() {
         return status;
     }
   };
+  const statusTone = (status) => {
+    switch (status) {
+      case "open":
+        return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300";
+      case "closed":
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+      case "paid":
+        return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300";
+      default:
+        return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200";
+    }
+  };
 
   const handleSaveChanges = async () => {
     try {
       const updatedItems = [];
       for (const item of selectedOrder.items) {
         if (item.status !== "void") {
-          await updateOrderItem(authToken, selectedOrder.id, item.id, {
-            quantity: item.quantity,
-          });
+          const qty = Number(item.quantity);
+          if (Number.isNaN(qty) || qty <= 0) {
+            throw new Error("Quantity must be greater than zero");
+          }
+          if (qty !== Number(item.originalQuantity ?? item.quantity)) {
+            await updateOrderItem(authToken, selectedOrder.id, item.id, {
+              quantity: qty,
+            });
+          }
         }
-        updatedItems.push(item);
+        updatedItems.push({ ...item, quantity: Number(item.quantity) });
       }
 
       const updatedTotal = updatedItems
@@ -161,83 +289,144 @@ export default function AdminOrders() {
   };
 
   return (
-    <div className="space-y-6">
-      <Card className="p-4 border-slate-200 dark:border-slate-800">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-          <div>
-            <h3 className="text-base font-semibold">Order Tracker</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Orders for {selectedDate}</p>
+    <div className="space-y-5">
+      <Card className="overflow-hidden border-slate-200 dark:border-slate-800">
+        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-4 py-5 text-white md:px-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-300">Admin Operations</p>
+              <h3 className="mt-1 text-xl font-semibold">Order Tracker</h3>
+              <p className="mt-1 text-sm text-slate-300">Daily flow for tables, waiters, and item-level edits</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Date</p>
+                <p className="text-sm font-medium">{selectedDate}</p>
+              </div>
+              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Showing</p>
+                <p className="text-sm font-medium">{filteredOrders.length}</p>
+              </div>
+              <div className="col-span-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 sm:col-span-1">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Total</p>
+                <p className="text-sm font-medium">{pagination.total}</p>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2 items-center">
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-slate-700"
-            />
-            <select
-              value={filterWaiter}
-              onChange={(e) => setFilterWaiter(e.target.value)}
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-slate-700"
-            >
-              {waiters.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.username}
-                </option>
-              ))}
-            </select>
-            <input
-              type="text"
-              placeholder="Filter by table"
-              value={filterTable}
-              onChange={(e) => setFilterTable(e.target.value)}
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-slate-700"
-            />
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-slate-700"
-            >
-              <option value="">All Status</option>
-              <option value="open">Open</option>
-              <option value="closed">Closed</option>
-              <option value="paid">Paid</option>
-            </select>
-            <span className="text-sm text-slate-600 dark:text-slate-300">Showing {filteredOrders.length}</span>
+        </div>
+        <div className="border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/60 md:p-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Date</span>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="h-10 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Waiter</span>
+              <Select
+                isSearchable
+                options={waiterOptions}
+                value={selectedWaiterOption}
+                onChange={(opt) => setFilterWaiter(opt?.value ?? "")}
+                styles={selectThemeStyles}
+                placeholder="Search waiter..."
+                classNamePrefix="order-waiter-select"
+                menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+                menuPosition="fixed"
+                maxMenuHeight={280}
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Table</span>
+              <input
+                type="text"
+                placeholder="e.g. 12"
+                value={filterTable}
+                onChange={(e) => setFilterTable(e.target.value)}
+                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-slate-700"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Status</span>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-slate-700"
+              >
+                <option value="">All Status</option>
+                <option value="open">Open</option>
+                <option value="closed">Closed</option>
+                <option value="paid">Paid</option>
+              </select>
+            </label>
           </div>
         </div>
       </Card>
 
       {loading ? (
-        <Card className="p-8 text-center text-sm text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-800">Loading orders...</Card>
+        <Card className="border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-300">
+          Loading orders...
+        </Card>
       ) : filteredOrders.length === 0 ? (
-        <Card className="p-8 text-center text-sm text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-800">No orders found.</Card>
+        <Card className="border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-300">
+          No orders found.
+        </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filteredOrders.map((order) => (
-            <Card key={order.id} className="p-5 border-slate-200 dark:border-slate-800 shadow-sm">
-              <div className="flex justify-between items-start">
-                <div className="flex flex-col gap-0.5">
-                  <h3 className="font-medium">Order #{order.id}</h3>
-                  <p>Total: ${order.total_amount.toFixed(2)}</p>
-                  <p>Waiter: {order.user?.username || "-"}</p>
-                  <p>Items: {order.items.length}</p>
-                  <p>Time: {new Date(order.created_at).toLocaleTimeString()}</p>
-                  <p className="text-sm text-slate-600 dark:text-slate-300">{statusBadge(order.status)}</p>
+            <Card key={order.id} className="border-slate-200 p-5 shadow-sm transition hover:shadow-md dark:border-slate-800">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Order #{order.id}</p>
+                  <h4 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    Table {order.table.number}
+                  </h4>
                 </div>
-                <div className="text-sm text-slate-500 dark:text-slate-400">Table {order.table.number}</div>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusTone(order.status)}`}>
+                  {statusBadge(order.status)}
+                </span>
               </div>
 
-              <div className="mt-3 space-x-2">
+              <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-900">
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Total</p>
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">${Number(order.total_amount || 0).toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Items</p>
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">{order.items.length}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Waiter</p>
+                  <p className="font-medium text-slate-900 dark:text-slate-100">{order.user?.username || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Time</p>
+                  <p className="font-medium text-slate-900 dark:text-slate-100">{new Date(order.created_at).toLocaleTimeString()}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex gap-2">
                 <Button
+                  className="flex-1"
                   onClick={() => {
-                    setSelectedOrder(order);
+                    setSelectedOrder({
+                      ...order,
+                      items: (order.items || []).map((item) => ({
+                        ...item,
+                        originalQuantity: Number(item.quantity),
+                      })),
+                    });
                     setEditMode(false);
                   }}
                 >
                   Details
                 </Button>
-                <Button variant="destructive" onClick={() => setOrderToDelete(order)}>
+                <Button className="flex-1" variant="destructive" onClick={() => setOrderToDelete(order)}>
                   Delete
                 </Button>
               </div>
@@ -246,18 +435,87 @@ export default function AdminOrders() {
         </div>
       )}
 
+      {!loading && pagination.total_pages > 1 && (
+        <Card className="border-slate-200 p-3 dark:border-slate-800">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-slate-600 dark:text-slate-300">
+              Page {pagination.page} / {pagination.total_pages} • Showing {filteredOrders.length} of {pagination.total}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!pagination.has_prev}
+                onClick={() => setPage((p) => Math.max(p - 1, 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!pagination.has_next}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {selectedOrder && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 shadow-xl w-full max-w-lg max-h-[80vh] overflow-y-auto text-slate-900 dark:text-slate-100">
-            <h3 className="text-xl mb-3">Order #{selectedOrder.id}</h3>
-            <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+          <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-xl w-full max-w-3xl max-h-[85vh] text-slate-900 dark:text-slate-100 flex flex-col overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Order Details</p>
+                  <h3 className="text-xl font-semibold">Order #{selectedOrder.id}</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusTone(selectedOrder.status)}`}>
+                    {statusBadge(selectedOrder.status)}
+                  </span>
+                  <Button size="sm" variant="outline" onClick={() => setSelectedOrder(null)}>
+                    Close
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
+                <div className="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1.5">
+                  <p className="text-slate-500 dark:text-slate-400">Table</p>
+                  <p className="font-semibold text-sm text-slate-800 dark:text-slate-100">
+                    {selectedOrder.table?.number ?? "-"}
+                  </p>
+                </div>
+                <div className="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1.5">
+                  <p className="text-slate-500 dark:text-slate-400">Waiter</p>
+                  <p className="font-semibold text-sm text-slate-800 dark:text-slate-100">
+                    {selectedOrder.user?.username || "-"}
+                  </p>
+                </div>
+                <div className="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1.5">
+                  <p className="text-slate-500 dark:text-slate-400">Items</p>
+                  <p className="font-semibold text-sm text-slate-800 dark:text-slate-100">
+                    {selectedOrder.items?.length || 0}
+                  </p>
+                </div>
+                <div className="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1.5">
+                  <p className="text-slate-500 dark:text-slate-400">Created</p>
+                  <p className="font-semibold text-sm text-slate-800 dark:text-slate-100">
+                    {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleTimeString() : "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <ul className="divide-y divide-slate-200 dark:divide-slate-700 overflow-y-auto px-6 py-2">
               {selectedOrder.items.map((item, idx) => (
                 <li
-                  key={idx}
-                  className="flex flex-col md:flex-row md:justify-between py-1 items-start md:items-center gap-1 md:gap-0"
+                  key={item.id ?? idx}
+                  className="flex flex-col md:flex-row md:justify-between py-3 items-start md:items-center gap-2 md:gap-0"
                 >
                   <div className="flex flex-col">
-                    <span className={item.status === "void" ? "line-through text-red-500" : ""}>
+                    <span className={`font-medium ${item.status === "void" ? "line-through text-red-500" : ""}`}>
                       {item.name} {item.status === "void" && "(voided)"}
                     </span>
                     {item.prep_tag && <span className="text-sm text-slate-500 dark:text-slate-400">Prep Tag: {item.prep_tag}</span>}
@@ -268,7 +526,7 @@ export default function AdminOrders() {
                     {editMode && item.status !== "void" ? (
                       <input
                         type="number"
-                        min="0"
+                        min="0.01"
                         step="any"
                         value={item.quantity}
                         onChange={(e) => {
@@ -282,11 +540,11 @@ export default function AdminOrders() {
                             return { ...prev, items };
                           });
                         }}
-                        className="w-16 rounded-md border border-slate-300 px-1 bg-white dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-slate-100 appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className="w-20 rounded-md border border-slate-300 px-2 py-1 bg-white dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-slate-100 appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
                     ) : (
-                      <span>
-                        {item.quantity} x ${item.price}
+                      <span className="rounded-md bg-slate-100 dark:bg-slate-800 px-2 py-1 text-sm">
+                        {item.quantity} x ${Number(item.price || 0).toFixed(2)}
                       </span>
                     )}
 
@@ -306,13 +564,20 @@ export default function AdminOrders() {
               ))}
             </ul>
 
-            <div className="mt-4 flex justify-between">
-              <Button onClick={() => setSelectedOrder(null)}>Close</Button>
-              {editMode ? (
-                <Button onClick={handleSaveChanges}>Save</Button>
-              ) : (
-                <Button onClick={() => setEditMode(true)}>Edit</Button>
-              )}
+            <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Total: ${Number(selectedOrder.total_amount || 0).toFixed(2)}
+              </p>
+              <div className="flex gap-2">
+                {editMode ? (
+                  <>
+                    <Button variant="outline" onClick={() => setEditMode(false)}>Cancel Edit</Button>
+                    <Button onClick={handleSaveChanges}>Save Changes</Button>
+                  </>
+                ) : (
+                  <Button onClick={() => setEditMode(true)}>Edit Items</Button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -320,12 +585,13 @@ export default function AdminOrders() {
 
       {itemToVoid && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 shadow-xl text-slate-900 dark:text-slate-100">
-            <p>
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 shadow-xl text-slate-900 dark:text-slate-100 w-full max-w-md">
+            <p className="text-lg font-semibold">Confirm Void</p>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
               Void item <strong>{itemToVoid.name}</strong>?
             </p>
-            <div className="mt-3 flex gap-3">
-              <Button onClick={() => setItemToVoid(null)}>Cancel</Button>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setItemToVoid(null)}>Cancel</Button>
               <Button variant="destructive" onClick={handleVoidItem}>
                 Void
               </Button>
@@ -336,12 +602,13 @@ export default function AdminOrders() {
 
       {orderToDelete && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 shadow-xl text-slate-900 dark:text-slate-100">
-            <p>
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 shadow-xl text-slate-900 dark:text-slate-100 w-full max-w-md">
+            <p className="text-lg font-semibold">Delete Order</p>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
               Delete order <strong>#{orderToDelete.id}</strong>?
             </p>
-            <div className="mt-3 flex gap-3">
-              <Button onClick={() => setOrderToDelete(null)}>Cancel</Button>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setOrderToDelete(null)}>Cancel</Button>
               <Button variant="destructive" onClick={handleDeleteOrder}>
                 Delete
               </Button>

@@ -622,10 +622,27 @@ def void_order_item(order_id, item_id):
 
 @orders_bp.route("/<int:order_id>/items/<int:item_id>/unvoid", methods=["PATCH"])
 @jwt_required()
+@roles_required("admin", "manager", "waiter")
 def unvoid_order_item(order_id, item_id):
     item = OrderItem.query.filter_by(order_id=order_id, id=item_id).first()
     if not item:
         return error_response("Item not found", 404)
+
+    order = db.session.get(Order, order_id)
+    if not order:
+        return error_response("Order not found.", 404)
+
+    # Waiter restriction: can only modify items on assigned tables
+    try:
+        user_id = safe_int_identity()
+    except ValueError:
+        return error_response("Invalid token identity.", 401)
+
+    if "waiter" in jwt_roles():
+        user = db.session.get(User, user_id)
+        table = db.session.get(Table, order.table_id)
+        if table not in user.tables:
+            return error_response("You are not assigned to this table.", 403)
 
     prev_status = item.status
     item.status = "ready"  # default back to ready
@@ -637,6 +654,9 @@ def unvoid_order_item(order_id, item_id):
             menu_item_id=item.menu_item_id,
             quantity=float(item.quantity),  # deduct stock
         )
+
+    # Keep order totals in sync after status changes.
+    recalc_order_total(order)
     db.session.commit()
     logger.info(f"Unvoided order item {item.id} in order {order_id}")
-    return jsonify({"message": "Item unvoided", "item_id": item.id}), 200
+    return jsonify(order_to_dict(order)), 200

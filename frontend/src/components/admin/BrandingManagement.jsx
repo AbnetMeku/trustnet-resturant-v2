@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,18 +42,6 @@ export default function BrandingManagement() {
     load();
   }, []);
 
-  const handleChange = (field, value) => {
-    const nextForm = { ...form, [field]: value };
-    setForm(nextForm);
-    setPreview({
-      ...preview,
-      logo_url: nextForm.logo_url.trim() || DEFAULT_BRANDING.logo_url,
-      background_url: nextForm.background_url.trim() || DEFAULT_BRANDING.background_url,
-      custom_logo_url: nextForm.logo_url.trim() || null,
-      custom_background_url: nextForm.background_url.trim() || null,
-    });
-  };
-
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -70,6 +57,26 @@ export default function BrandingManagement() {
       toast.success("Branding updated successfully");
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to update branding settings");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResetDefaults = async () => {
+    setSaving(true);
+    try {
+      const data = await updateBrandingSettings({
+        logo_url: "",
+        background_url: "",
+      });
+      setForm({
+        logo_url: data.custom_logo_url || "",
+        background_url: data.custom_background_url || "",
+      });
+      setPreview(data);
+      toast.success("Branding reset to defaults");
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to reset branding settings");
     } finally {
       setSaving(false);
     }
@@ -101,20 +108,32 @@ export default function BrandingManagement() {
 
   return (
     <div className="space-y-4">
-      <Card className="p-4 border-slate-200 dark:border-slate-800">
-        <div>
-          <h3 className="text-base font-semibold">Branding</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Configure logo and background used across admin and POS screens.
-          </p>
+      <Card className="p-4 border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold">Branding</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Configure logo and background used across admin and POS screens.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={handleResetDefaults}
+            disabled={saving}
+            className="border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Reset to Default
+          </Button>
         </div>
       </Card>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <Card className="p-4 space-y-4 border-slate-200 dark:border-slate-800">
+        <Card className="p-4 space-y-4 border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm">
           <div>
             <h4 className="font-medium">Assets</h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Upload files or set direct URLs.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Upload logo and background images. URL links are hidden for a cleaner flow.
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -149,36 +168,14 @@ export default function BrandingManagement() {
             {uploadingBackground && <p className="text-xs text-blue-600 dark:text-blue-400">Uploading background...</p>}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="branding-logo">Logo URL</Label>
-            <Input
-              id="branding-logo"
-              placeholder="https://example.com/logo.png"
-              value={form.logo_url}
-              onChange={(e) => handleChange("logo_url", e.target.value)}
-            />
-            <p className="text-xs text-slate-500 dark:text-slate-400">Leave empty to use `/logo.png`.</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="branding-background">Background URL</Label>
-            <Input
-              id="branding-background"
-              placeholder="https://example.com/background.jpg"
-              value={form.background_url}
-              onChange={(e) => handleChange("background_url", e.target.value)}
-            />
-            <p className="text-xs text-slate-500 dark:text-slate-400">Leave empty to use `/Background.jpeg`.</p>
-          </div>
-
           <div className="pt-1">
-            <Button onClick={handleSave} disabled={saving}>
+            <Button onClick={handleSave} disabled={saving || uploadingLogo || uploadingBackground}>
               {saving ? "Saving..." : "Save Branding"}
             </Button>
           </div>
         </Card>
 
-        <Card className="p-4 space-y-3 border-slate-200 dark:border-slate-800">
+        <Card className="p-4 space-y-3 border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm">
           <div className="flex items-center justify-between">
             <h4 className="font-medium">Live Preview</h4>
             <span className="text-xs text-slate-500 dark:text-slate-400">Current effective branding</span>
@@ -200,12 +197,12 @@ export default function BrandingManagement() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-2 text-xs text-slate-600 dark:text-slate-300">
-            <div className="rounded-md border border-slate-200 dark:border-slate-700 p-2">
-              <span className="font-medium">Logo:</span> {preview.logo_url || "Not set"}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-md border border-slate-200 dark:border-slate-700 p-2 text-slate-700 dark:text-slate-200">
+              <span className="font-medium">Logo source:</span> {preview.custom_logo_url ? "Custom" : "Default"}
             </div>
-            <div className="rounded-md border border-slate-200 dark:border-slate-700 p-2">
-              <span className="font-medium">Background:</span> {preview.background_url || "Not set"}
+            <div className="rounded-md border border-slate-200 dark:border-slate-700 p-2 text-slate-700 dark:text-slate-200">
+              <span className="font-medium">Background source:</span> {preview.custom_background_url ? "Custom" : "Default"}
             </div>
           </div>
         </Card>

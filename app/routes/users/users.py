@@ -6,6 +6,7 @@ from werkzeug.security import generate_password_hash
 from app.utils.decorators import roles_required
 
 users_bp = Blueprint("users_bp", __name__, url_prefix="/users")
+ALLOWED_ROLES = {"admin", "manager", "cashier", "waiter"}
 
 
 def user_to_dict(user):
@@ -36,35 +37,37 @@ def get_users():
 @jwt_required()
 @roles_required("admin", "manager")
 def create_user():
-    data = request.get_json()
-    username = data.get("username")
+    data = request.get_json() or {}
+    username = (data.get("username") or "").strip()
     password = data.get("password")
     pin = data.get("pin")
-    role = data.get("role", "").lower()
+    role = (data.get("role") or "").lower()
 
+    if not username:
+        abort(400, "Username is required")
     if not role:
         abort(400, "Role is required")
-
+    if role not in ALLOWED_ROLES:
+        abort(400, "Invalid role")
     if role != "waiter" and not password:
         abort(400, "Password is required for this role")
     if role == "waiter" and not pin:
         abort(400, "PIN is required for waiter")
 
-    # Username uniqueness
-    if username and User.query.filter_by(username=username).first():
+    if User.query.filter_by(username=username).first():
         abort(400, "Username already exists")
 
-    # PIN uniqueness for waiters
     if role == "waiter":
         existing_waiters = User.query.filter_by(role="waiter").all()
-        for w in existing_waiters:
-            if w.pin_hash == pin:
+        for waiter in existing_waiters:
+            if waiter.pin_hash == pin:
                 abort(400, "This PIN is already taken")
 
     user = User(
-        username=username if username else None,
+        username=username,
         role=role,
         password_hash=generate_password_hash(password) if password else None,
+        # Intentionally stored as plain text for waiter login flow.
         pin_hash=pin if pin else None,
     )
 
@@ -99,44 +102,61 @@ def update_user(user_id):
     if not user:
         abort(404, "User not found")
 
-    data = request.get_json()
-    new_username = data.get("username")
+    data = request.get_json() or {}
+    new_username = (data.get("username") or "").strip() if data.get("username") is not None else None
     new_password = data.get("password")
     new_pin = data.get("pin")
-    new_role = data.get("role", user.role)
+    new_role = (data.get("role", user.role) or user.role).lower()
 
-    # ✅ Handle username update (ensure uniqueness)
+    if new_role not in ALLOWED_ROLES:
+        abort(400, "Invalid role")
+
     if new_username and new_username != user.username:
         if User.query.filter(User.username == new_username, User.id != user.id).first():
             abort(400, "Username already exists")
         user.username = new_username
 
-    # Admin/Manager can update anyone except role restrictions
     if current_user.role in ["admin", "manager"]:
         if user.role == "admin" and current_user.role != "admin":
             abort(403, "Manager cannot update Admin")
+
         if new_password:
             user.password_hash = generate_password_hash(new_password)
+
+        # Uniqueness check stays in plain-text domain intentionally.
         if new_pin and user.role == "waiter":
-            # Check PIN uniqueness
             existing_waiters = User.query.filter(User.id != user.id, User.role == "waiter").all()
-            for w in existing_waiters:
-                if w.pin_hash == new_pin:
+            for waiter in existing_waiters:
+                if waiter.pin_hash == new_pin:
                     abort(400, "This PIN is already taken")
             user.pin_hash = new_pin
 
         user.role = new_role
 
-    # Waiter can only update own PIN
+        # Enforce credentials for resulting role.
+        if user.role == "waiter":
+            if not user.pin_hash:
+                abort(400, "PIN is required for waiter")
+        else:
+            if not user.password_hash:
+                abort(400, "Password is required for this role")
+
     elif current_user.role == "waiter" and current_user.id == user.id:
-        if new_pin:
-            existing_waiters = User.query.filter(User.id != user.id, User.role == "waiter").all()
-            for w in existing_waiters:
-                if w.pin_hash == new_pin:
-                    abort(400, "This PIN is already taken")
-            user.pin_hash = new_pin
+        if new_role != user.role:
+            abort(403, "Waiter cannot change role")
+        if new_username and new_username != user.username:
+            abort(403, "Waiter cannot change username")
         if new_password:
             abort(403, "Waiter cannot update password")
+
+        if new_pin:
+            existing_waiters = User.query.filter(User.id != user.id, User.role == "waiter").all()
+            for waiter in existing_waiters:
+                if waiter.pin_hash == new_pin:
+                    abort(400, "This PIN is already taken")
+            user.pin_hash = new_pin
+    else:
+        abort(403, "Forbidden")
 
     db.session.commit()
     return jsonify(user_to_dict(user)), 200
@@ -151,7 +171,6 @@ def delete_user(user_id):
     if not user:
         abort(404, "User not found")
 
-    # Manager cannot delete admin
     current_user = db.session.get(User, int(get_jwt_identity()))
     if user.role == "admin" and current_user.role != "admin":
         abort(403, "Manager cannot delete Admin")
