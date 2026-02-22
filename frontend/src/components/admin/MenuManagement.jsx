@@ -25,6 +25,8 @@ import { getStations } from "@/api/stations";
 
 const fieldClass =
   "h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-slate-600";
+const filterFieldClass =
+  "h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-slate-600";
 
 function ConfirmDialog({ open, message, onConfirm, onCancel }) {
   if (!open) return null;
@@ -427,7 +429,11 @@ export default function MenuManagement() {
       {/* Menu Filters */}
       {tab === "menu" && (
         <Card className="p-4 border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm">
-        <div className="flex gap-2 flex-wrap">
+        <div className="mb-3">
+          <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Filters</h4>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Filter menu list by category, subcategory, or status.</p>
+        </div>
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
           <select
             value={filters.categoryId}
             onChange={(e) =>
@@ -437,7 +443,7 @@ export default function MenuManagement() {
                 subcategoryId: "",
               })
             }
-            className={fieldClass}
+            className={`${filterFieldClass} w-full lg:w-56`}
           >
             <option value="">All Categories</option>
             {categories.map((c) => (
@@ -452,7 +458,7 @@ export default function MenuManagement() {
             onChange={(e) =>
               setFilters({ ...filters, subcategoryId: e.target.value })
             }
-            className={fieldClass}
+            className={`${filterFieldClass} w-full lg:w-56`}
           >
             <option value="">All Subcategories</option>
             {subcategories
@@ -473,12 +479,26 @@ export default function MenuManagement() {
             onChange={(e) =>
               setFilters({ ...filters, availability: e.target.value })
             }
-            className={fieldClass}
+            className={`${filterFieldClass} w-full lg:w-48`}
           >
             <option value="">All</option>
             <option value="available">Available</option>
             <option value="unavailable">Unavailable</option>
           </select>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full lg:w-auto border-slate-300 dark:border-slate-700"
+            onClick={() =>
+              setFilters({
+                categoryId: "",
+                subcategoryId: "",
+                availability: "",
+              })
+            }
+          >
+            Clear
+          </Button>
         </div>
         </Card>
       )}
