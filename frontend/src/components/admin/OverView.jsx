@@ -1,24 +1,32 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export default function AdminDashboard() {
+export default function OverView() {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [dateFilter, setDateFilter] = useState("today"); // today | last7 | last30
+  const [dateFilter, setDateFilter] = useState("today");
   const token = localStorage.getItem("auth_token");
+
+  const rangeLabel = useMemo(() => {
+    if (dateFilter === "today") return "Today";
+    if (dateFilter === "last7") return "Last 7 Days";
+    return "Last 30 Days";
+  }, [dateFilter]);
 
   function getDateRange(filter) {
     const today = new Date();
-    let startDate, endDate;
-    endDate = today.toISOString().slice(0, 10);
+    let startDate;
+    const endDate = today.toISOString().slice(0, 10);
 
     if (filter === "today") startDate = endDate;
     else if (filter === "last7") {
       const d = new Date();
       d.setDate(today.getDate() - 6);
       startDate = d.toISOString().slice(0, 10);
-    } else if (filter === "last30") {
+    } else {
       const d = new Date();
       d.setDate(today.getDate() - 29);
       startDate = d.toISOString().slice(0, 10);
@@ -50,7 +58,6 @@ export default function AdminDashboard() {
 
         const summary = await res.json();
 
-        // ✅ Fixed status counts
         const openOrders = summary.waiterSummary.reduce((sum, w) => sum + w.openOrders, 0);
         const closedOrders = summary.waiterSummary.reduce((sum, w) => sum + w.closedOrders, 0);
         const paidOrders = summary.waiterSummary.reduce((sum, w) => sum + w.paidOrders, 0);
@@ -61,13 +68,11 @@ export default function AdminDashboard() {
           { status: "Paid", count: paidOrders },
         ];
 
-        // Top items
         const topItems = summary.dailyItemsSummary
           .sort((a, b) => b.quantity - a.quantity)
           .slice(0, 5)
-          .map(item => ({ id: item.name, name: item.name, count: item.quantity }));
+          .map((item) => ({ id: item.name, name: item.name, count: item.quantity }));
 
-        // Top waiters by total money
         const topWaiters = summary.waiterSummary
           .sort(
             (a, b) =>
@@ -75,18 +80,19 @@ export default function AdminDashboard() {
               (a.paidAmount + a.closedAmount + a.openAmount)
           )
           .slice(0, 5)
-          .map(w => ({
+          .map((w) => ({
             id: w.waiterId,
             name: w.waiterName,
             salesCount: (w.paidAmount + w.closedAmount + w.openAmount).toFixed(2),
           }));
 
+        const totalSales = summary.paidAmount + summary.closedAmount + summary.openAmount;
+
         setMetrics({
           openOrders,
           closedOrders,
           paidOrders,
-          todayTotalSales: summary.paidAmount + summary.closedAmount + summary.openAmount,
-          grandTotalSales: summary.paidAmount + summary.closedAmount + summary.openAmount,
+          totalSales,
           orderStatusData,
           topItems,
           topWaiters,
@@ -102,56 +108,57 @@ export default function AdminDashboard() {
     loadData();
   }, [token, dateFilter]);
 
-  if (loading) return <p className="p-4">Loading dashboard...</p>;
-  if (error) return <p className="p-4 text-red-600">{error}</p>;
+  if (loading) return <p className="p-4 text-sm text-slate-500 dark:text-slate-300">Loading dashboard...</p>;
+  if (error) return <p className="p-4 text-sm text-red-600 dark:text-red-400">{error}</p>;
   if (!metrics) return null;
 
   return (
-    <div className="p-4 space-y-8 dark:bg-gray-900 dark:text-gray-100 min-h-screen">
-      {/* Date Range Filter */}
-      <div className="mb-4">
-        <label className="mr-2 font-semibold">Date Range:</label>
-        <select
-          value={dateFilter}
-          onChange={e => setDateFilter(e.target.value)}
-          className="border rounded px-2 py-1 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600"
-        >
-          <option value="today">Today</option>
-          <option value="last7">Last 7 Days</option>
-          <option value="last30">Last 30 Days</option>
-        </select>
+    <div className="space-y-5">
+      <Card className="p-4 border-slate-200 dark:border-slate-800">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold">Performance Snapshot</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Live operations summary for {rangeLabel}.</p>
+          </div>
+          <div className="w-44">
+            <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Date range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="last7">Last 7 Days</SelectItem>
+                <SelectItem value="last30">Last 30 Days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <MetricCard title="Open Orders" value={metrics.openOrders} tone="amber" />
+        <MetricCard title="Closed Orders" value={metrics.closedOrders} tone="emerald" />
+        <MetricCard title="Paid Orders" value={metrics.paidOrders} tone="blue" />
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <Card bgColor="bg-indigo-700" title="Open Orders" value={metrics.openOrders} />
-        <Card bgColor="bg-green-600" title="Closed Orders" value={metrics.closedOrders} />
-        <Card bgColor="bg-blue-700" title="Paid Orders" value={metrics.paidOrders} />
-      </div>
+      <Card className="p-5 border-slate-200 dark:border-slate-800 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">
+        <p className="text-sm opacity-85">Total Sales</p>
+        <p className="text-3xl md:text-4xl font-bold mt-1">${metrics.totalSales.toLocaleString()}</p>
+      </Card>
 
-      {/* Sales Totals */}
-      <div className="bg-yellow-500 text-white rounded-lg shadow p-6">
-        <h3 className="text-xl font-semibold mb-2">Total Sales</h3>
-        <p className="text-5xl font-extrabold">
-          ${metrics.todayTotalSales.toLocaleString()}
-        </p>
-      </div>
-
-      {/* Order Status Chart */}
-      <div className="bg-white rounded-lg shadow p-6 dark:bg-gray-800">
-        <h3 className="text-lg font-semibold mb-4">Order Status Breakdown</h3>
+      <Card className="p-5 border-slate-200 dark:border-slate-800">
+        <h3 className="text-sm font-semibold mb-3">Order Status Breakdown</h3>
         <ResponsiveContainer width="100%" height={250}>
           <BarChart data={metrics.orderStatusData}>
             <XAxis dataKey="status" />
             <YAxis allowDecimals={false} />
             <Tooltip />
-            <Bar dataKey="count" fill="#3b82f6" />
+            <Bar dataKey="count" fill="#334155" />
           </BarChart>
         </ResponsiveContainer>
-      </div>
+      </Card>
 
-      {/* Top Items and Waiters */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <ListBlock title="Top Selling Items" items={metrics.topItems} />
         <ListBlock title="Top Waiters" items={metrics.topWaiters} money />
       </div>
@@ -159,27 +166,35 @@ export default function AdminDashboard() {
   );
 }
 
-function Card({ bgColor, title, value }) {
+function MetricCard({ title, value, tone }) {
+  const tones = {
+    amber: "bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-200",
+    emerald: "bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-200",
+    blue: "bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-200",
+  };
+
   return (
-    <div className={`${bgColor} text-white rounded-lg shadow p-6`}>
-      <h3 className="text-lg font-semibold mb-2">{title}</h3>
-      <p className="text-4xl font-bold">{value}</p>
-    </div>
+    <Card className={`p-4 border ${tones[tone]}`}>
+      <p className="text-xs font-medium uppercase tracking-wide">{title}</p>
+      <p className="text-3xl font-bold mt-1">{value}</p>
+    </Card>
   );
 }
 
 function ListBlock({ title, items, money }) {
   return (
-    <div className="bg-white rounded-lg shadow p-6 dark:bg-gray-800">
-      <h3 className="text-lg font-semibold mb-4">{title}</h3>
-      <ul className="list-disc list-inside space-y-1">
+    <Card className="p-5 border-slate-200 dark:border-slate-800">
+      <h3 className="text-sm font-semibold mb-3">{title}</h3>
+      <ul className="space-y-2">
         {items.map(({ id, name, salesCount, count }) => (
-          <li key={id}>
-            {name} -{" "}
-            {money ? `$${salesCount}` : (salesCount ?? count ?? 0).toLocaleString()} sales
+          <li key={id} className="flex items-center justify-between rounded-md border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm">
+            <span className="truncate pr-3">{name}</span>
+            <span className="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+              {money ? `$${salesCount}` : `${(salesCount ?? count ?? 0).toLocaleString()} sales`}
+            </span>
           </li>
         ))}
       </ul>
-    </div>
+    </Card>
   );
 }

@@ -411,9 +411,9 @@ export default function SalesSummaryReport({ darkMode }) {
   };
 
   return (
-    <div className={`p-6 max-w-6xl mx-auto ${darkMode ? "dark bg-gray-800 " : "bg-gray-800 "}`}>
+    <div className={`p-4 md:p-6 max-w-6xl mx-auto ${darkMode ? "dark" : ""}`}>
       {/* Filter Section */}
-      <div className="mb-8 bg-gray-50 dark:bg-gray-800 p-6 rounded-xl shadow-sm">
+      <div className="mb-8 bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <label className="flex flex-col">
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

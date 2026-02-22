@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { getWaiterSummary, getWaiterDetails } from "@/api/reportApi";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
 
 export default function WaiterSummaryReport() {
-  // Default to today
   const today = new Date().toISOString().split("T")[0];
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
@@ -11,13 +12,11 @@ export default function WaiterSummaryReport() {
   const [grandTotal, setGrandTotal] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // Modal state
   const [showModal, setShowModal] = useState(false);
   const [modalWaiter, setModalWaiter] = useState("");
   const [modalItems, setModalItems] = useState([]);
   const [modalLoading, setModalLoading] = useState(false);
 
-  // Fetch summary report
   const fetchReport = async () => {
     if (!startDate || !endDate) return;
 
@@ -59,133 +58,102 @@ export default function WaiterSummaryReport() {
     }
   };
 
-  const tableHeadClass =
-    "border p-2 text-left bg-gray-200 dark:bg-gray-700 dark:text-white";
-  const tableCellClass = "border p-2 dark:text-white";
-  const tableRowHover = "hover:bg-gray-100 dark:hover:bg-gray-800";
-
   return (
-    <div className="p-4 dark:bg-gray-900 dark:text-white min-h-screen">
-      <h2 className="text-xl font-bold mb-4">Waiter Summary Report</h2>
+    <div className="space-y-4">
+      <Card className="p-4 border-slate-200 dark:border-slate-800">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">Waiter Summary Report</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Sales performance by waiter for selected dates.</p>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="date"
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-slate-700"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+            <input
+              type="date"
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-slate-700"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </div>
+        </div>
+      </Card>
 
-      {/* Date filters */}
-      <div className="flex gap-2 mb-4">
-        <input
-          type="date"
-          className="border p-1 rounded dark:bg-gray-700 dark:text-white"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-        />
-        <input
-          type="date"
-          className="border p-1 rounded dark:bg-gray-700 dark:text-white"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-        />
-      </div>
-
-      {/* Main Table */}
       {loading ? (
-        <p>Loading...</p>
+        <Card className="p-8 text-center text-sm text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-800">Loading report...</Card>
       ) : report.length === 0 ? (
-        <p className="text-gray-500 dark:text-gray-300">
-          No data available for selected dates
-        </p>
+        <Card className="p-8 text-center text-sm text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-800">No data available for selected dates.</Card>
       ) : (
-        <table className="w-full border-collapse border dark:border-gray-700">
-          <thead>
-            <tr>
-              <th className={tableHeadClass}>Waiter Name</th>
-              <th className={`${tableHeadClass} text-right`}>Total Sales</th>
-              <th className={tableHeadClass}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {report.map((waiter, idx) => (
-              <tr key={idx} className={tableRowHover}>
-                <td className={tableCellClass}>{waiter.waiter_name}</td>
-                <td className={`${tableCellClass} text-right`}>
-                  {(waiter.total_sales || 0).toFixed(2)}
-                </td>
-                <td className={`${tableCellClass} text-center`}>
-                  <button
-                    className="bg-green-600 text-white px-2 py-1 rounded"
-                    onClick={() => viewDetails(waiter)}
-                  >
-                    View Details
-                  </button>
-                </td>
+        <Card className="overflow-hidden border-slate-200 dark:border-slate-800">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="bg-slate-100 dark:bg-slate-800/70">
+                <th className="border border-slate-200 dark:border-slate-700 p-3 text-left">Waiter Name</th>
+                <th className="border border-slate-200 dark:border-slate-700 p-3 text-right">Total Sales</th>
+                <th className="border border-slate-200 dark:border-slate-700 p-3 text-left">Actions</th>
               </tr>
-            ))}
+            </thead>
+            <tbody>
+              {report.map((waiter, idx) => (
+                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-900/60">
+                  <td className="border border-slate-200 dark:border-slate-700 p-3">{waiter.waiter_name}</td>
+                  <td className="border border-slate-200 dark:border-slate-700 p-3 text-right">{(waiter.total_sales || 0).toFixed(2)}</td>
+                  <td className="border border-slate-200 dark:border-slate-700 p-3">
+                    <Button size="sm" onClick={() => viewDetails(waiter)}>View Details</Button>
+                  </td>
+                </tr>
+              ))}
 
-            <tr className={`font-bold ${tableRowHover}`}>
-              <td className={tableCellClass}>Grand Total</td>
-              <td className={`${tableCellClass} text-right`}>
-                {(grandTotal || 0).toFixed(2)}
-              </td>
-              <td className={tableCellClass}></td>
-            </tr>
-          </tbody>
-        </table>
+              <tr className="font-semibold bg-slate-100/70 dark:bg-slate-800/70">
+                <td className="border border-slate-200 dark:border-slate-700 p-3">Grand Total</td>
+                <td className="border border-slate-200 dark:border-slate-700 p-3 text-right">{(grandTotal || 0).toFixed(2)}</td>
+                <td className="border border-slate-200 dark:border-slate-700 p-3" />
+              </tr>
+            </tbody>
+          </table>
+        </Card>
       )}
 
-      {/* Modal (Waiter Details) */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 p-4 rounded w-11/12 max-w-2xl relative">
-            <h3 className="text-lg font-bold mb-2 dark:text-white">
-              Details for {modalWaiter}
-            </h3>
-            <button
-              className="absolute top-2 right-2 text-red-600 font-bold"
-              onClick={() => setShowModal(false)}
-            >
-              ✕
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="p-4 w-11/12 max-w-2xl relative border-slate-200 dark:border-slate-800">
+            <h3 className="text-lg font-semibold mb-2">Details for {modalWaiter}</h3>
+            <button className="absolute top-3 right-3 text-red-600 font-bold" onClick={() => setShowModal(false)}>
+              x
             </button>
 
             {modalLoading ? (
-              <p>Loading...</p>
+              <p className="text-sm text-slate-500 dark:text-slate-300">Loading...</p>
             ) : modalItems.length === 0 ? (
-              <p className="dark:text-gray-300">No items sold by this waiter</p>
+              <p className="text-sm text-slate-500 dark:text-slate-300">No items sold by this waiter.</p>
             ) : (
-              <table className="w-full border-collapse border mt-2 dark:border-gray-700">
+              <table className="w-full border-collapse border border-slate-200 dark:border-slate-700 mt-2 text-sm">
                 <thead>
-                  <tr className="bg-gray-200 dark:bg-gray-700 dark:text-white">
-                    <th className="border p-1 text-left">Item Name</th>
-                    <th className="border p-1 text-right">Quantity</th>
-                    <th className="border p-1 text-right">Total</th>
+                  <tr className="bg-slate-100 dark:bg-slate-800/70">
+                    <th className="border border-slate-200 dark:border-slate-700 p-2 text-left">Item Name</th>
+                    <th className="border border-slate-200 dark:border-slate-700 p-2 text-right">Quantity</th>
+                    <th className="border border-slate-200 dark:border-slate-700 p-2 text-right">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {modalItems.map((item, idx) => (
-                    <tr
-                      key={idx}
-                      className={
-                        item.is_voided
-                          ? "bg-yellow-100 dark:bg-yellow-700"
-                          : tableRowHover
-                      }
-                    >
-                      <td className="border p-1 dark:text-white">
+                    <tr key={idx} className={item.is_voided ? "bg-amber-100 dark:bg-amber-900/40" : "hover:bg-slate-50 dark:hover:bg-slate-900/60"}>
+                      <td className="border border-slate-200 dark:border-slate-700 p-2">
                         {item.item_name}
-                        {item.is_voided && (
-                          <span className="text-xs text-gray-700 dark:text-gray-300 ml-1">
-                            (Voided)
-                          </span>
-                        )}
+                        {item.is_voided && <span className="text-xs ml-1 text-slate-600 dark:text-slate-300">(Voided)</span>}
                       </td>
-                      <td className="border p-1 text-right dark:text-white">
-                        {item.quantity_sold || 0}
-                      </td>
-                      <td className="border p-1 text-right dark:text-white">
-                        {(item.total_amount || 0).toFixed(2)}
-                      </td>
+                      <td className="border border-slate-200 dark:border-slate-700 p-2 text-right">{item.quantity_sold || 0}</td>
+                      <td className="border border-slate-200 dark:border-slate-700 p-2 text-right">{(item.total_amount || 0).toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
-          </div>
+          </Card>
         </div>
       )}
     </div>

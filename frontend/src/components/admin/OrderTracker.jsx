@@ -25,7 +25,6 @@ export default function AdminOrders() {
   const todayStr = new Date().toISOString().slice(0, 10);
   const [selectedDate, setSelectedDate] = useState(todayStr);
 
-  // Load waiters
   useEffect(() => {
     async function loadWaiters() {
       try {
@@ -38,9 +37,9 @@ export default function AdminOrders() {
     loadWaiters();
   }, []);
 
-  // Load orders for a given day
   useEffect(() => {
     if (!authToken || !selectedDate) return;
+
     const loadOrders = async () => {
       setLoading(true);
       try {
@@ -52,10 +51,10 @@ export default function AdminOrders() {
         setLoading(false);
       }
     };
+
     loadOrders();
   }, [authToken, selectedDate]);
 
-  // Filtered orders
   const filteredOrders = orders.filter((order) => {
     return (
       (filterWaiter ? order.user?.id?.toString() === filterWaiter : true) &&
@@ -67,17 +66,16 @@ export default function AdminOrders() {
   const statusBadge = (status) => {
     switch (status) {
       case "open":
-        return "🟢 Open";
+        return "Open";
       case "closed":
-        return "⏳ Closed";
+        return "Closed";
       case "paid":
-        return "✅ Paid";
+        return "Paid";
       default:
         return status;
     }
   };
 
-  // --- Handlers ---
   const handleSaveChanges = async () => {
     try {
       const updatedItems = [];
@@ -96,9 +94,7 @@ export default function AdminOrders() {
 
       const updatedOrder = { ...selectedOrder, items: updatedItems, total_amount: updatedTotal };
       setSelectedOrder(updatedOrder);
-      setOrders((prev) =>
-        prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
-      );
+      setOrders((prev) => prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)));
 
       toast.success("Order updated successfully");
       setEditMode(false);
@@ -121,9 +117,7 @@ export default function AdminOrders() {
 
       const updatedOrder = { ...selectedOrder, items: updatedItems, total_amount: updatedTotal };
       setSelectedOrder(updatedOrder);
-      setOrders((prev) =>
-        prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
-      );
+      setOrders((prev) => prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)));
 
       toast.success("Item voided");
       setItemToVoid(null);
@@ -146,9 +140,7 @@ export default function AdminOrders() {
 
       const updatedOrder = { ...selectedOrder, items: updatedItems, total_amount: updatedTotal };
       setSelectedOrder(updatedOrder);
-      setOrders((prev) =>
-        prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
-      );
+      setOrders((prev) => prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)));
 
       toast.success("Item unvoided successfully");
     } catch (err) {
@@ -170,75 +162,70 @@ export default function AdminOrders() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-semibold text-gray-800 dark:text-gray-100">
-        Orders for {selectedDate} (Admin)
-      </h2>
+      <Card className="p-4 border-slate-200 dark:border-slate-800">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold">Order Tracker</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Orders for {selectedDate}</p>
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-slate-700"
+            />
+            <select
+              value={filterWaiter}
+              onChange={(e) => setFilterWaiter(e.target.value)}
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-slate-700"
+            >
+              {waiters.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.username}
+                </option>
+              ))}
+            </select>
+            <input
+              type="text"
+              placeholder="Filter by table"
+              value={filterTable}
+              onChange={(e) => setFilterTable(e.target.value)}
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-slate-700"
+            />
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-slate-700"
+            >
+              <option value="">All Status</option>
+              <option value="open">Open</option>
+              <option value="closed">Closed</option>
+              <option value="paid">Paid</option>
+            </select>
+            <span className="text-sm text-slate-600 dark:text-slate-300">Showing {filteredOrders.length}</span>
+          </div>
+        </div>
+      </Card>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-        />
-        <select
-          value={filterWaiter}
-          onChange={(e) => setFilterWaiter(e.target.value)}
-          className="border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-        >
-          {waiters.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.username}
-            </option>
-          ))}
-        </select>
-        <input
-          type="text"
-          placeholder="Filter by table"
-          value={filterTable}
-          onChange={(e) => setFilterTable(e.target.value)}
-          className="border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-        />
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-        >
-          <option value="">All Status</option>
-          <option value="open">Open</option>
-          <option value="closed">Closed</option>
-          <option value="paid">Paid</option>
-        </select>
-        <span className="text-gray-800 dark:text-gray-200">
-          Showing {filteredOrders.length} orders
-        </span>
-      </div>
-
-      {/* Orders List */}
       {loading ? (
-        <p className="text-gray-800 dark:text-gray-200">Loading...</p>
+        <Card className="p-8 text-center text-sm text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-800">Loading orders...</Card>
       ) : filteredOrders.length === 0 ? (
-        <p className="text-gray-800 dark:text-gray-200">No orders found.</p>
+        <Card className="p-8 text-center text-sm text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-800">No orders found.</Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredOrders.map((order) => (
-            <Card
-              key={order.id}
-              className="p-5 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-            >
+            <Card key={order.id} className="p-5 border-slate-200 dark:border-slate-800 shadow-sm">
               <div className="flex justify-between items-start">
-                <div className="flex flex-col">
+                <div className="flex flex-col gap-0.5">
                   <h3 className="font-medium">Order #{order.id}</h3>
                   <p>Total: ${order.total_amount.toFixed(2)}</p>
-                  <p>Waiter: {order.user?.username || "—"}</p>
+                  <p>Waiter: {order.user?.username || "-"}</p>
                   <p>Items: {order.items.length}</p>
                   <p>Time: {new Date(order.created_at).toLocaleTimeString()}</p>
-                  <p>{statusBadge(order.status)}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">{statusBadge(order.status)}</p>
                 </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  Table {order.table.number}
-                </div>
+                <div className="text-sm text-slate-500 dark:text-slate-400">Table {order.table.number}</div>
               </div>
 
               <div className="mt-3 space-x-2">
@@ -250,10 +237,7 @@ export default function AdminOrders() {
                 >
                   Details
                 </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => setOrderToDelete(order)}
-                >
+                <Button variant="destructive" onClick={() => setOrderToDelete(order)}>
                   Delete
                 </Button>
               </div>
@@ -262,33 +246,22 @@ export default function AdminOrders() {
         </div>
       )}
 
-      {/* --- Details Modal --- */}
       {selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 p-6 rounded shadow w-full max-w-lg max-h-[80vh] overflow-y-auto text-gray-900 dark:text-gray-100">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 shadow-xl w-full max-w-lg max-h-[80vh] overflow-y-auto text-slate-900 dark:text-slate-100">
             <h3 className="text-xl mb-3">Order #{selectedOrder.id}</h3>
-            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+            <ul className="divide-y divide-slate-200 dark:divide-slate-700">
               {selectedOrder.items.map((item, idx) => (
                 <li
                   key={idx}
                   className="flex flex-col md:flex-row md:justify-between py-1 items-start md:items-center gap-1 md:gap-0"
                 >
                   <div className="flex flex-col">
-                    <span
-                      className={item.status === "void" ? "line-through text-red-500" : ""}
-                    >
+                    <span className={item.status === "void" ? "line-through text-red-500" : ""}>
                       {item.name} {item.status === "void" && "(voided)"}
                     </span>
-                    {item.prep_tag && (
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        Prep Tag: {item.prep_tag}
-                      </span>
-                    )}
-                    {item.created_at && (
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        Time: {new Date(item.created_at).toLocaleTimeString()}
-                      </span>
-                    )}
+                    {item.prep_tag && <span className="text-sm text-slate-500 dark:text-slate-400">Prep Tag: {item.prep_tag}</span>}
+                    {item.created_at && <span className="text-sm text-slate-500 dark:text-slate-400">Time: {new Date(item.created_at).toLocaleTimeString()}</span>}
                   </div>
 
                   <div className="flex items-center gap-2 mt-1 md:mt-0">
@@ -304,35 +277,27 @@ export default function AdminOrders() {
                             const items = [...prev.items];
                             items[idx] = {
                               ...items[idx],
-                              quantity: isNaN(qty) ? 0 : qty,
+                              quantity: Number.isNaN(qty) ? 0 : qty,
                             };
                             return { ...prev, items };
                           });
                         }}
-                        className="w-16 border px-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className="w-16 rounded-md border border-slate-300 px-1 bg-white dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-slate-100 appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
                     ) : (
                       <span>
-                        {item.quantity} × ${item.price}
+                        {item.quantity} x ${item.price}
                       </span>
                     )}
 
                     {editMode && item.status !== "void" && (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => setItemToVoid(item)}
-                      >
+                      <Button variant="destructive" size="sm" onClick={() => setItemToVoid(item)}>
                         Void
                       </Button>
                     )}
 
                     {editMode && item.status === "void" && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => handleUnvoidItem(item)}
-                      >
+                      <Button variant="secondary" size="sm" onClick={() => handleUnvoidItem(item)}>
                         Unvoid
                       </Button>
                     )}
@@ -353,10 +318,9 @@ export default function AdminOrders() {
         </div>
       )}
 
-      {/* --- Confirm Void Item Modal --- */}
       {itemToVoid && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-          <div className="bg-white dark:bg-gray-900 p-6 rounded shadow text-gray-900 dark:text-gray-100">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 shadow-xl text-slate-900 dark:text-slate-100">
             <p>
               Void item <strong>{itemToVoid.name}</strong>?
             </p>
@@ -370,10 +334,9 @@ export default function AdminOrders() {
         </div>
       )}
 
-      {/* --- Confirm Delete Order Modal --- */}
       {orderToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-          <div className="bg-white dark:bg-gray-900 p-6 rounded shadow text-gray-900 dark:text-gray-100">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 shadow-xl text-slate-900 dark:text-slate-100">
             <p>
               Delete order <strong>#{orderToDelete.id}</strong>?
             </p>

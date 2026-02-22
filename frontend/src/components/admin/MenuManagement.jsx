@@ -392,10 +392,11 @@ export default function MenuManagement() {
   };
 
   return (
-    <div className="p-4 dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100">
+    <div className="space-y-4 text-slate-900 dark:text-slate-100">
       {/* Tabs */}
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
-        <div className="flex space-x-2">
+      <Card className="p-4 border-slate-200 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div className="flex flex-wrap gap-2">
           {["categories", "subcategories", "menu"].map((t) => (
             <Button
               key={t}
@@ -409,11 +410,13 @@ export default function MenuManagement() {
         <Button onClick={openAddModal}>
           <FaPlus className="mr-2" /> Add {tab.slice(0, -1)}
         </Button>
-      </div>
+        </div>
+      </Card>
 
       {/* Menu Filters */}
       {tab === "menu" && (
-        <div className="flex gap-2 flex-wrap mb-4">
+        <Card className="p-4 border-slate-200 dark:border-slate-800">
+        <div className="flex gap-2 flex-wrap">
           <select
             value={filters.categoryId}
             onChange={(e) =>
@@ -423,7 +426,7 @@ export default function MenuManagement() {
                 subcategoryId: "",
               })
             }
-            className="border px-2 py-1 rounded dark:bg-gray-800 dark:text-gray-100"
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-slate-700"
           >
             <option value="">All Categories</option>
             {categories.map((c) => (
@@ -438,7 +441,7 @@ export default function MenuManagement() {
             onChange={(e) =>
               setFilters({ ...filters, subcategoryId: e.target.value })
             }
-            className="border px-2 py-1 rounded dark:bg-gray-800 dark:text-gray-100"
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-slate-700"
           >
             <option value="">All Subcategories</option>
             {subcategories
@@ -459,13 +462,14 @@ export default function MenuManagement() {
             onChange={(e) =>
               setFilters({ ...filters, availability: e.target.value })
             }
-            className="border px-2 py-1 rounded dark:bg-gray-800 dark:text-gray-100"
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-slate-700"
           >
             <option value="">All</option>
             <option value="available">Available</option>
             <option value="unavailable">Unavailable</option>
           </select>
         </div>
+        </Card>
       )}
 
       {/* Categories */}
@@ -474,7 +478,7 @@ export default function MenuManagement() {
           {categories.map((cat) => (
             <Card
               key={cat.id}
-              className="hover:scale-105 transform transition-all duration-300 relative group"
+              className="relative group border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow"
             >
               <CardHeader>
                 <CardTitle className="text-lg font-bold text-center">
@@ -512,11 +516,12 @@ export default function MenuManagement() {
       {/* Subcategories (with simple Category filter) */}
       {tab === "subcategories" && (
         <>
-          <div className="flex gap-2 flex-wrap mb-4">
+          <Card className="p-4 border-slate-200 dark:border-slate-800">
+          <div className="flex gap-2 flex-wrap">
             <select
               value={subcategoryCatFilter}
               onChange={(e) => setSubcategoryCatFilter(e.target.value)}
-              className="border px-2 py-1 rounded dark:bg-gray-800 dark:text-gray-100"
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-slate-700"
             >
               <option value="">All Categories</option>
               {categories.map((c) => (
@@ -526,12 +531,13 @@ export default function MenuManagement() {
               ))}
             </select>
           </div>
+          </Card>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {visibleSubcategories.map((sc) => (
               <Card
                 key={sc.id}
-                className="hover:scale-105 transform transition-all duration-300 relative group"
+                className="relative group border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow"
               >
                 <CardHeader>
                   <CardTitle className="text-lg font-bold">{sc.name}</CardTitle>
@@ -578,7 +584,7 @@ export default function MenuManagement() {
           {filteredMenuItems.map((item) => (
             <Card
               key={item.id}
-              className="hover:scale-105 transform transition-all duration-300 relative group"
+              className="relative group border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow overflow-hidden"
             >
               {/* VIP Price Ribbon */}
               {item.vip_price != null && (
@@ -589,7 +595,7 @@ export default function MenuManagement() {
 
               {/* Base price in upper-left */}
               {item.price != null && (
-                <div className="absolute top-0 left-0 bg-white dark:bg-gray-800 px-1 py-1 font-bold rounded shadow text-lg">
+                <div className="absolute top-2 left-2 bg-white/95 dark:bg-slate-900/95 px-2 py-1 font-bold rounded-md shadow text-sm">
                   ${Number(item.price).toFixed(2)}
                 </div>
               )}
@@ -598,7 +604,7 @@ export default function MenuManagement() {
               <div
                 className={`absolute top-2 right-2 w-3 h-3 rounded-full ${
                   item.is_available ? "bg-green-500" : "bg-red-500"
-                } shadow`}
+                } shadow z-10`}
               />
 
               {/* Image / placeholder */}
@@ -625,7 +631,7 @@ export default function MenuManagement() {
                 </div>
               )}
 
-                <CardContent>
+              <CardContent className="relative">
                 <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
                   Qty step: {Number(item.quantity_step || 1) === 0.5 ? "0.5" : "1"}
                   {item.menu_quantity_step == null ? " (Category default)" : " (Menu override)"}
@@ -638,7 +644,7 @@ export default function MenuManagement() {
                 </p>
 
                 {/* Hover actions */}
-                <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                   <Button
                     variant="outline"
                     size="sm"
@@ -663,7 +669,7 @@ export default function MenuManagement() {
       {/* Modal */}
       {modalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg w-full max-w-lg shadow-lg overflow-y-auto max-h-[90vh]">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-lg w-full max-w-lg shadow-lg overflow-y-auto max-h-[90vh] border border-slate-200 dark:border-slate-800">
             <h2 className="text-xl font-bold mb-4">
               {currentItem ? "Edit" : "Add"} {tab.slice(0, -1)}
             </h2>
@@ -684,14 +690,14 @@ export default function MenuManagement() {
                     value={categoryForm.name || ""}
                     onChange={handleChange(categoryForm, setCategoryForm)}
                     placeholder="Category Name"
-                    className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
+                    className="h-9 border border-slate-300 px-3 py-1 rounded-md dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700"
                     required
                   />
                   <select
                     name="quantity_step"
                     value={categoryForm.quantity_step || "1"}
                     onChange={handleChange(categoryForm, setCategoryForm)}
-                    className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
+                    className="h-9 border border-slate-300 px-3 py-1 rounded-md dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700"
                     required
                   >
                     <option value="1">Default increase by 1</option>
@@ -707,14 +713,14 @@ export default function MenuManagement() {
                     value={subcategoryForm.name || ""}
                     onChange={handleChange(subcategoryForm, setSubcategoryForm)}
                     placeholder="Subcategory Name"
-                    className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
+                    className="h-9 border border-slate-300 px-3 py-1 rounded-md dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700"
                     required
                   />
                   <select
                     name="category_id"
                     value={subcategoryForm.category_id || ""}
                     onChange={handleChange(subcategoryForm, setSubcategoryForm)}
-                    className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
+                    className="h-9 border border-slate-300 px-3 py-1 rounded-md dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700"
                     required
                   >
                     <option value="">Select Category</option>
@@ -734,7 +740,7 @@ export default function MenuManagement() {
                     value={menuForm.name || ""}
                     onChange={handleChange(menuForm, setMenuForm)}
                     placeholder="Menu Name"
-                    className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
+                    className="h-9 border border-slate-300 px-3 py-1 rounded-md dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700"
                     required
                   />
                   <textarea
@@ -742,7 +748,7 @@ export default function MenuManagement() {
                     value={menuForm.description || ""}
                     onChange={handleChange(menuForm, setMenuForm)}
                     placeholder="Description"
-                    className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
+                    className="border border-slate-300 px-3 py-2 rounded-md dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700"
                   />
                   <div className="grid grid-cols-2 gap-3">
                     <input
@@ -752,7 +758,7 @@ export default function MenuManagement() {
                       value={menuForm.price || ""}
                       onChange={handleChange(menuForm, setMenuForm)}
                       placeholder="Price (optional)"
-                      className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
+                      className="h-9 border border-slate-300 px-3 py-1 rounded-md dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700"
                     />
                     <input
                       type="number"
@@ -761,7 +767,7 @@ export default function MenuManagement() {
                       value={menuForm.vip_price || ""}
                       onChange={handleChange(menuForm, setMenuForm)}
                       placeholder="VIP Price (optional)"
-                      className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
+                      className="h-9 border border-slate-300 px-3 py-1 rounded-md dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700"
                     />
                   </div>
 
@@ -769,7 +775,7 @@ export default function MenuManagement() {
                     name="quantity_step"
                     value={menuForm.quantity_step ?? ""}
                     onChange={handleChange(menuForm, setMenuForm)}
-                    className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
+                    className="h-9 border border-slate-300 px-3 py-1 rounded-md dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700"
                   >
                     <option value="">Use category default</option>
                     <option value="1">Override: increase by 1</option>
@@ -780,7 +786,7 @@ export default function MenuManagement() {
                     name="station_id"
                     value={menuForm.station_id || ""}
                     onChange={handleChange(menuForm, setMenuForm)}
-                    className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
+                    className="h-9 border border-slate-300 px-3 py-1 rounded-md dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700"
                     required
                   >
                     <option value="">Select Station</option>
@@ -795,7 +801,7 @@ export default function MenuManagement() {
                     name="subcategory_id"
                     value={menuForm.subcategory_id || ""}
                     onChange={handleChange(menuForm, setMenuForm)}
-                    className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
+                    className="h-9 border border-slate-300 px-3 py-1 rounded-md dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700"
                     required
                   >
                     <option value="">Select Subcategory</option>
@@ -811,7 +817,7 @@ export default function MenuManagement() {
                     name="image_file"
                     accept="image/*"
                     onChange={handleChange(menuForm, setMenuForm)}
-                    className="border px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-100"
+                    className="h-9 border border-slate-300 px-3 py-1 rounded-md dark:bg-slate-800 dark:text-gray-100 dark:border-slate-700"
                   />
                   {menuForm.image_url && menuForm.image_url.startsWith("data:image/") && (
                     <img

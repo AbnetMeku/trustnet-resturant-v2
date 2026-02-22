@@ -209,8 +209,10 @@ def get_order_summary_range():
         elif order.status == "open":
             open_amount += order_total
 
-        # Accumulate items
+        # Accumulate non-voided items only (keeps summary aligned with order totals)
         for item in order.items:
+            if item.status == "void":
+                continue
             qty = float(item.quantity or 0)
             total_items += qty
             item_name = item.menu_item.name
@@ -245,7 +247,8 @@ def get_order_summary_range():
                 waiter_map[waiter_id]["openAmount"] += order_total
 
             for item in order.items:
-                waiter_map[waiter_id]["totalItems"] += float(item.quantity or 0)
+                if item.status != "void":
+                    waiter_map[waiter_id]["totalItems"] += float(item.quantity or 0)
 
     # --- Build summaries ---
     daily_items_summary = [{"name": name, "quantity": qty} for name, qty in item_map.items()]

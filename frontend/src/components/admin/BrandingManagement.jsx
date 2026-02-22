@@ -96,97 +96,120 @@ export default function BrandingManagement() {
   };
 
   if (loading) {
-    return <div className="text-sm text-gray-500 dark:text-gray-300">Loading branding settings...</div>;
+    return <div className="text-sm text-slate-500 dark:text-slate-300">Loading branding settings...</div>;
   }
 
   return (
     <div className="space-y-4">
-      <Card className="p-4 space-y-4">
+      <Card className="p-4 border-slate-200 dark:border-slate-800">
         <div>
-          <Label htmlFor="branding-logo-upload">Upload Logo (offline recommended)</Label>
-          <Input
-            id="branding-logo-upload"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              handleUpload("logo", file);
-              e.target.value = "";
-            }}
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            Allowed: PNG, JPG, JPEG, WEBP (max 5 MB).
-          </p>
-          {uploadingLogo && <p className="text-xs text-blue-600 mt-1">Uploading logo...</p>}
-        </div>
-
-        <div>
-          <Label htmlFor="branding-background-upload">Upload Background (offline recommended)</Label>
-          <Input
-            id="branding-background-upload"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              handleUpload("background", file);
-              e.target.value = "";
-            }}
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            Allowed: PNG, JPG, JPEG, WEBP (max 5 MB).
-          </p>
-          {uploadingBackground && (
-            <p className="text-xs text-blue-600 mt-1">Uploading background...</p>
-          )}
-        </div>
-
-        <div>
-          <Label htmlFor="branding-logo">Logo URL</Label>
-          <Input
-            id="branding-logo"
-            placeholder="https://example.com/logo.png"
-            value={form.logo_url}
-            onChange={(e) => handleChange("logo_url", e.target.value)}
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            Optional. Leave empty to use default `/logo.png`.
+          <h3 className="text-base font-semibold">Branding</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Configure logo and background used across admin and POS screens.
           </p>
         </div>
-
-        <div>
-          <Label htmlFor="branding-background">Background URL</Label>
-          <Input
-            id="branding-background"
-            placeholder="https://example.com/background.jpg"
-            value={form.background_url}
-            onChange={(e) => handleChange("background_url", e.target.value)}
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            Optional. Leave empty to use default `/Background.jpeg`.
-          </p>
-        </div>
-
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? "Saving..." : "Save Branding"}
-        </Button>
       </Card>
 
-      <Card className="p-4 space-y-3">
-        <h3 className="font-semibold">Preview</h3>
-        <div
-          className="relative h-48 rounded-md bg-cover bg-center overflow-hidden"
-          style={{ backgroundImage: `url('${preview.background_url}')` }}
-        >
-          <div className="absolute inset-0 bg-black/40" />
-          <div className="relative z-10 h-full flex items-center justify-center">
-            <img
-              src={preview.logo_url}
-              alt="Brand Logo"
-              className="w-24 h-24 object-contain bg-white/90 rounded-full p-2"
-            />
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <Card className="p-4 space-y-4 border-slate-200 dark:border-slate-800">
+          <div>
+            <h4 className="font-medium">Assets</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Upload files or set direct URLs.</p>
           </div>
-        </div>
-      </Card>
+
+          <div className="space-y-2">
+            <Label htmlFor="branding-logo-upload">Logo Upload</Label>
+            <Input
+              id="branding-logo-upload"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                handleUpload("logo", file);
+                e.target.value = "";
+              }}
+            />
+            <p className="text-xs text-slate-500 dark:text-slate-400">PNG, JPG, JPEG, WEBP up to 5 MB.</p>
+            {uploadingLogo && <p className="text-xs text-blue-600 dark:text-blue-400">Uploading logo...</p>}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="branding-background-upload">Background Upload</Label>
+            <Input
+              id="branding-background-upload"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                handleUpload("background", file);
+                e.target.value = "";
+              }}
+            />
+            <p className="text-xs text-slate-500 dark:text-slate-400">PNG, JPG, JPEG, WEBP up to 5 MB.</p>
+            {uploadingBackground && <p className="text-xs text-blue-600 dark:text-blue-400">Uploading background...</p>}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="branding-logo">Logo URL</Label>
+            <Input
+              id="branding-logo"
+              placeholder="https://example.com/logo.png"
+              value={form.logo_url}
+              onChange={(e) => handleChange("logo_url", e.target.value)}
+            />
+            <p className="text-xs text-slate-500 dark:text-slate-400">Leave empty to use `/logo.png`.</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="branding-background">Background URL</Label>
+            <Input
+              id="branding-background"
+              placeholder="https://example.com/background.jpg"
+              value={form.background_url}
+              onChange={(e) => handleChange("background_url", e.target.value)}
+            />
+            <p className="text-xs text-slate-500 dark:text-slate-400">Leave empty to use `/Background.jpeg`.</p>
+          </div>
+
+          <div className="pt-1">
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? "Saving..." : "Save Branding"}
+            </Button>
+          </div>
+        </Card>
+
+        <Card className="p-4 space-y-3 border-slate-200 dark:border-slate-800">
+          <div className="flex items-center justify-between">
+            <h4 className="font-medium">Live Preview</h4>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Current effective branding</span>
+          </div>
+
+          <div
+            className="relative h-64 rounded-lg bg-cover bg-center overflow-hidden border border-slate-200 dark:border-slate-700"
+            style={{ backgroundImage: `url('${preview.background_url}')` }}
+          >
+            <div className="absolute inset-0 bg-black/45" />
+            <div className="relative z-10 h-full flex flex-col items-center justify-center gap-3 px-4 text-center">
+              <img
+                src={preview.logo_url}
+                alt="Brand Logo"
+                className="w-24 h-24 object-contain bg-white/90 rounded-full p-2"
+              />
+              <p className="text-white text-sm font-medium">TrustNet Restaurant</p>
+              <p className="text-white/80 text-xs">Admin branding preview</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 text-xs text-slate-600 dark:text-slate-300">
+            <div className="rounded-md border border-slate-200 dark:border-slate-700 p-2">
+              <span className="font-medium">Logo:</span> {preview.logo_url || "Not set"}
+            </div>
+            <div className="rounded-md border border-slate-200 dark:border-slate-700 p-2">
+              <span className="font-medium">Background:</span> {preview.background_url || "Not set"}
+            </div>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

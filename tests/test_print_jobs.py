@@ -10,6 +10,7 @@ from app.routes.print.print_jobs import create_station_print_jobs
 def app():
     app = create_app("testing")
     with app.app_context():
+        db.drop_all()
         db.create_all()
         yield app
         db.session.remove()
@@ -129,3 +130,101 @@ def test_create_station_print_jobs_only_new_item_ids(app):
         items = jobs[0].items_data.get("items", [])
         assert len(items) == 1
         assert items[0]["item_id"] == new_order_item.id
+
+
+def test_admin_print_jobs_end_to_end_list_mark_retry_delete(client, app):
+    with app.app_context():
+        admin = User(username="admin_jobs", password_hash="h", role="admin")
+        waiter = User(username="waiter_jobs", password_hash="h", role="waiter")
+        table = Table(number="T-4")
+        station = Station(name="kitchen_jobs", password_hash="hash", printer_identifier="10.0.0.5")
+        db.session.add_all([admin, waiter, table, station])
+        db.session.flush()
+        menu_item = MenuItem(name="Doro", price=15, station_id=station.id, is_available=True)
+        db.session.add(menu_item)
+        db.session.commit()
+
+        order = Order(table_id=table.id, user_id=waiter.id, status="open", total_amount=30)
+        db.session.add(order)
+        db.session.commit()
+
+        order_item = OrderItem(
+            order_id=order.id,
+            menu_item_id=menu_item.id,
+            quantity=2,
+            price=15,
+            station=station.name,
+            status="pending",
+            prep_tag="0007",
+        )
+        db.session.add(order_item)
+        db.session.commit()
+
+        pending_job = PrintJob(
+            order_id=order.id,
+            station_id=station.id,
+            type="station",
+            status="pending",
+            items_data={
+                "order_id": order.id,
+                "table": table.number,
+                "waiter": waiter.username,
+                "items": [
+                    {
+                        "item_id": order_item.id,
+                        "name": menu_item.name,
+                        "quantity": 2,
+                        "station": station.name,
+                        "prep_tag": "0007",
+                    }
+                ],
+            },
+        )
+        failed_job = PrintJob(
+            order_id=order.id,
+            station_id=station.id,
+            type="station",
+            status="failed",
+            items_data={
+                "order_id": order.id,
+                "table": table.number,
+                "waiter": waiter.username,
+                "items": [{"item_id": order_item.id, "name": menu_item.name}],
+            },
+        )
+        db.session.add_all([pending_job, failed_job])
+        db.session.commit()
+
+        admin_token = _make_token(admin.id, "admin")
+        pending_job_id = pending_job.id
+        failed_job_id = failed_job.id
+
+    # list jobs (UI depends on this payload shape)
+    list_response = client.get("/api/print-jobs", headers=_auth_headers(admin_token))
+    assert list_response.status_code == 200
+    jobs = list_response.get_json()
+    assert any(j["id"] == pending_job_id for j in jobs)
+    matched = next(j for j in jobs if j["id"] == pending_job_id)
+    assert matched["items_data"]["waiter"] == "waiter_jobs"
+    assert matched["items_data"]["items"][0]["name"] == "Doro"
+
+    # mark pending job printed
+    printed_response = client.post(
+        f"/api/print-jobs/{pending_job_id}/printed",
+        headers=_auth_headers(admin_token),
+    )
+    assert printed_response.status_code == 200
+
+    # retry failed job
+    retry_response = client.post(
+        f"/api/print-jobs/{failed_job_id}/retry",
+        headers=_auth_headers(admin_token),
+    )
+    assert retry_response.status_code == 200
+
+    # delete pending/failed(retried) job
+    delete_response = client.delete(
+        f"/api/print-jobs/{pending_job_id}",
+        headers=_auth_headers(admin_token),
+    )
+    assert delete_response.status_code == 200

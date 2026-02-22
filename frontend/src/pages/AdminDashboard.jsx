@@ -11,6 +11,10 @@ import {
   FaFileAlt,
   FaBoxes,
   FaPalette,
+  FaSun,
+  FaMoon,
+  FaChevronLeft,
+  FaChevronRight,
 } from "react-icons/fa";
 
 import { Button } from "@/components/ui/button";
@@ -23,6 +27,7 @@ import TableManagement from "@/components/admin/TableManagement";
 import StationManagement from "@/components/admin/StationManagement";
 import MenuManagement from "@/components/admin/MenuManagement";
 import SalesSummaryReport from "@/components/admin/SalesSummaryReport";
+import WaiterSummaryReport from "@/components/admin/WaiterSummaryReport";
 import OverView from "@/components/admin/OverView";
 import OrderTracker from "@/components/admin/OrderTracker";
 import PrintJobs from "@/components/admin/PrintJobs";
@@ -35,7 +40,7 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [active, setActive] = useState("overview");
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 900);
-  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 900);
   const [darkMode, setDarkMode] = useState(
     localStorage.getItem("darkMode") === "true" || false
   );
@@ -44,13 +49,12 @@ export default function AdminDashboard() {
     const onResize = () => {
       const mobile = window.innerWidth <= 900;
       setIsMobile(mobile);
-      if (mobile && !sidebarOpen) {
-        setSidebarOpen(false);
-      }
+      setSidebarOpen(!mobile);
     };
+
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [sidebarOpen]);
+  }, []);
 
   const toggleDarkMode = () => {
     setDarkMode((prev) => {
@@ -70,51 +74,204 @@ export default function AdminDashboard() {
     if (isMobile) setSidebarOpen(false);
   };
 
-  const menuItems = [
-    { id: "overview", icon: FaChartBar, label: "Overview" },
-    { id: "users", icon: FaUsers, label: "Users" },
-    { id: "tables", icon: FaTable, label: "Tables" },
-    { id: "stations", icon: FaStore, label: "Stations" },
-    { id: "menu", icon: FaUtensils, label: "Menu" },
-    { id: "order", icon: FaReceipt, label: "Order Tracker" },
-    { id: "print", icon: FaPrint, label: "Print Jobs" },
-    { id: "branding", icon: FaPalette, label: "Branding" },
-    { id: "reports", icon: FaFileAlt, label: "Reports" },
-    { id: "inventory", icon: FaBoxes, label: "Inventory" },
+  const menuSections = [
+    {
+      title: "Operations",
+      items: [
+        {
+          id: "overview",
+          icon: FaChartBar,
+          label: "Overview",
+          subtitle: "Live status and KPIs",
+        },
+        {
+          id: "order",
+          icon: FaReceipt,
+          label: "Order Tracker",
+          subtitle: "Track open order flow",
+        },
+        {
+          id: "print",
+          icon: FaPrint,
+          label: "Print Jobs",
+          subtitle: "Monitor print queue",
+        },
+        {
+          id: "reports",
+          icon: FaFileAlt,
+          label: "Reports",
+          subtitle: "Sales insights and totals",
+        },
+        {
+          id: "waiter-summary",
+          icon: FaUsers,
+          label: "Waiter Summary",
+          subtitle: "Per-waiter sales details",
+        },
+      ],
+    },
+    {
+      title: "Configuration",
+      items: [
+        {
+          id: "users",
+          icon: FaUsers,
+          label: "Users",
+          subtitle: "Staff access and roles",
+        },
+        {
+          id: "tables",
+          icon: FaTable,
+          label: "Tables",
+          subtitle: "Dining layout setup",
+        },
+        {
+          id: "stations",
+          icon: FaStore,
+          label: "Stations",
+          subtitle: "Production stations",
+        },
+        {
+          id: "menu",
+          icon: FaUtensils,
+          label: "Menu",
+          subtitle: "Items and availability",
+        },
+        {
+          id: "branding",
+          icon: FaPalette,
+          label: "Branding",
+          subtitle: "Theme and logo setup",
+        },
+      ],
+    },
+    {
+      title: "Inventory",
+      items: [
+        {
+          id: "inventory",
+          icon: FaBoxes,
+          label: "Inventory",
+          subtitle: "Stock and transfers",
+        },
+      ],
+    },
   ];
+
+  const contentTitles = {
+    overview: {
+      title: "Overview",
+      description: "Monitor operational health and current activity.",
+    },
+    users: {
+      title: "Users Management",
+      description: "Create and manage roles for your team.",
+    },
+    tables: {
+      title: "Tables Management",
+      description: "Organize table layout and assignment settings.",
+    },
+    stations: {
+      title: "Stations Management",
+      description: "Maintain kitchen and prep stations.",
+    },
+    menu: {
+      title: "Menu Management",
+      description: "Manage categories, dishes, and pricing.",
+    },
+    reports: {
+      title: "Sales Reports",
+      description: "Review performance with summary reporting.",
+    },
+    "waiter-summary": {
+      title: "Waiter Summary",
+      description: "Review sales totals and details by waiter.",
+    },
+    order: {
+      title: "Order Tracker",
+      description: "Follow order lifecycle across stations.",
+    },
+    print: {
+      title: "Print Jobs",
+      description: "Track receipts and printer job delivery.",
+    },
+    branding: {
+      title: "Branding",
+      description: "Control app visuals for consistent identity.",
+    },
+  };
+
+  const currentTitle = contentTitles[active] || contentTitles.overview;
 
   return (
     <div className={darkMode ? "dark" : ""}>
-      <div className="flex h-screen w-screen overflow-hidden bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+      <div className="flex h-screen w-screen overflow-hidden bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
         <aside
           className={`
             fixed md:relative z-30 top-0 left-0 h-full md:h-auto
-            bg-white dark:bg-gray-800 shadow-lg transition-all duration-300
+            bg-white/95 dark:bg-slate-900/95 border-r border-slate-200 dark:border-slate-800
+            shadow-xl transition-all duration-300 backdrop-blur-sm
             flex flex-col
-            ${isMobile ? (sidebarOpen ? "w-64" : "w-0") : sidebarOpen ? "w-64" : "w-16"}
+            ${isMobile ? (sidebarOpen ? "w-72" : "w-0") : sidebarOpen ? "w-72" : "w-20"}
           `}
         >
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center space-x-2">
-              <img src={branding.logo_url} alt="Logo" className="w-8 h-8 object-contain" />
-              {!isMobile && sidebarOpen && (
-                <span className="font-bold text-lg">Admin Panel</span>
+              <img src={branding.logo_url} alt="Logo" className="w-9 h-9 object-contain rounded" />
+              {sidebarOpen && (
+                <div className="leading-tight">
+                  <p className="font-semibold text-base">Admin Panel</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">TrustNet Restaurant</p>
+                </div>
               )}
             </div>
+            {!isMobile && (
+              <button
+                onClick={toggleSidebar}
+                className="rounded-md p-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                aria-label="Toggle sidebar"
+              >
+                {sidebarOpen ? <FaChevronLeft size={14} /> : <FaChevronRight size={14} />}
+              </button>
+            )}
           </div>
 
-          <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar">
-            {menuItems.map((item) => (
-              <div
-                key={item.id}
-                className={`flex items-center cursor-pointer px-4 py-3 rounded-md mx-2 mb-2
-                  hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors
-                  ${active === item.id ? "bg-gray-300 dark:bg-gray-700 font-semibold" : ""}
-                `}
-                onClick={() => handleSelect(item.id)}
-              >
-                <item.icon className="text-lg" />
-                {sidebarOpen && <span className="ml-3">{item.label}</span>}
+          <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar px-2 pb-4">
+            {menuSections.map((section) => (
+              <div key={section.title} className="mb-4">
+                {sidebarOpen && (
+                  <p className="px-3 pb-2 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    {section.title}
+                  </p>
+                )}
+                {section.items.map((item) => (
+                  <button
+                    key={item.id}
+                    className={`w-full text-left flex items-center rounded-lg px-3 py-2.5 mb-1.5 transition-all
+                    ${
+                      active === item.id
+                        ? "bg-slate-900 text-white shadow-md dark:bg-slate-100 dark:text-slate-900"
+                        : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    }`}
+                    onClick={() => handleSelect(item.id)}
+                  >
+                    <item.icon className="text-lg shrink-0" />
+                    {sidebarOpen && (
+                      <span className="ml-3 leading-tight">
+                        <span className="block text-sm font-medium">{item.label}</span>
+                        <span
+                          className={`block text-xs ${
+                            active === item.id
+                              ? "text-white/80 dark:text-slate-700"
+                              : "text-slate-500 dark:text-slate-400"
+                          }`}
+                        >
+                          {item.subtitle}
+                        </span>
+                      </span>
+                    )}
+                  </button>
+                ))}
               </div>
             ))}
           </nav>
@@ -128,86 +285,95 @@ export default function AdminDashboard() {
         )}
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="flex justify-between items-center bg-white dark:bg-gray-800 shadow px-4 py-3">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={toggleSidebar}
-                className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-              >
-                <FaBars />
-              </button>
-              <span>
-                Welcome, <strong>{user?.username || "Admin"}</strong>
-              </span>
-            </div>
+          <header className="border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 px-4 py-3 backdrop-blur-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center space-x-3">
+                {isMobile && (
+                  <button
+                    onClick={toggleSidebar}
+                    className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    <FaBars />
+                  </button>
+                )}
+                <div>
+                  <h1 className="text-lg font-semibold">{currentTitle.title}</h1>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{currentTitle.description}</p>
+                </div>
+              </div>
 
-            <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm" onClick={toggleDarkMode}>
-                {darkMode ? "Light Mode" : "Dark Mode"}
-              </Button>
-              <Button variant="destructive" size="sm" onClick={logout}>
-                Logout
-              </Button>
+              <div className="flex items-center space-x-2">
+                <div className="hidden md:flex items-center rounded-md border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300">
+                  Logged in as&nbsp;<strong>{user?.username || "Admin"}</strong>
+                </div>
+                <Button variant="outline" size="sm" onClick={toggleDarkMode}>
+                  {darkMode ? <FaSun className="mr-2" /> : <FaMoon className="mr-2" />}
+                  {darkMode ? "Light" : "Dark"}
+                </Button>
+                <Button variant="destructive" size="sm" onClick={logout}>
+                  Logout
+                </Button>
+              </div>
             </div>
           </header>
 
-          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-5 bg-gradient-to-b from-slate-100 to-slate-50 dark:from-slate-950 dark:to-slate-900">
             {active === "overview" && (
-              <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Overview</h2>
+              <Card className="p-5 md:p-6 w-full border-slate-200 dark:border-slate-800 shadow-sm">
                 <OverView />
               </Card>
             )}
 
             {active === "users" && (
-              <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Users Management</h2>
+              <Card className="p-5 md:p-6 w-full border-slate-200 dark:border-slate-800 shadow-sm">
                 <UserManagement />
               </Card>
             )}
 
             {active === "tables" && (
-              <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Tables Management</h2>
+              <Card className="p-5 md:p-6 w-full border-slate-200 dark:border-slate-800 shadow-sm">
                 <TableManagement />
               </Card>
             )}
 
             {active === "stations" && (
-              <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Stations Management</h2>
+              <Card className="p-5 md:p-6 w-full border-slate-200 dark:border-slate-800 shadow-sm">
                 <StationManagement />
               </Card>
             )}
 
             {active === "menu" && (
-              <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Menu Items</h2>
+              <Card className="p-5 md:p-6 w-full border-slate-200 dark:border-slate-800 shadow-sm">
                 <MenuManagement />
               </Card>
             )}
 
             {active === "reports" && (
-              <Card className="p-6 w-full overflow-auto max-h-[80vh]">
+              <Card className="p-5 md:p-6 w-full overflow-auto max-h-[82vh] border-slate-200 dark:border-slate-800 shadow-sm">
                 <SalesSummaryReport />
               </Card>
             )}
 
+            {active === "waiter-summary" && (
+              <Card className="p-5 md:p-6 w-full overflow-auto max-h-[82vh] border-slate-200 dark:border-slate-800 shadow-sm">
+                <WaiterSummaryReport />
+              </Card>
+            )}
+
             {active === "order" && (
-              <Card className="p-6 w-full overflow-auto max-h-[80vh]">
+              <Card className="p-5 md:p-6 w-full overflow-auto max-h-[82vh] border-slate-200 dark:border-slate-800 shadow-sm">
                 <OrderTracker />
               </Card>
             )}
 
             {active === "print" && (
-              <Card className="p-6 w-full overflow-auto max-h-[80vh]">
+              <Card className="p-5 md:p-6 w-full overflow-auto max-h-[82vh] border-slate-200 dark:border-slate-800 shadow-sm">
                 <PrintJobs />
               </Card>
             )}
 
             {active === "branding" && (
-              <Card className="p-6 w-full overflow-auto max-h-[80vh]">
-                <h2 className="text-xl font-bold mb-4">Branding</h2>
+              <Card className="p-5 md:p-6 w-full overflow-auto max-h-[82vh] border-slate-200 dark:border-slate-800 shadow-sm">
                 <BrandingManagement />
               </Card>
             )}

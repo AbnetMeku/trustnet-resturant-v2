@@ -49,3 +49,18 @@ Payload:
   "reverse": false
 }
 ```
+
+## Demo Data Seed
+
+To populate a production-like local dataset (users, tables, menu, 30-45 day order history, print jobs):
+
+```bash
+python seed_demo_data.py --target-orders 500 --days 45 --seed 77
+```
+
+Demo logins created:
+
+- Admin: `admin_demo` / `admin123`
+- Manager: `manager_demo` / `manager123`
+- Cashier: `cashier_demo` / `cashier123`
+- Waiters: `waiter_demo_1..8` / `waiter123` (PINs `1001..1008`)

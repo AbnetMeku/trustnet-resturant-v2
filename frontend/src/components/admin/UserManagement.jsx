@@ -361,11 +361,11 @@ export default function UserManagement() {
       </div>
 
       {/* Filters */}
-      <Card className="p-3 sm:p-4">
+      <Card className="p-3 sm:p-4 border-slate-200 dark:border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center gap-3">
           <div className="flex-1">
             <Input
-              placeholder="Search by username or role…"
+              placeholder="Search by username or role..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -388,7 +388,7 @@ export default function UserManagement() {
       </Card>
 
       {/* Table */}
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden border-slate-200 dark:border-slate-800">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -403,7 +403,7 @@ export default function UserManagement() {
               {loading ? (
                 <tr>
                   <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
-                    Loading users…
+                    Loading users...
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
