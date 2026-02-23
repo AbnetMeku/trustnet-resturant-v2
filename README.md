@@ -18,6 +18,10 @@ Required existing DB/env vars:
 - `DB_PORT`
 - `DB_NAME`
 
+Standardized runtime database:
+
+- `DB_NAME=trustnet_pos`
+
 New integration vars:
 
 - `INVENTORY_BASE_URL` (default: `http://127.0.0.1:5001`)
@@ -52,7 +56,19 @@ Payload:
 
 ## Demo Data Seed
 
-To populate a production-like local dataset (users, tables, menu, 30-45 day order history, print jobs):
+Use the standardized bootstrap script to reset DB, apply migrations, and seed demo data in one command:
+
+```bash
+python bootstrap_pos_db.py --db-name trustnet_pos --target-orders 500 --days 45 --seed 77
+```
+
+If you only want reset + migrations (no seed):
+
+```bash
+python bootstrap_pos_db.py --db-name trustnet_pos --skip-seed
+```
+
+Legacy seed-only command (kept for reference):
 
 ```bash
 python seed_demo_data.py --target-orders 500 --days 45 --seed 77

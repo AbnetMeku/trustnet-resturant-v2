@@ -8,6 +8,12 @@ class User(db.Model):
     password_hash = db.Column(db.Text, nullable=True)
     pin_hash = db.Column(db.Text, nullable=True)
     role = db.Column(db.String(50), nullable=False)
+    waiter_profile_id = db.Column(
+        db.Integer,
+        db.ForeignKey("waiter_profiles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    waiter_profile = db.relationship("WaiterProfile", back_populates="waiters")
 # ---------------------- Tables ---------------------- #
 # Many-to-many Waiter ↔ Table
 waiter_table_assoc = db.Table(
@@ -15,6 +21,40 @@ waiter_table_assoc = db.Table(
     db.Column("waiter_id", db.Integer, db.ForeignKey("users.id"), primary_key=True),
     db.Column("table_id", db.Integer, db.ForeignKey("tables.id"), primary_key=True),
 )
+
+waiter_profile_station_assoc = db.Table(
+    "waiter_profile_station_assoc",
+    db.Column(
+        "waiter_profile_id",
+        db.Integer,
+        db.ForeignKey("waiter_profiles.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    db.Column(
+        "station_id",
+        db.Integer,
+        db.ForeignKey("stations.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
+
+
+class WaiterProfile(db.Model):
+    __tablename__ = "waiter_profiles"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), unique=True, nullable=False)
+    max_tables = db.Column(db.Integer, nullable=False, default=5)
+    allow_vip = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+    waiters = db.relationship("User", back_populates="waiter_profile")
+    stations = db.relationship("Station", secondary=waiter_profile_station_assoc, backref="waiter_profiles")
 
 class Table(db.Model):
     __tablename__ = "tables"
@@ -98,6 +138,13 @@ class KitchenTagCounter(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False, unique=True)
     last_number = db.Column(db.Integer, default=0)
+
+
+class TableNumberCounter(db.Model):
+    __tablename__ = "table_number_counter"
+
+    id = db.Column(db.Integer, primary_key=True, default=1)
+    last_number = db.Column(db.Integer, nullable=False, default=0)
 
 # ---------------------- Print JObs ---------------------- #
 class PrintJob(db.Model):

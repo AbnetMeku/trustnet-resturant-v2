@@ -1,5 +1,6 @@
 import json
 import pytest
+from sqlalchemy import text
 from app import create_app, db
 from app.models.models import User, Table
 from werkzeug.security import generate_password_hash
@@ -43,12 +44,12 @@ def test_admin_can_create_table(client, app):
         _, token = create_user_and_token("admin", db.session, "admin1")
         response = client.post(
             "/api/tables/",
-            data=json.dumps({"number": "T1", "status": "available", "is_vip": False}),
+            data=json.dumps({"status": "available", "is_vip": False}),
             headers={**auth_headers(token), "Content-Type": "application/json"},
         )
         assert response.status_code == 201
         data = response.get_json()
-        assert data["number"] == "T1"
+        assert data["number"] == "1"
         assert data["is_vip"] is False
 
 
@@ -57,12 +58,12 @@ def test_manager_can_create_table(client, app):
         _, token = create_user_and_token("manager", db.session, "manager1")
         response = client.post(
             "/api/tables/",
-            data=json.dumps({"number": "T2"}),
+            data=json.dumps({"status": "available"}),
             headers={**auth_headers(token), "Content-Type": "application/json"},
         )
         assert response.status_code == 201
         data = response.get_json()
-        assert data["number"] == "T2"
+        assert data["number"] == "1"
 
 
 def test_waiter_cannot_create_table(client, app):
@@ -118,3 +119,82 @@ def test_delete_table(client, app):
         assert data["message"] == "Table deleted"
         t = db.session.get(Table, table.id)
         assert t is None
+
+
+def test_table_number_keeps_incrementing_after_delete(client, app):
+    with app.app_context():
+        _, token = create_user_and_token("admin", db.session, "admin5")
+
+        first = client.post(
+            "/api/tables/",
+            data=json.dumps({"status": "available"}),
+            headers={**auth_headers(token), "Content-Type": "application/json"},
+        )
+        assert first.status_code == 201
+        first_number = first.get_json()["number"]
+        first_id = first.get_json()["id"]
+        assert first_number == "1"
+
+        deleted = client.delete(f"/api/tables/{first_id}", headers=auth_headers(token))
+        assert deleted.status_code == 200
+
+        second = client.post(
+            "/api/tables/",
+            data=json.dumps({"status": "available"}),
+            headers={**auth_headers(token), "Content-Type": "application/json"},
+        )
+        assert second.status_code == 201
+        second_number = second.get_json()["number"]
+        assert second_number == "2"
+
+
+def test_manual_table_number_must_continue_from_last(client, app):
+    with app.app_context():
+        _, token = create_user_and_token("admin", db.session, "admin6")
+
+        auto_first = client.post(
+            "/api/tables/",
+            data=json.dumps({"status": "available"}),
+            headers={**auth_headers(token), "Content-Type": "application/json"},
+        )
+        assert auto_first.status_code == 201
+        assert auto_first.get_json()["number"] == "1"
+
+        invalid_manual = client.post(
+            "/api/tables/",
+            data=json.dumps({"number": "1", "status": "available"}),
+            headers={**auth_headers(token), "Content-Type": "application/json"},
+        )
+        assert invalid_manual.status_code == 400
+
+        valid_manual = client.post(
+            "/api/tables/",
+            data=json.dumps({"number": "10", "status": "available"}),
+            headers={**auth_headers(token), "Content-Type": "application/json"},
+        )
+        assert valid_manual.status_code == 201
+        assert valid_manual.get_json()["number"] == "10"
+
+        auto_after_manual = client.post(
+            "/api/tables/",
+            data=json.dumps({"status": "available"}),
+            headers={**auth_headers(token), "Content-Type": "application/json"},
+        )
+        assert auto_after_manual.status_code == 201
+        assert auto_after_manual.get_json()["number"] == "11"
+
+
+def test_create_table_recovers_when_counter_table_missing(client, app):
+    with app.app_context():
+        _, token = create_user_and_token("admin", db.session, "admin7")
+
+        db.session.execute(text("DROP TABLE IF EXISTS table_number_counter"))
+        db.session.commit()
+
+        response = client.post(
+            "/api/tables/",
+            data=json.dumps({"status": "available", "is_vip": False}),
+            headers={**auth_headers(token), "Content-Type": "application/json"},
+        )
+        assert response.status_code == 201
+        assert response.get_json()["number"] == "1"

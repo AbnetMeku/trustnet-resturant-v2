@@ -1,8 +1,9 @@
 from flask import Blueprint, request, jsonify, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.extensions import db
-from app.models.models import User
+from app.models.models import User, WaiterProfile
 from werkzeug.security import generate_password_hash
+from app.services.waiter_profiles import auto_assign_tables_for_waiter
 from app.utils.decorators import roles_required
 
 users_bp = Blueprint("users_bp", __name__, url_prefix="/users")
@@ -14,6 +15,7 @@ def user_to_dict(user):
         "id": user.id,
         "username": user.username,
         "role": user.role,
+        "waiter_profile_id": user.waiter_profile_id,
     }
 
 
@@ -42,6 +44,8 @@ def create_user():
     password = data.get("password")
     pin = data.get("pin")
     role = (data.get("role") or "").lower()
+    waiter_profile_id = data.get("waiter_profile_id")
+    auto_assign_tables = data.get("auto_assign_tables", True)
 
     if not username:
         abort(400, "Username is required")
@@ -53,6 +57,12 @@ def create_user():
         abort(400, "Password is required for this role")
     if role == "waiter" and not pin:
         abort(400, "PIN is required for waiter")
+    if role == "waiter" and waiter_profile_id is not None and not isinstance(waiter_profile_id, int):
+        abort(400, "waiter_profile_id must be an integer")
+    if role == "waiter" and not isinstance(auto_assign_tables, bool):
+        abort(400, "auto_assign_tables must be a boolean")
+    if role != "waiter" and waiter_profile_id is not None:
+        abort(400, "waiter_profile_id can only be set for waiter role")
 
     if User.query.filter_by(username=username).first():
         abort(400, "Username already exists")
@@ -63,15 +73,27 @@ def create_user():
             if waiter.pin_hash == pin:
                 abort(400, "This PIN is already taken")
 
+    waiter_profile = None
+    if role == "waiter" and waiter_profile_id is not None:
+        waiter_profile = db.session.get(WaiterProfile, waiter_profile_id)
+        if not waiter_profile:
+            abort(400, "Invalid waiter_profile_id")
+
     user = User(
         username=username,
         role=role,
         password_hash=generate_password_hash(password) if password else None,
         # Intentionally stored as plain text for waiter login flow.
         pin_hash=pin if pin else None,
+        waiter_profile=waiter_profile,
     )
 
     db.session.add(user)
+    db.session.flush()
+
+    if role == "waiter" and waiter_profile and auto_assign_tables:
+        auto_assign_tables_for_waiter(user, replace_existing=True)
+
     db.session.commit()
     return jsonify(user_to_dict(user)), 201
 
@@ -107,9 +129,15 @@ def update_user(user_id):
     new_password = data.get("password")
     new_pin = data.get("pin")
     new_role = (data.get("role", user.role) or user.role).lower()
+    waiter_profile_id = data.get("waiter_profile_id")
+    auto_assign_tables = data.get("auto_assign_tables")
 
     if new_role not in ALLOWED_ROLES:
         abort(400, "Invalid role")
+    if waiter_profile_id is not None and not isinstance(waiter_profile_id, int):
+        abort(400, "waiter_profile_id must be an integer")
+    if auto_assign_tables is not None and not isinstance(auto_assign_tables, bool):
+        abort(400, "auto_assign_tables must be a boolean")
 
     if new_username and new_username != user.username:
         if User.query.filter(User.username == new_username, User.id != user.id).first():
@@ -138,8 +166,20 @@ def update_user(user_id):
             if not user.pin_hash:
                 abort(400, "PIN is required for waiter")
         else:
+            user.waiter_profile = None
             if not user.password_hash:
                 abort(400, "Password is required for this role")
+
+        if user.role == "waiter" and waiter_profile_id is not None:
+            waiter_profile = db.session.get(WaiterProfile, waiter_profile_id)
+            if not waiter_profile:
+                abort(400, "Invalid waiter_profile_id")
+            user.waiter_profile = waiter_profile
+        elif user.role == "waiter" and "waiter_profile_id" in data and waiter_profile_id is None:
+            user.waiter_profile = None
+
+        if user.role == "waiter" and auto_assign_tables:
+            auto_assign_tables_for_waiter(user, replace_existing=True)
 
     elif current_user.role == "waiter" and current_user.id == user.id:
         if new_role != user.role:
@@ -155,6 +195,11 @@ def update_user(user_id):
                 if waiter.pin_hash == new_pin:
                     abort(400, "This PIN is already taken")
             user.pin_hash = new_pin
+
+        if "waiter_profile_id" in data:
+            abort(403, "Waiter cannot change profile")
+        if "auto_assign_tables" in data:
+            abort(403, "Waiter cannot trigger auto assignment")
     else:
         abort(403, "Forbidden")
 

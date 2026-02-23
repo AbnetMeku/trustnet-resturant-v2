@@ -1,4 +1,6 @@
 from flask import Flask
+from sqlalchemy.exc import OperationalError
+from flask import jsonify
 from dotenv import load_dotenv
 import os
 
@@ -82,6 +84,23 @@ def create_pos_app(config_name="development"):
 
     from .routes.branding.branding import branding_bp
     register_api(branding_bp)
+
+    from .routes.waiter_profiles.waiter_profiles import waiter_profiles_bp
+    register_api(waiter_profiles_bp)
+
+    @app.errorhandler(OperationalError)
+    def handle_operational_error(exc):
+        message = str(exc).lower()
+        if "no such table" in message or "undefined table" in message or "no such column" in message:
+            return (
+                jsonify(
+                    {
+                        "error": "Database schema is out of date. Please run migrations (flask db upgrade)."
+                    }
+                ),
+                500,
+            )
+        return jsonify({"error": "Database operation failed."}), 500
 
     if not app.config.get("TESTING"):
         start_inventory_outbox_worker(app)

@@ -11,6 +11,7 @@ import logging
 from app.routes.print.print_jobs import create_station_print_jobs, create_cashier_print_job 
 from sqlalchemy.exc import IntegrityError
 from app.services.inventory_integration import send_inventory_adjustment_or_queue
+from app.services.waiter_profiles import waiter_allowed_station_ids, waiter_can_access_table
 
 
 orders_bp = Blueprint("orders_bp", __name__, url_prefix="/orders")
@@ -35,6 +36,34 @@ def jwt_roles(claims=None):
 
 def error_response(message: str, status_code: int):
     return jsonify({"error": message}), status_code
+
+
+def _current_waiter_or_none(user_id: int, roles: set[str]) -> User | None:
+    if "waiter" not in roles:
+        return None
+    return db.session.get(User, user_id)
+
+
+def _ensure_waiter_can_access_table(waiter: User | None, table: Table):
+    if not waiter:
+        return None
+    if not waiter_can_access_table(waiter, table):
+        return error_response("You are not allowed to access this table.", 403)
+    return None
+
+
+def _ensure_waiter_can_order_station(waiter: User | None, menu_item: MenuItem):
+    if not waiter:
+        return None
+    if not waiter.waiter_profile:
+        return None
+    allowed_station_ids = waiter_allowed_station_ids(waiter)
+    if not allowed_station_ids or menu_item.station_id not in allowed_station_ids:
+        return error_response(
+            f"You are not allowed to order items from station '{menu_item.station_rel.name}'.",
+            403,
+        )
+    return None
 
 # ---------------- Preflight ----------------
 @orders_bp.route("", methods=["OPTIONS"])
@@ -188,10 +217,11 @@ def create_order():
     except ValueError:
         return error_response("Invalid token identity.", 401)
 
-    if "waiter" in jwt_roles():
-        user = db.session.get(User, user_id)
-        if table not in user.tables:
-            return error_response("You are not assigned to this table.", 403)
+    roles = jwt_roles()
+    waiter = _current_waiter_or_none(user_id, roles)
+    table_error = _ensure_waiter_can_access_table(waiter, table)
+    if table_error:
+        return table_error
 
     # Mark the table as occupied immediately
     table.status = "occupied"
@@ -200,6 +230,10 @@ def create_order():
     order = Order(table_id=table_id, user_id=user_id, status="open", total_amount=Decimal("0.00"))
     db.session.add(order)
     db.session.flush()
+
+    def rollback_error(message: str, status_code: int):
+        db.session.rollback()
+        return error_response(message, status_code)
 
     # Prepare menu items
     menu_item_ids = [payload.get("menu_item_id") for payload in items_data]
@@ -211,13 +245,17 @@ def create_order():
     for payload in items_data:
         menu_item_id = payload.get("menu_item_id")
         if not isinstance(payload, dict) or not menu_item_id:
-            return error_response("Each item must be a dictionary with a menu_item_id.", 400)
+            return rollback_error("Each item must be a dictionary with a menu_item_id.", 400)
 
         menu_item = menu_items.get(menu_item_id)
         if not menu_item:
-            return error_response(f"MenuItem {menu_item_id} not found.", 404)
+            return rollback_error(f"MenuItem {menu_item_id} not found.", 404)
         if not menu_item.station_rel:
-            return error_response(f"Menu item {menu_item_id} is not assigned to a station.", 400)
+            return rollback_error(f"Menu item {menu_item_id} is not assigned to a station.", 400)
+        station_error = _ensure_waiter_can_order_station(waiter, menu_item)
+        if station_error:
+            db.session.rollback()
+            return station_error
 
         price_to_use = (
             Decimal(str(menu_item.vip_price))
@@ -228,7 +266,7 @@ def create_order():
         subcategory_name = menu_item.subcategory.name if menu_item.subcategory else ""
         station = menu_item.station_rel.name
         if len(station) > 20:
-            return error_response(f"Station name '{station}' exceeds 20 characters.", 400)
+            return rollback_error(f"Station name '{station}' exceeds 20 characters.", 400)
 
         if menu_item.quantity_step is not None:
             default_increment = Decimal(str(menu_item.quantity_step))
@@ -241,7 +279,7 @@ def create_order():
         try:
             prep_tag = generate_kitchen_tag() if category_name.lower() == "food" else None
         except Exception as e:
-            return error_response(f"Failed to generate kitchen tag: {str(e)}", 500)
+            return rollback_error(f"Failed to generate kitchen tag: {str(e)}", 500)
 
         order_item = OrderItem(
             order_id=order.id,
@@ -287,10 +325,11 @@ def add_order_item(order_id):
     except ValueError:
         return error_response("Invalid token identity.", 401)
 
-    if "waiter" in jwt_roles():
-        user = db.session.get(User, user_id)
-        if table not in user.tables:
-            return error_response("You are not assigned to this table.", 403)
+    roles = jwt_roles()
+    waiter = _current_waiter_or_none(user_id, roles)
+    table_error = _ensure_waiter_can_access_table(waiter, table)
+    if table_error:
+        return table_error
 
     data = request.get_json() or {}
     items_data = data.get("items", [])
@@ -301,23 +340,31 @@ def add_order_item(order_id):
     menu_items = {mi.id: mi for mi in db.session.query(MenuItem).filter(MenuItem.id.in_(menu_item_ids)).all()}
     created_item_ids = []
 
+    def rollback_error(message: str, status_code: int):
+        db.session.rollback()
+        return error_response(message, status_code)
+
     for payload in items_data:
         menu_item_id = payload.get("menu_item_id")
         if not isinstance(payload, dict) or not menu_item_id:
-            return error_response("Each item must be a dictionary with a menu_item_id.", 400)
+            return rollback_error("Each item must be a dictionary with a menu_item_id.", 400)
 
         menu_item = menu_items.get(menu_item_id)
         if not menu_item:
-            return error_response(f"MenuItem {menu_item_id} not found.", 404)
+            return rollback_error(f"MenuItem {menu_item_id} not found.", 404)
         if not menu_item.station_rel:
-            return error_response(f"Menu item {menu_item_id} is not assigned to a station.", 400)
+            return rollback_error(f"Menu item {menu_item_id} is not assigned to a station.", 400)
+        station_error = _ensure_waiter_can_order_station(waiter, menu_item)
+        if station_error:
+            db.session.rollback()
+            return station_error
 
         price_to_use = Decimal(str(menu_item.vip_price)) if table.is_vip and menu_item.vip_price is not None else menu_item.price
         category_name = menu_item.subcategory.category.name if menu_item.subcategory and menu_item.subcategory.category else ""
         subcategory_name = menu_item.subcategory.name if menu_item.subcategory else ""
         station = menu_item.station_rel.name
         if len(station) > 20:
-            return error_response(f"Station name '{station}' exceeds 20 characters.", 400)
+            return rollback_error(f"Station name '{station}' exceeds 20 characters.", 400)
 
         if menu_item.quantity_step is not None:
             default_increment = Decimal(str(menu_item.quantity_step))
@@ -331,7 +378,7 @@ def add_order_item(order_id):
         try:
             prep_tag = generate_kitchen_tag() if category_name.lower() == "food" else None
         except Exception as e:
-            return error_response(f"Failed to generate kitchen tag: {str(e)}", 500)
+            return rollback_error(f"Failed to generate kitchen tag: {str(e)}", 500)
         status = "pending"
         order_item = OrderItem(
             order_id=order.id,
@@ -372,11 +419,11 @@ def update_order(order_id):
     except ValueError:
         return error_response("Invalid token identity.", 401)
 
-    if "waiter" in jwt_roles():
-        user = db.session.get(User, user_id)
-        table = db.session.get(Table, order.table_id)
-        if table not in user.tables:
-            return error_response("You are not assigned to this table.", 403)
+    table = db.session.get(Table, order.table_id)
+    waiter = _current_waiter_or_none(user_id, jwt_roles())
+    table_error = _ensure_waiter_can_access_table(waiter, table)
+    if table_error:
+        return table_error
 
     data = request.get_json() or {}
     status = data.get("status")
@@ -477,11 +524,11 @@ def update_order_item(order_id, item_id):
     roles = jwt_roles(jwt_data)
 
     # ---------------- Waiter restriction ----------------
-    if "waiter" in roles:
-        user = db.session.get(User, user_id)
-        table = db.session.get(Table, order.table_id)
-        if table not in user.tables:
-            return error_response("You are not assigned to this table.", 403)
+    waiter = _current_waiter_or_none(user_id, roles)
+    table = db.session.get(Table, order.table_id)
+    table_error = _ensure_waiter_can_access_table(waiter, table)
+    if table_error:
+        return table_error
 
     # ---------------- Station restriction ----------------
     if "station" in roles:
@@ -587,12 +634,11 @@ def void_order_item(order_id, item_id):
     except ValueError:
         return error_response("Invalid token identity.", 401)
 
-    # Waiter restriction
-    if "waiter" in jwt_roles():
-        user = db.session.get(User, user_id)
-        table = db.session.get(Table, order.table_id)
-        if table not in user.tables:
-            return error_response("You are not assigned to this table.", 403)
+    table = db.session.get(Table, order.table_id)
+    waiter = _current_waiter_or_none(user_id, jwt_roles())
+    table_error = _ensure_waiter_can_access_table(waiter, table)
+    if table_error:
+        return table_error
 
     try:
         prev_status = order_item.status
@@ -638,11 +684,11 @@ def unvoid_order_item(order_id, item_id):
     except ValueError:
         return error_response("Invalid token identity.", 401)
 
-    if "waiter" in jwt_roles():
-        user = db.session.get(User, user_id)
-        table = db.session.get(Table, order.table_id)
-        if table not in user.tables:
-            return error_response("You are not assigned to this table.", 403)
+    table = db.session.get(Table, order.table_id)
+    waiter = _current_waiter_or_none(user_id, jwt_roles())
+    table_error = _ensure_waiter_can_access_table(waiter, table)
+    if table_error:
+        return table_error
 
     prev_status = item.status
     item.status = "ready"  # default back to ready

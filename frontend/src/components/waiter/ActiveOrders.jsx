@@ -29,9 +29,8 @@ export default function ActiveOrders({ goBack }) {
           fetchOrders(authToken, { status: "open" })
         ]);
 
-        const assignedTableIds = tables
-          .filter(t => t.waiters?.some(w => w.id === user.id))
-          .map(t => t.id);
+        // Backend already returns only tables this waiter can access.
+        const assignedTableIds = tables.map((t) => t.id);
 
         const myOrders = orders.filter(o => assignedTableIds.includes(o.table_id));
         setOpenOrders(myOrders);
@@ -91,9 +90,7 @@ export default function ActiveOrders({ goBack }) {
         getTables(authToken),
         fetchOrders(authToken, { status: "open" })
       ]);
-      const assignedTableIds = tables
-        .filter(t => t.waiters?.some(w => w.id === user.id))
-        .map(t => t.id);
+      const assignedTableIds = tables.map((t) => t.id);
       setOpenOrders(orders.filter(o => assignedTableIds.includes(o.table_id)));
     } catch {
       // ignore

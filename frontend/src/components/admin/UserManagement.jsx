@@ -1,6 +1,8 @@
 // src/components/admin/UserManagement.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { getUsers, createUser, updateUser, deleteUser } from "@/api/users";
+import { getWaiterProfiles } from "@/api/waiter_profiles";
+import WaiterProfileManagement from "@/components/admin/WaiterProfileManagement";
 import { useAuth } from "../../context/AuthContext";
 import { toast } from "react-hot-toast";
 
@@ -54,10 +56,11 @@ function ConfirmDialog({ open, title, description, onConfirm, onCancel, loading 
 }
 
 export default function UserManagement() {
-  const { user: currentUser, token } = useAuth();
+  const { user: currentUser, authToken } = useAuth();
 
   // data state
   const [users, setUsers] = useState([]);
+  const [waiterProfiles, setWaiterProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // filters & search
@@ -79,6 +82,8 @@ export default function UserManagement() {
     username: "",
     password: "",
     pin: "",
+    waiter_profile_id: "__none__",
+    auto_assign_tables: true,
   });
 
   // form errors for inline validation
@@ -88,7 +93,7 @@ export default function UserManagement() {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const data = await getUsers("", token);
+      const data = await getUsers("", authToken);
       setUsers(data);
     } catch (err) {
       toast.error(err?.response?.data || err.message || "Failed to load users");
@@ -97,8 +102,18 @@ export default function UserManagement() {
     }
   };
 
+  const loadProfiles = async () => {
+    try {
+      const data = await getWaiterProfiles(authToken);
+      setWaiterProfiles(data);
+    } catch (err) {
+      toast.error(err?.response?.data?.error || err.message || "Failed to load waiter profiles");
+    }
+  };
+
   useEffect(() => {
     loadUsers();
+    loadProfiles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -137,6 +152,11 @@ export default function UserManagement() {
         username: user.username || "",
         password: "",
         pin: "",
+        waiter_profile_id:
+          user.role === "waiter" && user.waiter_profile_id != null
+            ? String(user.waiter_profile_id)
+            : "__none__",
+        auto_assign_tables: false,
       });
     } else {
       setEditingUser(null);
@@ -145,6 +165,8 @@ export default function UserManagement() {
         username: "",
         password: "",
         pin: "",
+        waiter_profile_id: "__none__",
+        auto_assign_tables: true,
       });
     }
     setModalOpen(true);
@@ -155,7 +177,7 @@ export default function UserManagement() {
     if (submitting) return;
     setModalOpen(false);
     setEditingUser(null);
-    setForm({ role: "", username: "", password: "", pin: "" });
+    setForm({ role: "", username: "", password: "", pin: "", waiter_profile_id: "__none__", auto_assign_tables: true });
     setErrors({});
   };
 
@@ -167,6 +189,9 @@ export default function UserManagement() {
       if (!form.username?.trim()) e.username = "Username is required";
       if (form.role === "waiter") {
         if (!/^\d{4}$/.test(form.pin)) e.pin = "PIN must be exactly 4 digits";
+        if (form.waiter_profile_id !== "__none__" && Number.isNaN(parseInt(form.waiter_profile_id, 10))) {
+          e.waiter_profile_id = "Invalid waiter profile";
+        }
       } else if (["admin", "manager", "cashier"].includes(form.role)) {
         if (!form.password || form.password.length < 6)
           e.password = "Password must be at least 6 characters";
@@ -177,6 +202,9 @@ export default function UserManagement() {
       else if (form.username.trim().length < 3) e.username = "Username must be at least 3 characters";
       if (form.role === "waiter") {
         if (form.pin && !/^\d{4}$/.test(form.pin)) e.pin = "PIN must be exactly 4 digits";
+        if (form.waiter_profile_id !== "__none__" && Number.isNaN(parseInt(form.waiter_profile_id, 10))) {
+          e.waiter_profile_id = "Invalid waiter profile";
+        }
       } else {
         if (form.password && form.password.length < 6)
           e.password = "Password must be at least 6 characters";
@@ -219,11 +247,15 @@ export default function UserManagement() {
 
         if (form.role === "waiter") {
           if (form.pin) payload.pin = form.pin;
+          payload.waiter_profile_id = form.waiter_profile_id !== "__none__"
+            ? parseInt(form.waiter_profile_id, 10)
+            : null;
+          payload.auto_assign_tables = Boolean(form.auto_assign_tables);
         } else {
           if (form.password) payload.password = form.password;
         }
 
-        await updateUser(editingUser.id, payload, token);
+        await updateUser(editingUser.id, payload, authToken);
         toast.success("User updated");
       } else {
         const payload = {
@@ -232,22 +264,29 @@ export default function UserManagement() {
         };
         if (form.role === "waiter") {
           payload.pin = form.pin;
+          payload.waiter_profile_id = form.waiter_profile_id !== "__none__"
+            ? parseInt(form.waiter_profile_id, 10)
+            : null;
+          payload.auto_assign_tables = Boolean(form.auto_assign_tables);
         } else {
           payload.password = form.password;
         }
-        await createUser(payload, token);
+        await createUser(payload, authToken);
         toast.success("User created");
       }
       closeModal();
       loadUsers();
     } catch (err) {
-      const msg = err?.response?.data || err.message || "Operation failed";
+      const msg = err?.response?.data?.error || err?.response?.data?.msg || err.message || "Operation failed";
       toast.error(msg);
       if (typeof msg === "string" && msg.toLowerCase().includes("username")) {
         setErrors((prev) => ({ ...prev, username: msg }));
       }
       if (typeof msg === "string" && msg.toLowerCase().includes("pin")) {
         setErrors((prev) => ({ ...prev, pin: msg }));
+      }
+      if (typeof msg === "string" && msg.toLowerCase().includes("profile")) {
+        setErrors((prev) => ({ ...prev, waiter_profile_id: msg }));
       }
     } finally {
       setSubmitting(false);
@@ -262,11 +301,11 @@ export default function UserManagement() {
     if (!deleteId) return;
     setDeleting(true);
     try {
-      await deleteUser(deleteId, token);
+      await deleteUser(deleteId, authToken);
       toast.success("User deleted");
       setUsers((prev) => prev.filter((u) => u.id !== deleteId));
     } catch (err) {
-      toast.error(err?.response?.data || err.message || "Failed to delete user");
+      toast.error(err?.response?.data?.error || err.message || "Failed to delete user");
     } finally {
       setDeleting(false);
       setDeleteId(null);
@@ -391,22 +430,58 @@ export default function UserManagement() {
                 )}
 
                 {form.role === "waiter" && (
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      {editingUser ? "New PIN (optional)" : "4-digit PIN"}
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        {editingUser ? "New PIN (optional)" : "4-digit PIN"}
+                      </label>
+                      <Input
+                        inputMode="numeric"
+                        maxLength={4}
+                        value={form.pin}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/\D/g, "").slice(0, 4);
+                          setForm((f) => ({ ...f, pin: v }));
+                        }}
+                        placeholder="1234"
+                        className={`h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${errors.pin ? "ring-2 ring-destructive" : ""}`}
+                      />
+                      {errors.pin && <p className="mt-1 text-xs text-destructive">{errors.pin}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Waiter Profile</label>
+                      <Select
+                        value={form.waiter_profile_id}
+                        onValueChange={(v) => setForm((f) => ({ ...f, waiter_profile_id: v }))}
+                      >
+                        <SelectTrigger className={`h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${errors.waiter_profile_id ? "ring-2 ring-destructive" : ""}`}>
+                          <SelectValue placeholder="No profile (legacy)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No profile (legacy)</SelectItem>
+                          {waiterProfiles.map((profile) => (
+                            <SelectItem key={profile.id} value={String(profile.id)}>
+                              {profile.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {errors.waiter_profile_id && (
+                        <p className="mt-1 text-xs text-destructive">{errors.waiter_profile_id}</p>
+                      )}
+                    </div>
+
+                    <label className="inline-flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={form.auto_assign_tables}
+                        onChange={(e) =>
+                          setForm((f) => ({ ...f, auto_assign_tables: e.target.checked }))
+                        }
+                      />
+                      Auto-assign tables from profile now
                     </label>
-                    <Input
-                      inputMode="numeric"
-                      maxLength={4}
-                      value={form.pin}
-                      onChange={(e) => {
-                        const v = e.target.value.replace(/\D/g, "").slice(0, 4);
-                        setForm((f) => ({ ...f, pin: v }));
-                      }}
-                      placeholder="1234"
-                      className={`h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${errors.pin ? "ring-2 ring-destructive" : ""}`}
-                    />
-                    {errors.pin && <p className="mt-1 text-xs text-destructive">{errors.pin}</p>}
                   </div>
                 )}
 
@@ -462,19 +537,20 @@ export default function UserManagement() {
                 <th className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">No</th>
                 <th className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">Username</th>
                 <th className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">Role</th>
+                <th className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">Profile</th>
                 <th className="px-4 py-3 font-medium text-right text-slate-700 dark:text-slate-200">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
+                  <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
                     Loading users...
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
                     No users found.
                   </td>
                 </tr>
@@ -487,6 +563,11 @@ export default function UserManagement() {
                       <span className="inline-flex rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-xs font-medium capitalize text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                         {u.role}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                      {u.role === "waiter" && u.waiter_profile_id
+                        ? waiterProfiles.find((profile) => profile.id === u.waiter_profile_id)?.name || `#${u.waiter_profile_id}`
+                        : "-"}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
@@ -514,6 +595,10 @@ export default function UserManagement() {
             </tbody>
           </table>
         </div>
+      </Card>
+
+      <Card className="p-4 border-slate-200 dark:border-slate-800 md:p-6">
+        <WaiterProfileManagement />
       </Card>
 
       {/* Delete confirm dialog */}

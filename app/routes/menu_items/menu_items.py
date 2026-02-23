@@ -1,8 +1,9 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from app.extensions import db
-from app.models.models import MenuItem, Station, SubCategory, Category
-from app.utils.decorators import roles_required
+from app.models.models import MenuItem, Station, SubCategory, Category, User
+from app.services.waiter_profiles import waiter_allowed_station_ids
+from app.utils.decorators import roles_required, extract_roles_from_claims
 from sqlalchemy import func
 import logging
 from decimal import Decimal
@@ -65,6 +66,17 @@ def get_menu_items():
     station_id = request.args.get("station_id", type=int)
     subcategory_id = request.args.get("subcategory_id", type=int)
     query = MenuItem.query
+    claims = get_jwt()
+    roles = extract_roles_from_claims(claims)
+
+    if "waiter" in roles:
+        user = db.session.get(User, int(get_jwt_identity()))
+        if user and user.waiter_profile:
+            allowed_station_ids = waiter_allowed_station_ids(user)
+            if allowed_station_ids:
+                query = query.filter(MenuItem.station_id.in_(allowed_station_ids))
+            else:
+                return jsonify([]), 200
 
     if station_id:
         query = query.filter_by(station_id=station_id)
@@ -285,6 +297,17 @@ def get_menu_items_by_category(category_id):
         .join(Category, SubCategory.category_id == Category.id, isouter=True)
         .filter(Category.id == category_id)
     )
+    claims = get_jwt()
+    roles = extract_roles_from_claims(claims)
+
+    if "waiter" in roles:
+        user = db.session.get(User, int(get_jwt_identity()))
+        if user and user.waiter_profile:
+            allowed_station_ids = waiter_allowed_station_ids(user)
+            if allowed_station_ids:
+                query = query.filter(MenuItem.station_id.in_(allowed_station_ids))
+            else:
+                return jsonify([]), 200
 
     items = query.all()
     return jsonify([menu_item_to_dict(i) for i in items]), 200

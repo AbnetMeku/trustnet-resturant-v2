@@ -6,7 +6,9 @@ from .models import (
     Order,
     OrderItem,
     KitchenTagCounter,
+    TableNumberCounter,
     Station,
+    WaiterProfile,
     InventoryOutbox,
 )
 from .inventory_models import InventoryItem, StoreStock, StationStock, StockPurchase, StockTransfer, StationStockSnapshot, InventoryMenuLink

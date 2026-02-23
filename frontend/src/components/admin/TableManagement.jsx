@@ -5,11 +5,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getTables, createTable, updateTable, deleteTable } from "@/api/tables";
 import { getUsers } from "@/api/users";
-import { FaPlus, FaTrash, FaEdit, FaTimes } from "react-icons/fa";
+import { FaEdit, FaPlus, FaTimes, FaTrash } from "react-icons/fa";
 import { toast } from "react-hot-toast";
 
 const inputClass =
   "h-10 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100";
+
+function sortByTableNumber(a, b) {
+  const aNum = Number.parseInt(String(a.number), 10);
+  const bNum = Number.parseInt(String(b.number), 10);
+  if (Number.isNaN(aNum) && Number.isNaN(bNum)) return String(a.number).localeCompare(String(b.number));
+  if (Number.isNaN(aNum)) return 1;
+  if (Number.isNaN(bNum)) return -1;
+  return aNum - bNum;
+}
 
 export default function TableManagement() {
   const [tables, setTables] = useState([]);
@@ -18,9 +27,11 @@ export default function TableManagement() {
   const [modalOpen, setModalOpen] = useState(false);
   const [currentTable, setCurrentTable] = useState(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [selectedGroup, setSelectedGroup] = useState(null);
   const [filters, setFilters] = useState({ waiterId: "", isVip: "" });
+  const [createMode, setCreateMode] = useState("auto");
+  const [manualNumber, setManualNumber] = useState("");
   const [formData, setFormData] = useState({
-    number: "",
     status: "available",
     is_vip: false,
     waiter_ids: [],
@@ -56,15 +67,18 @@ export default function TableManagement() {
   const openModal = (table = null) => {
     if (table) {
       setCurrentTable(table);
+      setCreateMode("auto");
+      setManualNumber("");
       setFormData({
-        number: table.number,
         status: table.status,
         is_vip: table.is_vip,
         waiter_ids: table.waiters.map((w) => w.id),
       });
     } else {
       setCurrentTable(null);
-      setFormData({ number: "", status: "available", is_vip: false, waiter_ids: [] });
+      setCreateMode("auto");
+      setManualNumber("");
+      setFormData({ status: "available", is_vip: false, waiter_ids: [] });
     }
     setModalOpen(true);
   };
@@ -72,28 +86,29 @@ export default function TableManagement() {
   const closeModal = () => {
     setModalOpen(false);
     setCurrentTable(null);
-    setFormData({ number: "", status: "available", is_vip: false, waiter_ids: [] });
+    setCreateMode("auto");
+    setManualNumber("");
+    setFormData({ status: "available", is_vip: false, waiter_ids: [] });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.number.trim()) {
-      toast.error("Table number is required");
-      return;
-    }
-
     try {
       if (currentTable) {
         await updateTable(currentTable.id, formData);
         toast.success("Table updated successfully");
       } else {
-        await createTable(formData);
+        const payload = { ...formData };
+        if (createMode === "manual" && manualNumber.trim()) {
+          payload.number = manualNumber.trim();
+        }
+        await createTable(payload);
         toast.success("Table created successfully");
       }
       await fetchTables();
       closeModal();
     } catch (err) {
-      toast.error("Failed to save table");
+      toast.error(err?.response?.data?.error || "Failed to save table");
       console.error(err);
     }
   };
@@ -116,18 +131,43 @@ export default function TableManagement() {
     }));
   };
 
-  const filteredTables = useMemo(
-    () =>
-      tables
-        .filter((t) => {
-          if (filters.waiterId && !t.waiters.find((w) => w.id === parseInt(filters.waiterId, 10))) return false;
-          if (filters.isVip === "true" && !t.is_vip) return false;
-          if (filters.isVip === "false" && t.is_vip) return false;
-          return true;
-        })
-        .sort((a, b) => Number(a.number) - Number(b.number)),
-    [tables, filters]
-  );
+  const filteredTables = useMemo(() => {
+    return tables
+      .filter((table) => {
+        if (filters.waiterId && !table.waiters.find((w) => w.id === Number.parseInt(filters.waiterId, 10))) {
+          return false;
+        }
+        if (filters.isVip === "true" && !table.is_vip) return false;
+        if (filters.isVip === "false" && table.is_vip) return false;
+        return true;
+      })
+      .sort(sortByTableNumber);
+  }, [tables, filters]);
+
+  const groupedTables = useMemo(() => {
+    const groups = new Map();
+    for (const table of filteredTables) {
+      const selectedWaiterId = Number.parseInt(filters.waiterId, 10);
+      const selectedWaiter =
+        Number.isNaN(selectedWaiterId) ? null : table.waiters.find((w) => w.id === selectedWaiterId);
+      const primaryWaiter = selectedWaiter || table.waiters[0] || null;
+      const key = primaryWaiter ? `waiter-${primaryWaiter.id}` : "unassigned";
+      const label = primaryWaiter ? primaryWaiter.username : "Unassigned";
+
+      if (!groups.has(key)) {
+        groups.set(key, { key, label, tables: [] });
+      }
+      groups.get(key).tables.push(table);
+    }
+
+    return Array.from(groups.values())
+      .map((group) => ({ ...group, tables: group.tables.sort(sortByTableNumber) }))
+      .sort((a, b) => {
+        if (a.key === "unassigned") return 1;
+        if (b.key === "unassigned") return -1;
+        return a.label.localeCompare(b.label);
+      });
+  }, [filteredTables, filters.waiterId]);
 
   const stats = useMemo(
     () => ({
@@ -147,7 +187,9 @@ export default function TableManagement() {
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-slate-300">Admin Operations</p>
               <h3 className="mt-1 text-xl font-semibold">Table Management</h3>
-              <p className="mt-1 text-sm text-slate-300">Manage table availability, VIP status, and waiter assignments.</p>
+              <p className="mt-1 text-sm text-slate-300">
+                One waiter card per stack. Click a card to see all tables for that waiter.
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
@@ -210,69 +252,143 @@ export default function TableManagement() {
         <Card className="border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-300">
           Loading tables...
         </Card>
-      ) : filteredTables.length === 0 ? (
+      ) : groupedTables.length === 0 ? (
         <Card className="border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-300">
           No tables found for current filters.
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {filteredTables.map((table) => (
-            <Card key={table.id} className="relative border-slate-200 p-4 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800">
-              <div className="mb-3 flex items-start justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Table</p>
-                  <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{table.number}</h4>
-                </div>
-                <div className="flex gap-1">
-                  {table.is_vip && (
-                    <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-                      VIP
-                    </span>
-                  )}
-                  <span
-                    className={`rounded-full px-2 py-1 text-[10px] font-semibold capitalize text-white ${
-                      table.status === "available" ? "bg-emerald-600" : table.status === "occupied" ? "bg-rose-600" : "bg-amber-600"
-                    }`}
-                  >
-                    {table.status}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {groupedTables.map((group) => {
+            const topTable = group.tables[0];
+            const vipCount = group.tables.filter((table) => table.is_vip).length;
+            return (
+              <Card
+                key={group.key}
+                className="relative cursor-pointer overflow-hidden border-slate-200 p-4 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800"
+                onClick={() => setSelectedGroup(group)}
+              >
+                <div className="mb-2 flex items-start justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Waiter</p>
+                    <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">{group.label}</h4>
+                  </div>
+                  <span className="rounded-full border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">
+                    {group.tables.length} tables
                   </span>
                 </div>
-              </div>
-
-              <p className="mb-2 text-xs font-medium text-slate-500 dark:text-slate-400">Assigned Waiters</p>
-              <div className="flex min-h-8 flex-wrap gap-1">
-                {table.waiters.length ? (
-                  table.waiters.map((w) => (
-                    <span key={w.id} className="rounded-full bg-slate-100 px-2 py-1 text-xs dark:bg-slate-800">
-                      {w.username}
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Top Table</p>
+                  <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">{topTable.number}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize text-white ${
+                        topTable.status === "available"
+                          ? "bg-emerald-600"
+                          : topTable.status === "occupied"
+                            ? "bg-rose-600"
+                            : "bg-amber-600"
+                      }`}
+                    >
+                      {topTable.status}
                     </span>
-                  ))
-                ) : (
-                  <span className="text-xs text-slate-500 dark:text-slate-400">None</span>
-                )}
-              </div>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">{vipCount} VIP in stack</span>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
-              <div className="mt-4 flex justify-end gap-2">
-                <Button variant="outline" size="sm" className="border-slate-300 dark:border-slate-700" onClick={() => openModal(table)}>
-                  <FaEdit className="mr-1" /> Edit
-                </Button>
-                {deleteConfirmId === table.id ? (
-                  <>
-                    <Button size="sm" variant="destructive" onClick={() => handleDelete(table.id)}>
-                      Confirm
-                    </Button>
-                    <Button size="sm" variant="outline" className="border-slate-300 dark:border-slate-700" onClick={() => setDeleteConfirmId(null)}>
-                      Cancel
-                    </Button>
-                  </>
-                ) : (
-                  <Button variant="destructive" size="sm" onClick={() => setDeleteConfirmId(table.id)}>
-                    <FaTrash className="mr-1" /> Delete
-                  </Button>
-                )}
+      {selectedGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]">
+          <Card className="w-full max-w-5xl overflow-hidden border-slate-200 shadow-xl dark:border-slate-800">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/50">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{selectedGroup.label} Tables</h2>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {selectedGroup.tables.length} tables in this stack
+                </p>
               </div>
-            </Card>
-          ))}
+              <Button variant="outline" className="border-slate-300 dark:border-slate-700" onClick={() => setSelectedGroup(null)}>
+                Close
+              </Button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto p-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {selectedGroup.tables.map((table) => (
+                  <Card key={table.id} className="border-slate-200 p-3 dark:border-slate-800">
+                    <div className="mb-2 flex items-start justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Table</p>
+                        <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{table.number}</h4>
+                      </div>
+                      <div className="flex gap-1">
+                        {table.is_vip && (
+                          <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                            VIP
+                          </span>
+                        )}
+                        <span
+                          className={`rounded-full px-2 py-1 text-[10px] font-semibold capitalize text-white ${
+                            table.status === "available"
+                              ? "bg-emerald-600"
+                              : table.status === "occupied"
+                                ? "bg-rose-600"
+                                : "bg-amber-600"
+                          }`}
+                        >
+                          {table.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mb-2 flex min-h-8 flex-wrap gap-1">
+                      {table.waiters.length ? (
+                        table.waiters.map((w) => (
+                          <span key={w.id} className="rounded-full bg-slate-100 px-2 py-1 text-xs dark:bg-slate-800">
+                            {w.username}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-slate-500 dark:text-slate-400">No waiter assigned</span>
+                      )}
+                    </div>
+
+                    <div className="mt-3 flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-slate-300 dark:border-slate-700"
+                        onClick={() => openModal(table)}
+                      >
+                        <FaEdit className="mr-1" /> Edit
+                      </Button>
+                      {deleteConfirmId === table.id ? (
+                        <>
+                          <Button size="sm" variant="destructive" onClick={() => handleDelete(table.id)}>
+                            Confirm
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-slate-300 dark:border-slate-700"
+                            onClick={() => setDeleteConfirmId(null)}
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <Button variant="destructive" size="sm" onClick={() => setDeleteConfirmId(table.id)}>
+                          <FaTrash className="mr-1" /> Delete
+                        </Button>
+                      )}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </Card>
         </div>
       )}
 
@@ -281,19 +397,36 @@ export default function TableManagement() {
           <Card className="w-full max-w-md overflow-hidden border-slate-200 shadow-xl dark:border-slate-800">
             <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/50">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{currentTable ? "Edit Table" : "Add Table"}</h2>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Update table details and waiter assignment.</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                {currentTable ? `Table #${currentTable.number} details` : "Auto mode uses next number. Manual must be greater than current last."}
+              </p>
             </div>
             <form onSubmit={handleSubmit} className="space-y-3 px-5 py-4">
-              <div>
-                <Label>Table Number</Label>
-                <Input
-                  type="text"
-                  value={formData.number}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, number: e.target.value }))}
-                  className={inputClass}
-                  required
-                />
-              </div>
+              {!currentTable && (
+                <div className="space-y-2">
+                  <Label>Create Mode</Label>
+                  <select value={createMode} onChange={(e) => setCreateMode(e.target.value)} className={inputClass}>
+                    <option value="auto">Auto Number</option>
+                    <option value="manual">Manual Number</option>
+                  </select>
+                  {createMode === "manual" && (
+                    <Input
+                      type="text"
+                      value={manualNumber}
+                      onChange={(e) => setManualNumber(e.target.value.replace(/\D/g, ""))}
+                      placeholder="Enter next table number"
+                      className={inputClass}
+                    />
+                  )}
+                </div>
+              )}
+
+              {currentTable && (
+                <div>
+                  <Label>Table Number</Label>
+                  <Input type="text" value={currentTable.number} className={inputClass} disabled />
+                </div>
+              )}
 
               <div>
                 <Label>Status</Label>
@@ -334,7 +467,7 @@ export default function TableManagement() {
                 <select
                   value=""
                   onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
+                    const val = Number.parseInt(e.target.value, 10);
                     if (!Number.isNaN(val) && !formData.waiter_ids.includes(val)) {
                       setFormData((prev) => ({ ...prev, waiter_ids: [...prev.waiter_ids, val] }));
                     }

@@ -15,10 +15,8 @@ export default function MyTables() {
     const fetchAssignedTables = async () => {
       setLoading(true);
       try {
-        const allTables = await getTables();
-        const myTables = allTables.filter(table =>
-          table.waiters.some(w => w.id === user.id)
-        );
+        // Backend already returns only tables this waiter can access.
+        const myTables = await getTables(authToken);
         setAssignedTables(myTables);
       } catch (err) {
         console.error("Failed to load assigned tables:", err);
