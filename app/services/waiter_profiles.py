@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from app.extensions import db
 from app.models import Table, User
+from app.services.table_numbers import allocate_next_table_number
 
 
 def waiter_allowed_station_ids(user: User) -> set[int]:
@@ -47,8 +49,8 @@ def auto_assign_tables_for_waiter(user: User, replace_existing: bool = False) ->
 
     target_is_vip = bool(profile.allow_vip)
     candidates = (
-        Table.query.filter_by(status="available")
-        .filter(Table.is_vip.is_(target_is_vip))
+        Table.query.filter(Table.is_vip.is_(target_is_vip))
+        .filter(~Table.waiters.any())
         .order_by(Table.id.asc())
         .all()
     )
@@ -61,6 +63,17 @@ def auto_assign_tables_for_waiter(user: User, replace_existing: bool = False) ->
             continue
         user.tables.append(table)
         already_assigned_ids.add(table.id)
+        remaining_slots -= 1
+
+    while remaining_slots > 0:
+        table = Table(
+            number=allocate_next_table_number(),
+            status="available",
+            is_vip=target_is_vip,
+        )
+        db.session.add(table)
+        db.session.flush()
+        user.tables.append(table)
         remaining_slots -= 1
 
     return list(user.tables)

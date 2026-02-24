@@ -1,9 +1,9 @@
 from flask import Blueprint, request, jsonify, abort
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
-from sqlalchemy import inspect
 from app.extensions import db
 from app.models.models import Table, TableNumberCounter, User
 from app.services.waiter_profiles import waiter_can_access_table
+from app.services.table_numbers import ensure_table_number_counter
 from app.utils.decorators import roles_required
 from app.utils.decorators import extract_roles_from_claims
 
@@ -18,22 +18,6 @@ def table_to_dict(table):
         "is_vip": table.is_vip,
         "waiters": [{"id": w.id, "username": w.username} for w in table.waiters]
     }
-
-
-def ensure_table_number_counter():
-    inspector = inspect(db.engine)
-    if inspector.has_table(TableNumberCounter.__tablename__):
-        return
-
-    TableNumberCounter.__table__.create(bind=db.engine)
-    max_existing = 0
-    for table in Table.query.all():
-        value = str(table.number or "").strip()
-        if value.isdigit():
-            max_existing = max(max_existing, int(value))
-
-    db.session.add(TableNumberCounter(id=1, last_number=max_existing))
-    db.session.flush()
 
 
 def allocate_table_number(requested_number: str | None) -> str:

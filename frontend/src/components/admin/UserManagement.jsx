@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Small reusable confirm dialog
 function ConfirmDialog({ open, title, description, onConfirm, onCancel, loading }) {
@@ -75,6 +76,7 @@ export default function UserManagement() {
   // delete confirmation
   const [deleteId, setDeleteId] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [activeTab, setActiveTab] = useState("add-users");
 
   // form state
   const [form, setForm] = useState({
@@ -116,6 +118,13 @@ export default function UserManagement() {
     loadProfiles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "add-users") {
+      loadProfiles();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   // ----- Helpers -----
   const canChangeRole = currentUser?.role === "admin" || currentUser?.role === "manager";
@@ -316,290 +325,276 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-5">
-      <Card className="overflow-hidden border-slate-200 dark:border-slate-800">
-        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-4 py-5 text-white md:px-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-300">Admin Controls</p>
-              <h2 className="mt-1 text-xl font-semibold">Users Management</h2>
-              <p className="mt-1 text-sm text-slate-300">Manage account roles and login credentials for operations.</p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
-                <p className="text-[11px] uppercase tracking-wide text-slate-300">Total</p>
-                <p className="text-sm font-medium">{roleStats.total}</p>
-              </div>
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
-                <p className="text-[11px] uppercase tracking-wide text-slate-300">Admins</p>
-                <p className="text-sm font-medium">{roleStats.admin}</p>
-              </div>
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
-                <p className="text-[11px] uppercase tracking-wide text-slate-300">Managers</p>
-                <p className="text-sm font-medium">{roleStats.manager}</p>
-              </div>
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
-                <p className="text-[11px] uppercase tracking-wide text-slate-300">Cashiers</p>
-                <p className="text-sm font-medium">{roleStats.cashier}</p>
-              </div>
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
-                <p className="text-[11px] uppercase tracking-wide text-slate-300">Waiters</p>
-                <p className="text-sm font-medium">{roleStats.waiter}</p>
-              </div>
-            </div>
-          </div>
+      <Card className="border-slate-200 p-4 dark:border-slate-800">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
+            Total {roleStats.total}
+          </span>
+          <span className="rounded-full border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
+            Admin {roleStats.admin}
+          </span>
+          <span className="rounded-full border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
+            Manager {roleStats.manager}
+          </span>
+          <span className="rounded-full border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
+            Cashier {roleStats.cashier}
+          </span>
+          <span className="rounded-full border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
+            Waiter {roleStats.waiter}
+          </span>
         </div>
-        <div className="border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/60 md:p-6">
-          <div className="flex gap-2">
-          <Dialog open={modalOpen} onOpenChange={(v) => (v ? openModal() : closeModal())}>
-            <DialogTrigger asChild>
-              <Button onClick={() => openModal()} className="w-full sm:w-auto">
-                + Add User
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-lg border-slate-200 bg-white p-0 shadow-xl dark:border-slate-800 dark:bg-slate-900">
-              <DialogHeader>
-                <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/60">
-                  <DialogTitle className="text-lg text-slate-900 dark:text-slate-100">
-                    {editingUser ? "Edit User" : "Add User"}
-                  </DialogTitle>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Configure role and credentials. Waiter PIN remains plain text by design.
-                  </p>
-                </div>
-              </DialogHeader>
+      </Card>
 
-              <form onSubmit={handleSubmit} className="space-y-4 px-5 py-4">
-                {/* Role */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Role</label>
-                  <Select
-                    value={form.role}
-                    onValueChange={(v) => setForm((f) => ({ ...f, role: v }))}
-                    disabled={editingUser && !canChangeRole}
-                  >
-                    <SelectTrigger className={`h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${errors.role ? "ring-2 ring-destructive" : ""}`}>
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
-                      <SelectItem value="cashier">Cashier</SelectItem>
-                      <SelectItem value="waiter">Waiter</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {errors.role && <p className="mt-1 text-xs text-destructive">{errors.role}</p>}
-                </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
+        <Card className="border-slate-200 p-4 dark:border-slate-800">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="add-users">Add Users</TabsTrigger>
+            <TabsTrigger value="create-profile">Create User Profile</TabsTrigger>
+          </TabsList>
+        </Card>
 
-                {/* Username */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Username</label>
-                  <Input
-                    value={form.username}
-                    onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
-                    disabled={editingUser && !canEditUsername}
-                    placeholder="e.g. johndoe"
-                    className={`h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${errors.username ? "ring-2 ring-destructive" : ""}`}
-                  />
-                  {errors.username && (
-                    <p className="mt-1 text-xs text-destructive">{errors.username}</p>
-                  )}
-                  {editingUser && !canEditUsername && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Only Admins or Managers can change usernames.
-                    </p>
-                  )}
-                </div>
+        <TabsContent value="add-users" className="space-y-5">
+          <Card className="p-3 sm:p-4 border-slate-200 dark:border-slate-800">
+            <div className="flex justify-end">
+              <Dialog open={modalOpen} onOpenChange={(v) => (v ? openModal() : closeModal())}>
+                <DialogTrigger asChild>
+                  <Button onClick={() => openModal()} className="w-full sm:w-auto">
+                    + Add User
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-lg border-slate-200 bg-white p-0 shadow-xl dark:border-slate-800 dark:bg-slate-900">
+                  <DialogHeader>
+                    <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/60">
+                      <DialogTitle className="text-lg text-slate-900 dark:text-slate-100">
+                        {editingUser ? "Edit User" : "Add User"}
+                      </DialogTitle>
+                    </div>
+                  </DialogHeader>
 
-                {/* Password or PIN based on role */}
-                {form.role && form.role !== "waiter" && (
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      {editingUser ? "New Password (optional)" : "Password"}
-                    </label>
-                    <Input
-                      type="password"
-                      value={form.password}
-                      onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                      placeholder={editingUser ? "Leave blank to keep current" : "Min 6 characters"}
-                      className={`h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${errors.password ? "ring-2 ring-destructive" : ""}`}
-                    />
-                    {errors.password && (
-                      <p className="mt-1 text-xs text-destructive">{errors.password}</p>
-                    )}
-                  </div>
-                )}
-
-                {form.role === "waiter" && (
-                  <div className="space-y-3">
+                  <form onSubmit={handleSubmit} className="space-y-4 px-5 py-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1">
-                        {editingUser ? "New PIN (optional)" : "4-digit PIN"}
-                      </label>
-                      <Input
-                        inputMode="numeric"
-                        maxLength={4}
-                        value={form.pin}
-                        onChange={(e) => {
-                          const v = e.target.value.replace(/\D/g, "").slice(0, 4);
-                          setForm((f) => ({ ...f, pin: v }));
-                        }}
-                        placeholder="1234"
-                        className={`h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${errors.pin ? "ring-2 ring-destructive" : ""}`}
-                      />
-                      {errors.pin && <p className="mt-1 text-xs text-destructive">{errors.pin}</p>}
+                      <label className="mb-1 block text-sm font-medium">Role</label>
+                      <Select
+                        value={form.role}
+                        onValueChange={(v) => setForm((f) => ({ ...f, role: v }))}
+                        disabled={editingUser && !canChangeRole}
+                      >
+                        <SelectTrigger className={`h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${errors.role ? "ring-2 ring-destructive" : ""}`}>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="manager">Manager</SelectItem>
+                          <SelectItem value="cashier">Cashier</SelectItem>
+                          <SelectItem value="waiter">Waiter</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {errors.role && <p className="mt-1 text-xs text-destructive">{errors.role}</p>}
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium mb-1">Waiter Profile</label>
-                      <Select
-                        value={form.waiter_profile_id}
-                        onValueChange={(v) => setForm((f) => ({ ...f, waiter_profile_id: v }))}
-                      >
-                        <SelectTrigger className={`h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${errors.waiter_profile_id ? "ring-2 ring-destructive" : ""}`}>
-                          <SelectValue placeholder="No profile (legacy)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">No profile (legacy)</SelectItem>
-                          {waiterProfiles.map((profile) => (
-                            <SelectItem key={profile.id} value={String(profile.id)}>
-                              {profile.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {errors.waiter_profile_id && (
-                        <p className="mt-1 text-xs text-destructive">{errors.waiter_profile_id}</p>
+                      <label className="mb-1 block text-sm font-medium">Username</label>
+                      <Input
+                        value={form.username}
+                        onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+                        disabled={editingUser && !canEditUsername}
+                        placeholder="e.g. johndoe"
+                        className={`h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${errors.username ? "ring-2 ring-destructive" : ""}`}
+                      />
+                      {errors.username && <p className="mt-1 text-xs text-destructive">{errors.username}</p>}
+                      {editingUser && !canEditUsername && (
+                        <p className="mt-1 text-xs text-muted-foreground">Only Admins or Managers can change usernames.</p>
                       )}
                     </div>
 
-                    <label className="inline-flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={form.auto_assign_tables}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, auto_assign_tables: e.target.checked }))
-                        }
-                      />
-                      Auto-assign tables from profile now
-                    </label>
-                  </div>
-                )}
-
-                <DialogFooter className="gap-2 border-t border-slate-200 bg-slate-50 px-0 pt-4 dark:border-slate-800 dark:bg-slate-800/30">
-                  <Button type="button" variant="outline" className="border-slate-300 dark:border-slate-700" onClick={closeModal} disabled={submitting}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={submitting}>
-                    {submitting ? (editingUser ? "Updating..." : "Creating...") : editingUser ? "Update User" : "Create User"}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-        </div>
-      </Card>
-
-      {/* Filters */}
-      <Card className="p-3 sm:p-4 border-slate-200 dark:border-slate-800">
-        <div className="flex flex-col md:flex-row md:items-center gap-3">
-          <div className="flex-1">
-            <Input
-              placeholder="Search by username or role..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            />
-          </div>
-          <div className="w-full md:w-48">
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
-                <SelectValue placeholder="Filter by role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All roles ({filteredUsers.length})</SelectItem>
-                <SelectItem value="admin">Admin ({filteredUsers.filter(u => u.role === "admin").length})</SelectItem>
-                <SelectItem value="manager">Manager ({filteredUsers.filter(u => u.role === "manager").length})</SelectItem>
-                <SelectItem value="cashier">Cashier ({filteredUsers.filter(u => u.role === "cashier").length})</SelectItem>
-                <SelectItem value="waiter">Waiter ({filteredUsers.filter(u => u.role === "waiter").length})</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </Card>
-
-      {/* Table */}
-      <Card className="overflow-hidden border-slate-200 dark:border-slate-800">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="bg-slate-100 text-left dark:bg-slate-800/70">
-                <th className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">No</th>
-                <th className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">Username</th>
-                <th className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">Role</th>
-                <th className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">Profile</th>
-                <th className="px-4 py-3 font-medium text-right text-slate-700 dark:text-slate-200">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
-                    Loading users...
-                  </td>
-                </tr>
-              ) : filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
-                    No users found.
-                  </td>
-                </tr>
-              ) : (
-                filteredUsers.map((u, index) => (
-                  <tr key={u.id} className={rowBase}>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{index + 1}</td> {/* Sequential number */}
-                    <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">{u.username}</td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-xs font-medium capitalize text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                        {u.role}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                      {u.role === "waiter" && u.waiter_profile_id
-                        ? waiterProfiles.find((profile) => profile.id === u.waiter_profile_id)?.name || `#${u.waiter_profile_id}`
-                        : "-"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button size="sm" variant="outline" className="border-slate-300 dark:border-slate-700" onClick={() => openModal(u)}>
-                          Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => confirmDelete(u.id)}
-                          disabled={currentUser?.role === "manager" && u.role === "admin"}
-                          title={
-                            currentUser?.role === "manager" && u.role === "admin"
-                              ? "Managers cannot delete Admins"
-                              : "Delete user"
-                          }
-                        >
-                          Delete
-                        </Button>
+                    {form.role && form.role !== "waiter" && (
+                      <div>
+                        <label className="mb-1 block text-sm font-medium">
+                          {editingUser ? "New Password (optional)" : "Password"}
+                        </label>
+                        <Input
+                          type="password"
+                          value={form.password}
+                          onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                          placeholder={editingUser ? "Leave blank to keep current" : "Min 6 characters"}
+                          className={`h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${errors.password ? "ring-2 ring-destructive" : ""}`}
+                        />
+                        {errors.password && <p className="mt-1 text-xs text-destructive">{errors.password}</p>}
                       </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+                    )}
 
-      <Card className="p-4 border-slate-200 dark:border-slate-800 md:p-6">
-        <WaiterProfileManagement />
-      </Card>
+                    {form.role === "waiter" && (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="mb-1 block text-sm font-medium">
+                            {editingUser ? "New PIN (optional)" : "4-digit PIN"}
+                          </label>
+                          <Input
+                            inputMode="numeric"
+                            maxLength={4}
+                            value={form.pin}
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/\D/g, "").slice(0, 4);
+                              setForm((f) => ({ ...f, pin: v }));
+                            }}
+                            placeholder="1234"
+                            className={`h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${errors.pin ? "ring-2 ring-destructive" : ""}`}
+                          />
+                          {errors.pin && <p className="mt-1 text-xs text-destructive">{errors.pin}</p>}
+                        </div>
+
+                        <div>
+                          <label className="mb-1 block text-sm font-medium">Waiter Profile</label>
+                          <Select
+                            value={form.waiter_profile_id}
+                            onValueChange={(v) => setForm((f) => ({ ...f, waiter_profile_id: v }))}
+                          >
+                            <SelectTrigger className={`h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${errors.waiter_profile_id ? "ring-2 ring-destructive" : ""}`}>
+                              <SelectValue placeholder="No profile (legacy)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">No profile (legacy)</SelectItem>
+                              {waiterProfiles.map((profile) => (
+                                <SelectItem key={profile.id} value={String(profile.id)}>
+                                  {profile.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {errors.waiter_profile_id && (
+                            <p className="mt-1 text-xs text-destructive">{errors.waiter_profile_id}</p>
+                          )}
+                        </div>
+
+                        <label className="inline-flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={form.auto_assign_tables}
+                            onChange={(e) =>
+                              setForm((f) => ({ ...f, auto_assign_tables: e.target.checked }))
+                            }
+                          />
+                          Auto-assign tables from profile now
+                        </label>
+                      </div>
+                    )}
+
+                    <DialogFooter className="gap-2 border-t border-slate-200 bg-slate-50 px-0 pt-4 dark:border-slate-800 dark:bg-slate-800/30">
+                      <Button type="button" variant="outline" className="border-slate-300 dark:border-slate-700" onClick={closeModal} disabled={submitting}>
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={submitting}>
+                        {submitting ? (editingUser ? "Updating..." : "Creating...") : editingUser ? "Update User" : "Create User"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </Card>
+
+          {/* Filters */}
+          <Card className="p-3 sm:p-4 border-slate-200 dark:border-slate-800">
+            <div className="flex flex-col md:flex-row md:items-center gap-3">
+              <div className="flex-1">
+                <Input
+                  placeholder="Search by username or role..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </div>
+              <div className="w-full md:w-48">
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger className="h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+                    <SelectValue placeholder="Filter by role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All roles ({filteredUsers.length})</SelectItem>
+                    <SelectItem value="admin">Admin ({filteredUsers.filter(u => u.role === "admin").length})</SelectItem>
+                    <SelectItem value="manager">Manager ({filteredUsers.filter(u => u.role === "manager").length})</SelectItem>
+                    <SelectItem value="cashier">Cashier ({filteredUsers.filter(u => u.role === "cashier").length})</SelectItem>
+                    <SelectItem value="waiter">Waiter ({filteredUsers.filter(u => u.role === "waiter").length})</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </Card>
+
+          {/* Table */}
+          <Card className="overflow-hidden border-slate-200 dark:border-slate-800">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-100 text-left dark:bg-slate-800/70">
+                    <th className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">No</th>
+                    <th className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">Username</th>
+                    <th className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">Role</th>
+                    <th className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">Profile</th>
+                    <th className="px-4 py-3 font-medium text-right text-slate-700 dark:text-slate-200">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
+                        Loading users...
+                      </td>
+                    </tr>
+                  ) : filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
+                        No users found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredUsers.map((u, index) => (
+                      <tr key={u.id} className={rowBase}>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{index + 1}</td> {/* Sequential number */}
+                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">{u.username}</td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-xs font-medium capitalize text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                            {u.role}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                          {u.role === "waiter" && u.waiter_profile_id
+                            ? waiterProfiles.find((profile) => profile.id === u.waiter_profile_id)?.name || `#${u.waiter_profile_id}`
+                            : "-"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button size="sm" variant="outline" className="border-slate-300 dark:border-slate-700" onClick={() => openModal(u)}>
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => confirmDelete(u.id)}
+                              disabled={currentUser?.role === "manager" && u.role === "admin"}
+                              title={
+                                currentUser?.role === "manager" && u.role === "admin"
+                                  ? "Managers cannot delete Admins"
+                                  : "Delete user"
+                              }
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="create-profile">
+          <WaiterProfileManagement onProfilesChanged={loadProfiles} />
+        </TabsContent>
+      </Tabs>
 
       {/* Delete confirm dialog */}
       <ConfirmDialog

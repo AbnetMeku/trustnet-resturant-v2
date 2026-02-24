@@ -82,31 +82,26 @@ export default function AdminDashboard() {
           id: "overview",
           icon: FaChartBar,
           label: "Overview",
-          subtitle: "Live status and KPIs",
         },
         {
           id: "order",
           icon: FaReceipt,
           label: "Order Tracker",
-          subtitle: "Track open order flow",
         },
         {
           id: "print",
           icon: FaPrint,
           label: "Print Jobs",
-          subtitle: "Monitor print queue",
         },
         {
           id: "reports",
           icon: FaFileAlt,
           label: "Reports",
-          subtitle: "Sales insights and totals",
         },
         {
           id: "waiter-summary",
           icon: FaUsers,
           label: "Waiter Summary",
-          subtitle: "Per-waiter sales details",
         },
       ],
     },
@@ -117,31 +112,26 @@ export default function AdminDashboard() {
           id: "users",
           icon: FaUsers,
           label: "Users",
-          subtitle: "Staff access and roles",
         },
         {
           id: "tables",
           icon: FaTable,
           label: "Tables",
-          subtitle: "Dining layout setup",
         },
         {
           id: "stations",
           icon: FaStore,
           label: "Stations",
-          subtitle: "Production stations",
         },
         {
           id: "menu",
           icon: FaUtensils,
           label: "Menu",
-          subtitle: "Items and availability",
         },
         {
           id: "branding",
           icon: FaPalette,
           label: "Branding",
-          subtitle: "Theme and logo setup",
         },
       ],
     },
@@ -152,7 +142,6 @@ export default function AdminDashboard() {
           id: "inventory",
           icon: FaBoxes,
           label: "Inventory",
-          subtitle: "Stock and transfers",
         },
       ],
     },
@@ -161,43 +150,33 @@ export default function AdminDashboard() {
   const contentTitles = {
     overview: {
       title: "Overview",
-      description: "Monitor operational health and current activity.",
     },
     users: {
-      title: "Users Management",
-      description: "Create and manage roles for your team.",
+      title: "Users",
     },
     tables: {
-      title: "Tables Management",
-      description: "Organize table layout and assignment settings.",
+      title: "Tables",
     },
     stations: {
-      title: "Stations Management",
-      description: "Maintain kitchen and prep stations.",
+      title: "Stations",
     },
     menu: {
-      title: "Menu Management",
-      description: "Manage categories, dishes, and pricing.",
+      title: "Menu",
     },
     reports: {
       title: "Sales Reports",
-      description: "Review performance with summary reporting.",
     },
     "waiter-summary": {
       title: "Waiter Summary",
-      description: "Review sales totals and details by waiter.",
     },
     order: {
       title: "Order Tracker",
-      description: "Follow order lifecycle across stations.",
     },
     print: {
       title: "Print Jobs",
-      description: "Track receipts and printer job delivery.",
     },
     branding: {
       title: "Branding",
-      description: "Control app visuals for consistent identity.",
     },
   };
 
@@ -257,18 +236,7 @@ export default function AdminDashboard() {
                   >
                     <item.icon className="text-lg shrink-0" />
                     {sidebarOpen && (
-                      <span className="ml-3 leading-tight">
-                        <span className="block text-sm font-medium">{item.label}</span>
-                        <span
-                          className={`block text-xs ${
-                            active === item.id
-                              ? "text-white/80 dark:text-slate-700"
-                              : "text-slate-500 dark:text-slate-400"
-                          }`}
-                        >
-                          {item.subtitle}
-                        </span>
-                      </span>
+                      <span className="ml-3 text-sm font-medium">{item.label}</span>
                     )}
                   </button>
                 ))}
@@ -298,7 +266,6 @@ export default function AdminDashboard() {
                 )}
                 <div>
                   <h1 className="text-lg font-semibold">{currentTitle.title}</h1>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{currentTitle.description}</p>
                 </div>
               </div>
 
@@ -317,7 +284,7 @@ export default function AdminDashboard() {
             </div>
           </header>
 
-          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-5 bg-gradient-to-b from-slate-100 to-slate-50 dark:from-slate-950 dark:to-slate-900">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-100 p-4 md:p-5 dark:bg-slate-950">
             {active === "overview" && (
               <Card className="p-5 md:p-6 w-full border-slate-200 dark:border-slate-800 shadow-sm">
                 <OverView />

@@ -212,5 +212,100 @@ def test_vip_profile_auto_assigns_all_vip_tables(client, app):
     with app.app_context():
         waiter = db.session.get(User, waiter_id)
         assigned_numbers = {table.number for table in waiter.tables}
-        assert assigned_numbers == {"21", "22"}
+        assert {"21", "22"}.issubset(assigned_numbers)
+        assert len(assigned_numbers) == 5
         assert all(table.is_vip for table in waiter.tables)
+
+
+def test_auto_assign_uses_tables_regardless_of_status(client, app):
+    with app.app_context():
+        admin = User(username="admin_status_assign", password_hash="x", role="admin")
+        station = Station(name="StatusKitchen", password_hash="1111")
+        tables = [
+            Table(number="31", status="occupied", is_vip=False),
+            Table(number="32", status="reserved", is_vip=False),
+        ]
+        db.session.add_all([admin, station, *tables])
+        db.session.commit()
+        admin_token = _token_for(admin.id, "admin")
+        station_id = station.id
+
+    profile_resp = client.post(
+        "/api/waiter-profiles",
+        json={
+            "name": "Normal Any Status",
+            "max_tables": 2,
+            "allow_vip": False,
+            "station_ids": [station_id],
+        },
+        headers=_auth_headers(admin_token),
+    )
+    assert profile_resp.status_code == 201
+    profile_id = profile_resp.get_json()["id"]
+
+    waiter_resp = client.post(
+        "/api/users",
+        json={
+            "username": "status_waiter",
+            "pin": "9876",
+            "role": "waiter",
+            "waiter_profile_id": profile_id,
+            "auto_assign_tables": True,
+        },
+        headers=_auth_headers(admin_token),
+    )
+    assert waiter_resp.status_code == 201
+    waiter_id = waiter_resp.get_json()["id"]
+
+    with app.app_context():
+        waiter = db.session.get(User, waiter_id)
+        assigned_numbers = {table.number for table in waiter.tables}
+        assert assigned_numbers == {"31", "32"}
+
+
+def test_auto_assign_does_not_take_other_waiter_tables_and_creates_new(client, app):
+    with app.app_context():
+        admin = User(username="admin_new_tables", password_hash="x", role="admin")
+        waiter_existing = User(username="existing_waiter", pin_hash="4322", role="waiter")
+        station = Station(name="NewTableKitchen", password_hash="1111")
+        table_1 = Table(number="41", status="available", is_vip=False)
+        table_2 = Table(number="42", status="available", is_vip=False)
+        table_1.waiters.append(waiter_existing)
+        table_2.waiters.append(waiter_existing)
+        db.session.add_all([admin, waiter_existing, station, table_1, table_2])
+        db.session.commit()
+        admin_token = _token_for(admin.id, "admin")
+        station_id = station.id
+
+    profile_resp = client.post(
+        "/api/waiter-profiles",
+        json={
+            "name": "Creates New Tables",
+            "max_tables": 2,
+            "allow_vip": False,
+            "station_ids": [station_id],
+        },
+        headers=_auth_headers(admin_token),
+    )
+    assert profile_resp.status_code == 201
+    profile_id = profile_resp.get_json()["id"]
+
+    waiter_resp = client.post(
+        "/api/users",
+        json={
+            "username": "new_table_waiter",
+            "pin": "4323",
+            "role": "waiter",
+            "waiter_profile_id": profile_id,
+            "auto_assign_tables": True,
+        },
+        headers=_auth_headers(admin_token),
+    )
+    assert waiter_resp.status_code == 201
+    waiter_id = waiter_resp.get_json()["id"]
+
+    with app.app_context():
+        waiter = db.session.get(User, waiter_id)
+        assigned_numbers = {table.number for table in waiter.tables}
+        assert assigned_numbers == {"43", "44"}
+        assert all(table.status == "available" for table in waiter.tables)

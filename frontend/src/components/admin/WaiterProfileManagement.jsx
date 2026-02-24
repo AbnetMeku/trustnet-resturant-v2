@@ -29,7 +29,7 @@ const defaultForm = {
   station_ids: [],
 };
 
-export default function WaiterProfileManagement() {
+export default function WaiterProfileManagement({ onProfilesChanged = null }) {
   const { authToken } = useAuth();
   const [profiles, setProfiles] = useState([]);
   const [stations, setStations] = useState([]);
@@ -148,6 +148,9 @@ export default function WaiterProfileManagement() {
       }
       closeModal();
       await load();
+      if (typeof onProfilesChanged === "function") {
+        await onProfilesChanged();
+      }
     } catch (err) {
       toast.error(err?.response?.data?.error || err.message || "Failed to save profile");
     } finally {
@@ -162,7 +165,10 @@ export default function WaiterProfileManagement() {
     try {
       await deleteWaiterProfile(profileId, authToken);
       toast.success("Profile deleted");
-      setProfiles((prev) => prev.filter((profile) => profile.id !== profileId));
+      await load();
+      if (typeof onProfilesChanged === "function") {
+        await onProfilesChanged();
+      }
     } catch (err) {
       toast.error(err?.response?.data?.error || err.message || "Failed to delete profile");
     }
@@ -170,94 +176,85 @@ export default function WaiterProfileManagement() {
 
   return (
     <div className="space-y-5">
-      <Card className="overflow-hidden border-slate-200 dark:border-slate-800">
-        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-4 py-5 text-white md:px-6">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-300">Waiter Profiles</p>
-              <h2 className="mt-1 text-xl font-semibold">Profiles and Station Access</h2>
-              <p className="mt-1 text-sm text-slate-300">
-                Create reusable waiter templates for stations, VIP access, and table caps.
-              </p>
-            </div>
-            <Dialog open={open} onOpenChange={(value) => (!value ? closeModal() : setOpen(value))}>
-              <DialogTrigger asChild>
-                <Button onClick={openCreate}>+ New Profile</Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-xl border-slate-200 bg-white p-0 dark:border-slate-800 dark:bg-slate-900">
-                <DialogHeader>
-                  <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/60">
-                    <DialogTitle>{editing ? "Edit Profile" : "Create Profile"}</DialogTitle>
-                  </div>
-                </DialogHeader>
-                <form className="space-y-4 px-5 py-4" onSubmit={submit}>
+      <Card className="border-slate-200 p-4 dark:border-slate-800">
+        <div className="flex items-center justify-end">
+          <Dialog open={open} onOpenChange={(value) => (!value ? closeModal() : setOpen(value))}>
+            <DialogTrigger asChild>
+              <Button onClick={openCreate}>+ New Profile</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-xl border-slate-200 bg-white p-0 dark:border-slate-800 dark:bg-slate-900">
+              <DialogHeader>
+                <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/60">
+                  <DialogTitle>{editing ? "Edit Profile" : "Create Profile"}</DialogTitle>
+                </div>
+              </DialogHeader>
+              <form className="space-y-4 px-5 py-4" onSubmit={submit}>
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Name</label>
+                  <Input
+                    value={form.name}
+                    onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="Senior Waiter"
+                  />
+                </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-sm font-medium">Name</label>
+                    <label className="mb-1 block text-sm font-medium">Max Tables</label>
                     <Input
-                      value={form.name}
-                      onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                      placeholder="Senior Waiter"
+                      type="number"
+                      min={0}
+                      value={form.max_tables}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          max_tables: Number(e.target.value),
+                        }))
+                      }
                     />
                   </div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div>
-                      <label className="mb-1 block text-sm font-medium">Max Tables</label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={form.max_tables}
+                  <div className="flex items-end">
+                    <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={form.allow_vip}
                         onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            max_tables: Number(e.target.value),
-                          }))
+                          setForm((prev) => ({ ...prev, allow_vip: e.target.checked }))
                         }
                       />
-                    </div>
-                    <div className="flex items-end">
-                      <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={form.allow_vip}
-                          onChange={(e) =>
-                            setForm((prev) => ({ ...prev, allow_vip: e.target.checked }))
-                          }
-                        />
-                        Allow VIP tables
-                      </label>
-                    </div>
+                      Allow VIP tables
+                    </label>
                   </div>
-                  <div>
-                    <p className="mb-1 text-sm font-medium">Allowed Stations</p>
-                    <div className="grid max-h-44 grid-cols-1 gap-2 overflow-y-auto rounded-md border border-slate-200 p-3 dark:border-slate-700">
-                      {stations.length === 0 ? (
-                        <p className="text-sm text-slate-500">No stations found.</p>
-                      ) : (
-                        stations.map((station) => (
-                          <label key={station.id} className="inline-flex items-center gap-2 text-sm">
-                            <input
-                              type="checkbox"
-                              checked={form.station_ids.includes(station.id)}
-                              onChange={() => toggleStation(station.id)}
-                            />
-                            {station.name}
-                          </label>
-                        ))
-                      )}
-                    </div>
+                </div>
+                <div>
+                  <p className="mb-1 text-sm font-medium">Allowed Stations</p>
+                  <div className="grid max-h-44 grid-cols-1 gap-2 overflow-y-auto rounded-md border border-slate-200 p-3 dark:border-slate-700">
+                    {stations.length === 0 ? (
+                      <p className="text-sm text-slate-500">No stations found.</p>
+                    ) : (
+                      stations.map((station) => (
+                        <label key={station.id} className="inline-flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={form.station_ids.includes(station.id)}
+                            onChange={() => toggleStation(station.id)}
+                          />
+                          {station.name}
+                        </label>
+                      ))
+                    )}
                   </div>
-                  <DialogFooter className="border-t border-slate-200 bg-slate-50 px-0 pt-4 dark:border-slate-800 dark:bg-slate-800/40">
-                    <Button type="button" variant="outline" onClick={closeModal} disabled={submitting}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" disabled={submitting}>
-                      {submitting ? "Saving..." : editing ? "Update Profile" : "Create Profile"}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </div>
+                </div>
+                <DialogFooter className="border-t border-slate-200 bg-slate-50 px-0 pt-4 dark:border-slate-800 dark:bg-slate-800/40">
+                  <Button type="button" variant="outline" onClick={closeModal} disabled={submitting}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={submitting}>
+                    {submitting ? "Saving..." : editing ? "Update Profile" : "Create Profile"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </Card>
 
