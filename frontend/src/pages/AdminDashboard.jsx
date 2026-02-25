@@ -78,6 +78,11 @@ export default function AdminDashboard() {
     if (isMobile) setSidebarOpen(false);
   };
 
+  const isManager = user?.role === "manager";
+  const restrictedIds = isManager
+    ? new Set(["reports", "waiter-summary", "stations", "branding"])
+    : new Set();
+
   const menuSections = [
     {
       title: "Operations",
@@ -101,7 +106,7 @@ export default function AdminDashboard() {
           id: "waiter-summary",
           icon: FaUsers,
           label: "Waiter Summary",
-        },        
+        },
         {
           id: "print",
           icon: FaPrint,
@@ -151,32 +156,57 @@ export default function AdminDashboard() {
     },
   ];
 
+  const filteredSections = menuSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => !restrictedIds.has(item.id)),
+    }))
+    .filter((section) => section.items.length > 0);
+
+  const flattenedItems = filteredSections.flatMap((section) =>
+    section.items.map((item) => ({ ...item, section: section.title }))
+  );
+  const allowedIds = new Set(flattenedItems.map((item) => item.id));
+
+  useEffect(() => {
+    if (!allowedIds.has(active)) {
+      setActive("overview");
+    }
+  }, [active, allowedIds]);
+
   return (
     <div className={darkMode ? "dark" : ""}>
-      <div className="admin-shell flex h-screen w-screen overflow-hidden">
+      <div className="admin-shell admin-shell-grid flex h-screen w-screen overflow-hidden">
         <aside
-          className={`
+          className={`admin-sidebar
             fixed md:relative z-30 top-0 left-0 h-full md:h-auto
-            bg-white/95 dark:bg-slate-900/95 border-r border-slate-200 dark:border-slate-800
-            shadow-xl transition-all duration-300 backdrop-blur-sm
+            border-r border-slate-200/70 dark:border-slate-800/80
             flex flex-col
             ${isMobile ? (sidebarOpen ? "w-72" : "w-0") : sidebarOpen ? "w-72" : "w-20"}
           `}
         >
-          <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
-            <div className="flex items-center space-x-2">
-              <img src={branding.logo_url} alt="Logo" className="w-9 h-9 object-contain rounded" />
+          <div className="admin-sidebar-header flex items-center justify-between p-4">
+            <div className="flex items-center space-x-3">
+              <div className="admin-logo-wrap">
+                <img
+                  src={branding.logo_url}
+                  alt="Logo"
+                  className="w-9 h-9 object-contain rounded"
+                />
+              </div>
               {sidebarOpen && (
                 <div className="leading-tight">
-                  <p className="font-semibold text-base">Admin Panel</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">TrustNet Restaurant</p>
+                  <p className="font-semibold text-base">Admin Console</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    TrustNet Restaurant
+                  </p>
                 </div>
               )}
             </div>
             {!isMobile && (
               <button
                 onClick={toggleSidebar}
-                className="rounded-md p-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className="admin-icon-btn"
                 aria-label="Toggle sidebar"
               >
                 {sidebarOpen ? <FaChevronLeft size={14} /> : <FaChevronRight size={14} />}
@@ -184,29 +214,30 @@ export default function AdminDashboard() {
             )}
           </div>
 
-          <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar px-2 pb-4">
-            {menuSections.map((section) => (
+          <nav className="flex-1 mt-3 overflow-y-auto no-scrollbar px-2 pb-4">
+            {filteredSections.map((section) => (
               <div key={section.title} className="mb-4">
+                {sidebarOpen && (
+                  <p className="admin-section-title">{section.title}</p>
+                )}
                 {section.items.map((item) => (
                   <button
                     key={item.id}
-                    className={`w-full text-left flex items-center rounded-lg px-3 py-2.5 mb-1.5 transition-all
-                    ${
-                      active === item.id
-                        ? "bg-slate-900 text-white shadow-md dark:bg-slate-100 dark:text-slate-900"
-                        : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-                    }`}
+                    className={`admin-nav-item ${active === item.id ? "is-active" : ""}`}
                     onClick={() => handleSelect(item.id)}
                   >
-                    <item.icon className="text-lg shrink-0" />
+                    <item.icon className="admin-nav-icon" />
                     {sidebarOpen && (
-                      <span className="ml-3 text-sm font-medium">{item.label}</span>
+                      <span className="text-sm font-medium tracking-wide">
+                        {item.label}
+                      </span>
                     )}
                   </button>
                 ))}
               </div>
             ))}
           </nav>
+
         </aside>
 
         {isMobile && sidebarOpen && (
@@ -217,21 +248,22 @@ export default function AdminDashboard() {
         )}
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="border-b border-slate-200 dark:border-slate-800 bg-white/85 dark:bg-slate-900/85 px-4 py-3 backdrop-blur-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center space-x-3">
+          <header className="admin-header px-4 py-3 md:px-6">
+            <div className="admin-header-inner">
+              <div className="flex items-center gap-3">
                 {isMobile && (
                   <button
                     onClick={toggleSidebar}
-                    className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800"
+                    className="admin-icon-btn"
+                    aria-label="Open sidebar"
                   >
                     <FaBars />
                   </button>
                 )}
               </div>
 
-              <div className="flex items-center space-x-2">
-                <div className="hidden md:flex items-center rounded-md border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="admin-user-pill">
                   <strong>{user?.username || "Admin"}</strong>
                 </div>
                 <Button variant="outline" size="sm" onClick={toggleDarkMode}>
@@ -245,7 +277,7 @@ export default function AdminDashboard() {
             </div>
           </header>
 
-          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-5">
+          <main className="admin-main">
             {active === "overview" && (
               <Card className="admin-card p-5 md:p-6 w-full">
                 <OverView />

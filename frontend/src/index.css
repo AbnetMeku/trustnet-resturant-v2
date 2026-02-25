@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Literata:wght@400;600&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -78,25 +80,108 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: "Space Grotesk", "Segoe UI", sans-serif;
   }
 }
 
 @layer components {
   .admin-shell {
-    @apply bg-slate-100 text-slate-900 dark:bg-[#07132b] dark:text-slate-100;
-    background-image:
-      radial-gradient(circle at top right, rgba(37, 99, 235, 0.16), transparent 52%),
-      radial-gradient(circle at bottom left, rgba(14, 116, 144, 0.08), transparent 50%);
+    @apply bg-slate-100 text-slate-900 dark:bg-[#070f22] dark:text-slate-100;
+    background-image: none;
+  }
+
+  .admin-shell-grid {
+    background-image: none;
   }
 
   .dark .admin-shell {
-    background-image:
-      radial-gradient(circle at top right, rgba(59, 130, 246, 0.24), transparent 56%),
-      radial-gradient(circle at bottom left, rgba(14, 165, 233, 0.16), transparent 52%);
+    background-image: none;
+  }
+
+  .dark .admin-shell-grid {
+    background-image: none;
+  }
+
+  .admin-sidebar {
+    @apply bg-white/70 dark:bg-slate-900/70 shadow-2xl backdrop-blur-xl;
+  }
+
+  .admin-sidebar-header {
+    @apply border-b border-slate-200/70 dark:border-slate-800/80;
+  }
+
+  .admin-logo-wrap {
+    @apply rounded-xl bg-slate-100/90 dark:bg-slate-800/80 p-1.5 border border-slate-200/80 dark:border-slate-700/70;
+  }
+
+  .admin-icon-btn {
+    @apply rounded-lg p-2 hover:bg-slate-100/80 dark:hover:bg-slate-800/80;
+  }
+
+  .admin-section-title {
+    @apply px-3 text-[11px] uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 mb-2;
+  }
+
+  .admin-nav-item {
+    @apply w-full text-left flex items-center gap-3 rounded-xl px-3.5 py-2.5 mb-1.5 relative text-slate-700 dark:text-slate-200 hover:bg-slate-100/80 dark:hover:bg-slate-800/70;
+  }
+
+  .admin-nav-item.is-active {
+    @apply bg-slate-900 text-white shadow-lg shadow-slate-900/15 dark:bg-slate-100 dark:text-slate-900;
+  }
+
+  .admin-nav-icon {
+    @apply text-lg shrink-0 opacity-80;
+  }
+
+  .admin-nav-item.is-active .admin-nav-icon {
+    @apply opacity-100;
+  }
+
+  .admin-header {
+    @apply border-b border-slate-200/60 dark:border-slate-800/60 bg-white/65 dark:bg-slate-900/60 backdrop-blur-xl;
+  }
+
+  .admin-header-inner {
+    @apply flex flex-wrap items-center justify-between gap-3;
+  }
+
+  .admin-badge {
+    @apply inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900;
+  }
+
+  .admin-page-title {
+    @apply text-lg md:text-xl font-semibold text-slate-900 dark:text-slate-100;
+  }
+
+  .admin-page-subtitle {
+    @apply text-xs md:text-sm text-slate-500 dark:text-slate-400;
+  }
+
+  .admin-user-pill {
+    @apply hidden md:flex items-center rounded-full border border-slate-200/80 dark:border-slate-700/70 px-4 py-1.5 text-sm text-slate-700 dark:text-slate-200 bg-white/70 dark:bg-slate-900/60;
+  }
+
+  .admin-sidebar-footer {
+    @apply px-4 pb-4 pt-2 flex flex-col gap-2 border-t border-slate-200/60 dark:border-slate-800/60;
+  }
+
+  .admin-main {
+    @apply flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6;
   }
 
   .admin-card {
-    @apply border-slate-200 bg-white shadow-sm dark:border-blue-900/70 dark:bg-[#0d1f45];
+    @apply border border-slate-200/40 bg-white/70 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.55)] backdrop-blur-2xl dark:border-slate-800/50 dark:bg-slate-900/55;
+    transition: transform 280ms ease, box-shadow 280ms ease, border-color 280ms ease;
+  }
+
+  .admin-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 22px 50px -36px rgba(15, 23, 42, 0.6);
+  }
+
+  .admin-card-soft {
+    @apply border border-slate-200/25 bg-white/55 dark:border-slate-800/40 dark:bg-slate-900/45;
   }
 
   .admin-hero {
@@ -104,7 +189,7 @@
   }
 
   .admin-toolbar {
-    @apply border-t border-slate-200 bg-slate-50 dark:border-blue-900/70 dark:bg-[#0b1a39];
+    @apply border-t border-slate-200/70 bg-slate-50/80 dark:border-slate-800/80 dark:bg-slate-900/60;
   }
 
   .admin-stat {
