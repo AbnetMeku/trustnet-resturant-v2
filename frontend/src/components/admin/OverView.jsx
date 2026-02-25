@@ -114,11 +114,11 @@ export default function OverView() {
 
   return (
     <div className="space-y-5">
-      <Card className="p-4 border-slate-200 dark:border-slate-800">
+      <Card className="admin-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold">Performance Snapshot</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Live operations summary for {rangeLabel}.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{rangeLabel}</p>
           </div>
           <div className="w-44">
             <Select value={dateFilter} onValueChange={setDateFilter}>
@@ -141,12 +141,12 @@ export default function OverView() {
         <MetricCard title="Paid Orders" value={metrics.paidOrders} tone="blue" />
       </div>
 
-      <Card className="p-5 border-slate-200 dark:border-slate-800 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">
+      <Card className="admin-card p-5 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">
         <p className="text-sm opacity-85">Total Sales</p>
         <p className="text-3xl md:text-4xl font-bold mt-1">${metrics.totalSales.toLocaleString()}</p>
       </Card>
 
-      <Card className="p-5 border-slate-200 dark:border-slate-800">
+      <Card className="admin-card p-5">
         <h3 className="text-sm font-semibold mb-3">Order Status Breakdown</h3>
         <ResponsiveContainer width="100%" height={250}>
           <BarChart data={metrics.orderStatusData}>
@@ -174,7 +174,7 @@ function MetricCard({ title, value, tone }) {
   };
 
   return (
-    <Card className={`p-4 border ${tones[tone]}`}>
+    <Card className={`admin-card p-4 border ${tones[tone]}`}>
       <p className="text-xs font-medium uppercase tracking-wide">{title}</p>
       <p className="text-3xl font-bold mt-1">{value}</p>
     </Card>
@@ -183,7 +183,7 @@ function MetricCard({ title, value, tone }) {
 
 function ListBlock({ title, items, money }) {
   return (
-    <Card className="p-5 border-slate-200 dark:border-slate-800">
+    <Card className="admin-card p-5">
       <h3 className="text-sm font-semibold mb-3">{title}</h3>
       <ul className="space-y-2">
         {items.map(({ id, name, salesCount, count }) => (

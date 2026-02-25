@@ -109,14 +109,23 @@ export default function BrandingManagement() {
 
   return (
     <div className="space-y-4">
-      <Card className="p-4 border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="text-base font-semibold">Branding</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Configure logo and background used across admin and POS screens.
-            </p>
+      <Card className="admin-card overflow-hidden">
+        <div className="admin-hero px-4 py-5 md:px-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <h3 className="text-xl font-semibold">Branding</h3>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="admin-stat">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Logo</p>
+                <p className="text-sm font-medium">{preview.custom_logo_url ? "Custom" : "Default"}</p>
+              </div>
+              <div className="admin-stat">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Background</p>
+                <p className="text-sm font-medium">{preview.custom_background_url ? "Custom" : "Default"}</p>
+              </div>
+            </div>
           </div>
+        </div>
+        <div className="admin-toolbar p-4 md:p-6">
           <Button
             variant="outline"
             onClick={handleResetDefaults}
@@ -129,12 +138,9 @@ export default function BrandingManagement() {
       </Card>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <Card className="p-4 space-y-4 border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm">
+        <Card className="admin-card p-4 space-y-4 backdrop-blur-sm">
           <div>
             <h4 className="font-medium">Assets</h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Upload logo and background images. URL links are hidden for a cleaner flow.
-            </p>
           </div>
 
           <div className="space-y-2">
@@ -149,7 +155,7 @@ export default function BrandingManagement() {
                 e.target.value = "";
               }}
             />
-            <p className="text-xs text-slate-500 dark:text-slate-400">PNG, JPG, JPEG, WEBP up to 5 MB.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">PNG/JPG/WEBP up to 5 MB.</p>
             {uploadingLogo && <p className="text-xs text-blue-600 dark:text-blue-400">Uploading logo...</p>}
           </div>
 
@@ -165,7 +171,7 @@ export default function BrandingManagement() {
                 e.target.value = "";
               }}
             />
-            <p className="text-xs text-slate-500 dark:text-slate-400">PNG, JPG, JPEG, WEBP up to 5 MB.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">PNG/JPG/WEBP up to 5 MB.</p>
             {uploadingBackground && <p className="text-xs text-blue-600 dark:text-blue-400">Uploading background...</p>}
           </div>
 
@@ -176,10 +182,10 @@ export default function BrandingManagement() {
           </div>
         </Card>
 
-        <Card className="p-4 space-y-3 border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm">
+        <Card className="admin-card p-4 space-y-3 backdrop-blur-sm">
           <div className="flex items-center justify-between">
             <h4 className="font-medium">Live Preview</h4>
-            <span className="text-xs text-slate-500 dark:text-slate-400">Current effective branding</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Current branding</span>
           </div>
 
           <div
@@ -194,7 +200,6 @@ export default function BrandingManagement() {
                 className="w-24 h-24 object-contain bg-white/90 rounded-full p-2"
               />
               <p className="text-white text-sm font-medium">TrustNet Restaurant</p>
-              <p className="text-white/80 text-xs">Admin branding preview</p>
             </div>
           </div>
 

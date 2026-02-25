@@ -83,28 +83,26 @@ export default function WaiterSummaryReport() {
 
   return (
     <div className="space-y-5">
-      <Card className="overflow-hidden border-slate-200 dark:border-slate-800">
-        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-4 py-5 text-white md:px-6">
+      <Card className="admin-card overflow-hidden">
+        <div className="admin-hero px-4 py-5 md:px-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-300">Admin Reports</p>
-              <h2 className="mt-1 text-xl font-semibold">Waiter Summary</h2>
-              <p className="mt-1 text-sm text-slate-300">Sales performance by waiter for selected dates</p>
+              <h2 className="text-xl font-semibold">Waiter Summary</h2>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
+              <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Waiters</p>
                 <p className="text-sm font-medium">{stats.totalWaiters}</p>
               </div>
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
+              <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Active</p>
                 <p className="text-sm font-medium">{stats.activeWaiters}</p>
               </div>
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
+              <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Top Waiter</p>
                 <p className="text-sm font-medium truncate max-w-[140px]">{stats.topWaiterName}</p>
               </div>
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
+              <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Grand Total</p>
                 <p className="text-sm font-medium">{Number(grandTotal || 0).toFixed(2)}</p>
               </div>
@@ -112,7 +110,7 @@ export default function WaiterSummaryReport() {
           </div>
         </div>
 
-        <div className="border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/60 md:p-6">
+        <div className="admin-toolbar p-4 md:p-6">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto]">
             <label className="space-y-1">
               <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Start Date</span>
@@ -142,15 +140,15 @@ export default function WaiterSummaryReport() {
       </Card>
 
       {loading ? (
-        <Card className="border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-300">
+        <Card className="admin-card p-8 text-center text-sm text-slate-500 dark:text-slate-300">
           Loading report...
         </Card>
       ) : report.length === 0 ? (
-        <Card className="border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-300">
+        <Card className="admin-card p-8 text-center text-sm text-slate-500 dark:text-slate-300">
           No data available for selected dates.
         </Card>
       ) : (
-        <Card className="overflow-hidden border-slate-200 dark:border-slate-800">
+        <Card className="admin-card overflow-hidden">
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="bg-slate-100 dark:bg-slate-800/70 text-left">
@@ -188,13 +186,11 @@ export default function WaiterSummaryReport() {
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]">
-          <Card className="w-full max-w-5xl overflow-hidden border-slate-200 shadow-xl dark:border-slate-800">
-            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-4 text-white md:p-5">
+          <Card className="admin-card w-full max-w-5xl overflow-hidden shadow-xl">
+            <div className="admin-hero p-4 md:p-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-300">Waiter Details | ዝርዝር</p>
-                  <h3 className="mt-1 text-lg font-semibold">{modalWaiter}</h3>
-                  <p className="text-xs text-slate-300">From {startDate} to {endDate}</p>
+                  <h3 className="text-lg font-semibold">{modalWaiter}</h3>
                 </div>
                 <Button
                   variant="outline"

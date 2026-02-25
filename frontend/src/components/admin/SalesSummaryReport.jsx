@@ -363,24 +363,22 @@ export default function SalesSummaryReport({ darkMode }) {
 
   return (
     <div className={`space-y-5 ${darkMode ? "dark" : ""}`}>
-      <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
-        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-4 py-5 text-white md:px-6">
+      <div className="admin-card overflow-hidden rounded-xl border">
+        <div className="admin-hero px-4 py-5 md:px-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-300">Admin Reports</p>
-              <h2 className="mt-1 text-xl font-semibold">Sales Summary</h2>
-              <p className="mt-1 text-sm text-slate-300">Category and item performance across selected dates</p>
+              <h2 className="text-xl font-semibold">Sales Summary</h2>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
+              <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">From</p>
                 <p className="text-sm font-medium">{startDate}</p>
               </div>
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
+              <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">To</p>
                 <p className="text-sm font-medium">{endDate}</p>
               </div>
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 col-span-2 sm:col-span-1">
+              <div className="admin-stat col-span-2 sm:col-span-1">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Grand Total</p>
                 <p className="text-sm font-medium">
                   {data?.grand_totals
@@ -392,7 +390,7 @@ export default function SalesSummaryReport({ darkMode }) {
           </div>
         </div>
 
-        <div className="border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/60 md:p-6">
+        <div className="admin-toolbar p-4 md:p-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <label className="flex flex-col">
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</span>
@@ -495,7 +493,7 @@ export default function SalesSummaryReport({ darkMode }) {
       </div>
 
       {loading && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-8 flex justify-center items-center text-sm text-slate-500 dark:text-slate-300">
+        <div className="admin-card rounded-xl p-8 flex justify-center items-center text-sm text-slate-500 dark:text-slate-300">
           <Loader2 className="animate-spin h-6 w-6 text-slate-500" />
           <span className="ml-2">Loading report...</span>
         </div>
@@ -522,7 +520,7 @@ export default function SalesSummaryReport({ darkMode }) {
           {data.report.map((category) => (
             <section
               key={category.category}
-              className="bg-white dark:bg-slate-900 p-5 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800"
+              className="admin-card p-5 rounded-lg border"
             >
               <h4 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-3">
                 {category.category}

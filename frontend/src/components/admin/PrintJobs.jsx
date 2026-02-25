@@ -149,28 +149,26 @@ export default function PrintJobs() {
 
   return (
     <div className="space-y-5">
-      <Card className="overflow-hidden border-slate-200 dark:border-slate-800">
-        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-4 py-5 text-white md:px-6">
+      <Card className="admin-card overflow-hidden">
+        <div className="admin-hero px-4 py-5 md:px-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-300">Admin Operations</p>
-              <h3 className="mt-1 text-xl font-semibold">Print Jobs</h3>
-              <p className="mt-1 text-sm text-slate-300">Track station and cashier print queue state</p>
+              <h3 className="text-xl font-semibold">Print Jobs</h3>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
+              <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Total</p>
                 <p className="text-sm font-medium">{stats.total}</p>
               </div>
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
+              <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Pending</p>
                 <p className="text-sm font-medium">{stats.pending}</p>
               </div>
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
+              <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Printed</p>
                 <p className="text-sm font-medium">{stats.printed}</p>
               </div>
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
+              <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Failed</p>
                 <p className="text-sm font-medium">{stats.failed}</p>
               </div>
@@ -178,7 +176,7 @@ export default function PrintJobs() {
           </div>
         </div>
 
-        <div className="border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/60 md:p-6">
+        <div className="admin-toolbar p-4 md:p-6">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_200px_auto]">
             <Input
               placeholder="Search order, waiter, or item..."
@@ -205,7 +203,7 @@ export default function PrintJobs() {
         </div>
       </Card>
 
-      <Card className="overflow-x-auto border-slate-200 dark:border-slate-800">
+      <Card className="admin-card overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead>
             <tr className="bg-slate-100 dark:bg-slate-800/70 text-left">

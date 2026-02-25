@@ -325,37 +325,44 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-5">
-      <Card className="border-slate-200 p-4 dark:border-slate-800">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
-            Total {roleStats.total}
-          </span>
-          <span className="rounded-full border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
-            Admin {roleStats.admin}
-          </span>
-          <span className="rounded-full border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
-            Manager {roleStats.manager}
-          </span>
-          <span className="rounded-full border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
-            Cashier {roleStats.cashier}
-          </span>
-          <span className="rounded-full border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
-            Waiter {roleStats.waiter}
-          </span>
+      <Card className="admin-card overflow-hidden">
+        <div className="admin-hero px-4 py-5 md:px-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <h3 className="text-xl font-semibold">User Management</h3>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              <div className="admin-stat">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Total</p>
+                <p className="text-sm font-medium">{roleStats.total}</p>
+              </div>
+              <div className="admin-stat">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Admin</p>
+                <p className="text-sm font-medium">{roleStats.admin}</p>
+              </div>
+              <div className="admin-stat">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Manager</p>
+                <p className="text-sm font-medium">{roleStats.manager}</p>
+              </div>
+              <div className="admin-stat">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Cashier</p>
+                <p className="text-sm font-medium">{roleStats.cashier}</p>
+              </div>
+              <div className="admin-stat">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Waiter</p>
+                <p className="text-sm font-medium">{roleStats.waiter}</p>
+              </div>
+            </div>
+          </div>
         </div>
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
-        <Card className="border-slate-200 p-4 dark:border-slate-800">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="add-users">Add Users</TabsTrigger>
-            <TabsTrigger value="create-profile">Create User Profile</TabsTrigger>
-          </TabsList>
-        </Card>
-
-        <TabsContent value="add-users" className="space-y-5">
-          <Card className="p-3 sm:p-4 border-slate-200 dark:border-slate-800">
-            <div className="flex justify-end">
+        <Card className="admin-card p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="add-users">Add User</TabsTrigger>
+              <TabsTrigger value="create-profile">Add User Profile</TabsTrigger>
+            </TabsList>
+            {activeTab === "add-users" && (
               <Dialog open={modalOpen} onOpenChange={(v) => (v ? openModal() : closeModal())}>
                 <DialogTrigger asChild>
                   <Button onClick={() => openModal()} className="w-full sm:w-auto">
@@ -402,9 +409,6 @@ export default function UserManagement() {
                         className={`h-10 border-slate-300 bg-white text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 ${errors.username ? "ring-2 ring-destructive" : ""}`}
                       />
                       {errors.username && <p className="mt-1 text-xs text-destructive">{errors.username}</p>}
-                      {editingUser && !canEditUsername && (
-                        <p className="mt-1 text-xs text-muted-foreground">Only Admins or Managers can change usernames.</p>
-                      )}
                     </div>
 
                     {form.role && form.role !== "waiter" && (
@@ -490,11 +494,13 @@ export default function UserManagement() {
                   </form>
                 </DialogContent>
               </Dialog>
-            </div>
-          </Card>
+            )}
+          </div>
+        </Card>
 
+        <TabsContent value="add-users" className="space-y-5">
           {/* Filters */}
-          <Card className="p-3 sm:p-4 border-slate-200 dark:border-slate-800">
+          <Card className="admin-card p-3 sm:p-4">
             <div className="flex flex-col md:flex-row md:items-center gap-3">
               <div className="flex-1">
                 <Input
@@ -522,7 +528,7 @@ export default function UserManagement() {
           </Card>
 
           {/* Table */}
-          <Card className="overflow-hidden border-slate-200 dark:border-slate-800">
+          <Card className="admin-card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>

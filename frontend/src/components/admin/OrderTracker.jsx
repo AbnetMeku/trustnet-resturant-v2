@@ -290,31 +290,29 @@ export default function AdminOrders() {
 
   return (
     <div className="space-y-5">
-      <Card className="overflow-hidden border-slate-200 dark:border-slate-800">
-        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-4 py-5 text-white md:px-6">
+      <Card className="admin-card overflow-hidden">
+        <div className="admin-hero px-4 py-5 md:px-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-300">Admin Operations</p>
-              <h3 className="mt-1 text-xl font-semibold">Order Tracker</h3>
-              <p className="mt-1 text-sm text-slate-300">Daily flow for tables, waiters, and item-level edits</p>
+              <h3 className="text-xl font-semibold">Order Tracker</h3>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
+              <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Date</p>
                 <p className="text-sm font-medium">{selectedDate}</p>
               </div>
-              <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2">
+              <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Showing</p>
                 <p className="text-sm font-medium">{filteredOrders.length}</p>
               </div>
-              <div className="col-span-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 sm:col-span-1">
+              <div className="admin-stat col-span-2 sm:col-span-1">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Total</p>
                 <p className="text-sm font-medium">{pagination.total}</p>
               </div>
             </div>
           </div>
         </div>
-        <div className="border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/60 md:p-6">
+        <div className="admin-toolbar p-4 md:p-6">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <label className="space-y-1">
               <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Date</span>
@@ -368,17 +366,17 @@ export default function AdminOrders() {
       </Card>
 
       {loading ? (
-        <Card className="border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-300">
+        <Card className="admin-card p-8 text-center text-sm text-slate-500 dark:text-slate-300">
           Loading orders...
         </Card>
       ) : filteredOrders.length === 0 ? (
-        <Card className="border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-300">
+        <Card className="admin-card p-8 text-center text-sm text-slate-500 dark:text-slate-300">
           No orders found.
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filteredOrders.map((order) => (
-            <Card key={order.id} className="border-slate-200 p-5 shadow-sm transition hover:shadow-md dark:border-slate-800">
+            <Card key={order.id} className="admin-card p-5 transition hover:shadow-md">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Order #{order.id}</p>
@@ -436,7 +434,7 @@ export default function AdminOrders() {
       )}
 
       {!loading && pagination.total_pages > 1 && (
-        <Card className="border-slate-200 p-3 dark:border-slate-800">
+        <Card className="admin-card p-3">
           <div className="flex items-center justify-between">
             <span className="text-sm text-slate-600 dark:text-slate-300">
               Page {pagination.page} / {pagination.total_pages} • Showing {filteredOrders.length} of {pagination.total}

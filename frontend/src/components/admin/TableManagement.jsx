@@ -192,22 +192,31 @@ export default function TableManagement() {
 
   return (
     <div className="space-y-5">
-      <Card className="border-slate-200 p-4 dark:border-slate-800 md:p-6">
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
-            Total {stats.total}
-          </span>
-          <span className="rounded-full border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
-            VIP {stats.vip}
-          </span>
-          <span className="rounded-full border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
-            Occupied {stats.occupied}
-          </span>
-          <span className="rounded-full border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
-            Available {stats.available}
-          </span>
+      <Card className="admin-card overflow-hidden">
+        <div className="admin-hero px-4 py-5 md:px-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <h3 className="text-xl font-semibold">Table Management</h3>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="admin-stat">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Total</p>
+                <p className="text-sm font-medium">{stats.total}</p>
+              </div>
+              <div className="admin-stat">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">VIP</p>
+                <p className="text-sm font-medium">{stats.vip}</p>
+              </div>
+              <div className="admin-stat">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Occupied</p>
+                <p className="text-sm font-medium">{stats.occupied}</p>
+              </div>
+              <div className="admin-stat">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Available</p>
+                <p className="text-sm font-medium">{stats.available}</p>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto_auto]">
+        <div className="admin-toolbar grid grid-cols-1 gap-3 p-4 md:grid-cols-[1fr_1fr_auto_auto] md:p-6">
           <select
             value={filters.waiterId}
             onChange={(e) => setFilters((prev) => ({ ...prev, waiterId: e.target.value }))}
@@ -243,11 +252,11 @@ export default function TableManagement() {
       </Card>
 
       {loading ? (
-        <Card className="border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-300">
+        <Card className="admin-card p-8 text-center text-sm text-slate-500 dark:text-slate-300">
           Loading tables...
         </Card>
       ) : groupedTables.length === 0 ? (
-        <Card className="border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-300">
+        <Card className="admin-card p-8 text-center text-sm text-slate-500 dark:text-slate-300">
           No tables found for current filters.
         </Card>
       ) : (
@@ -300,9 +309,6 @@ export default function TableManagement() {
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/50">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{selectedGroup.label} Tables</h2>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  {selectedGroup.tables.length} tables in this stack
-                </p>
               </div>
               <Button variant="outline" className="border-slate-300 dark:border-slate-700" onClick={() => setSelectedGroupKey(null)}>
                 Close
@@ -388,12 +394,9 @@ export default function TableManagement() {
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]">
-          <Card className="w-full max-w-md overflow-hidden border-slate-200 shadow-xl dark:border-slate-800">
+          <Card className="admin-card w-full max-w-md overflow-hidden shadow-xl">
             <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/50">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{currentTable ? "Edit Table" : "Add Table"}</h2>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                {currentTable ? `Table #${currentTable.number} details` : "Auto mode uses next number. Manual must be greater than current last."}
-              </p>
             </div>
             <form onSubmit={handleSubmit} className="space-y-3 px-5 py-4">
               {!currentTable && (

@@ -56,6 +56,10 @@ export default function AdminDashboard() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", darkMode);
+  }, [darkMode]);
+
   const toggleDarkMode = () => {
     setDarkMode((prev) => {
       localStorage.setItem("darkMode", !prev);
@@ -89,19 +93,19 @@ export default function AdminDashboard() {
           label: "Order Tracker",
         },
         {
-          id: "print",
-          icon: FaPrint,
-          label: "Print Jobs",
-        },
-        {
           id: "reports",
           icon: FaFileAlt,
-          label: "Reports",
+          label: "Sales Summary",
         },
         {
           id: "waiter-summary",
           icon: FaUsers,
           label: "Waiter Summary",
+        },        
+        {
+          id: "print",
+          icon: FaPrint,
+          label: "Print Jobs",
         },
       ],
     },
@@ -119,14 +123,14 @@ export default function AdminDashboard() {
           label: "Tables",
         },
         {
-          id: "stations",
-          icon: FaStore,
-          label: "Stations",
-        },
-        {
           id: "menu",
           icon: FaUtensils,
           label: "Menu",
+        },
+        {
+          id: "stations",
+          icon: FaStore,
+          label: "Stations",
         },
         {
           id: "branding",
@@ -147,44 +151,9 @@ export default function AdminDashboard() {
     },
   ];
 
-  const contentTitles = {
-    overview: {
-      title: "Overview",
-    },
-    users: {
-      title: "Users",
-    },
-    tables: {
-      title: "Tables",
-    },
-    stations: {
-      title: "Stations",
-    },
-    menu: {
-      title: "Menu",
-    },
-    reports: {
-      title: "Sales Reports",
-    },
-    "waiter-summary": {
-      title: "Waiter Summary",
-    },
-    order: {
-      title: "Order Tracker",
-    },
-    print: {
-      title: "Print Jobs",
-    },
-    branding: {
-      title: "Branding",
-    },
-  };
-
-  const currentTitle = contentTitles[active] || contentTitles.overview;
-
   return (
     <div className={darkMode ? "dark" : ""}>
-      <div className="flex h-screen w-screen overflow-hidden bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+      <div className="admin-shell flex h-screen w-screen overflow-hidden">
         <aside
           className={`
             fixed md:relative z-30 top-0 left-0 h-full md:h-auto
@@ -218,11 +187,6 @@ export default function AdminDashboard() {
           <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar px-2 pb-4">
             {menuSections.map((section) => (
               <div key={section.title} className="mb-4">
-                {sidebarOpen && (
-                  <p className="px-3 pb-2 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    {section.title}
-                  </p>
-                )}
                 {section.items.map((item) => (
                   <button
                     key={item.id}
@@ -253,7 +217,7 @@ export default function AdminDashboard() {
         )}
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 px-4 py-3 backdrop-blur-sm">
+          <header className="border-b border-slate-200 dark:border-slate-800 bg-white/85 dark:bg-slate-900/85 px-4 py-3 backdrop-blur-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center space-x-3">
                 {isMobile && (
@@ -264,14 +228,11 @@ export default function AdminDashboard() {
                     <FaBars />
                   </button>
                 )}
-                <div>
-                  <h1 className="text-lg font-semibold">{currentTitle.title}</h1>
-                </div>
               </div>
 
               <div className="flex items-center space-x-2">
                 <div className="hidden md:flex items-center rounded-md border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300">
-                  Logged in as&nbsp;<strong>{user?.username || "Admin"}</strong>
+                  <strong>{user?.username || "Admin"}</strong>
                 </div>
                 <Button variant="outline" size="sm" onClick={toggleDarkMode}>
                   {darkMode ? <FaSun className="mr-2" /> : <FaMoon className="mr-2" />}
@@ -284,63 +245,63 @@ export default function AdminDashboard() {
             </div>
           </header>
 
-          <main className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-100 p-4 md:p-5 dark:bg-slate-950">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-5">
             {active === "overview" && (
-              <Card className="p-5 md:p-6 w-full border-slate-200 dark:border-slate-800 shadow-sm">
+              <Card className="admin-card p-5 md:p-6 w-full">
                 <OverView />
               </Card>
             )}
 
             {active === "users" && (
-              <Card className="p-5 md:p-6 w-full border-slate-200 dark:border-slate-800 shadow-sm">
+              <Card className="admin-card p-5 md:p-6 w-full">
                 <UserManagement />
               </Card>
             )}
 
             {active === "tables" && (
-              <Card className="p-5 md:p-6 w-full border-slate-200 dark:border-slate-800 shadow-sm">
+              <Card className="admin-card p-5 md:p-6 w-full">
                 <TableManagement />
               </Card>
             )}
 
             {active === "stations" && (
-              <Card className="p-5 md:p-6 w-full border-slate-200 dark:border-slate-800 shadow-sm">
+              <Card className="admin-card p-5 md:p-6 w-full">
                 <StationManagement />
               </Card>
             )}
 
             {active === "menu" && (
-              <Card className="p-5 md:p-6 w-full border-slate-200 dark:border-slate-800 shadow-sm">
+              <Card className="admin-card p-5 md:p-6 w-full">
                 <MenuManagement />
               </Card>
             )}
 
             {active === "reports" && (
-              <Card className="p-5 md:p-6 w-full overflow-auto max-h-[82vh] border-slate-200 dark:border-slate-800 shadow-sm">
-                <SalesSummaryReport />
+              <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]">
+                <SalesSummaryReport darkMode={darkMode} />
               </Card>
             )}
 
             {active === "waiter-summary" && (
-              <Card className="p-5 md:p-6 w-full overflow-auto max-h-[82vh] border-slate-200 dark:border-slate-800 shadow-sm">
+              <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]">
                 <WaiterSummaryReport />
               </Card>
             )}
 
             {active === "order" && (
-              <Card className="p-5 md:p-6 w-full overflow-auto max-h-[82vh] border-slate-200 dark:border-slate-800 shadow-sm">
+              <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]">
                 <OrderTracker />
               </Card>
             )}
 
             {active === "print" && (
-              <Card className="p-5 md:p-6 w-full overflow-auto max-h-[82vh] border-slate-200 dark:border-slate-800 shadow-sm">
+              <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]">
                 <PrintJobs />
               </Card>
             )}
 
             {active === "branding" && (
-              <Card className="p-5 md:p-6 w-full overflow-auto max-h-[82vh] border-slate-200 dark:border-slate-800 shadow-sm">
+              <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]">
                 <BrandingManagement />
               </Card>
             )}

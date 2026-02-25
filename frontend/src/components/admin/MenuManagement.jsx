@@ -396,17 +396,43 @@ export default function MenuManagement() {
     setModalOpen(true);
   };
 
+  const menuStats = {
+    categories: categories.length,
+    subcategories: subcategories.length,
+    items: menuItems.length,
+    available: menuItems.filter((item) => item.is_available).length,
+  };
+
   return (
     <div className="space-y-4 text-slate-900 dark:text-slate-100">
-      <Card className="p-4 border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm">
-        <h3 className="text-base font-semibold">Menu Management</h3>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Manage categories, subcategories, and menu items from one place.
-        </p>
+      <Card className="admin-card overflow-hidden">
+        <div className="admin-hero px-4 py-5 md:px-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <h3 className="text-xl font-semibold">Menu Management</h3>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="admin-stat">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Categories</p>
+                <p className="text-sm font-medium">{menuStats.categories}</p>
+              </div>
+              <div className="admin-stat">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Subcategories</p>
+                <p className="text-sm font-medium">{menuStats.subcategories}</p>
+              </div>
+              <div className="admin-stat">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Items</p>
+                <p className="text-sm font-medium">{menuStats.items}</p>
+              </div>
+              <div className="admin-stat">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Available</p>
+                <p className="text-sm font-medium">{menuStats.available}</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </Card>
 
       {/* Tabs */}
-      <Card className="p-4 border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm">
+      <Card className="admin-card admin-toolbar p-4 backdrop-blur-sm">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex flex-wrap gap-2">
           {["categories", "subcategories", "menu"].map((t) => (
@@ -428,10 +454,9 @@ export default function MenuManagement() {
 
       {/* Menu Filters */}
       {tab === "menu" && (
-        <Card className="p-4 border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm">
+        <Card className="admin-card p-4 backdrop-blur-sm">
         <div className="mb-3">
           <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Filters</h4>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Filter menu list by category, subcategory, or status.</p>
         </div>
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
           <select
@@ -509,21 +534,23 @@ export default function MenuManagement() {
           {categories.map((cat) => (
             <Card
               key={cat.id}
-              className="relative group border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow"
+              className="group relative overflow-hidden border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg dark:border-blue-900/70 dark:bg-[#112753]"
             >
-              <CardHeader>
-                <CardTitle className="text-lg font-bold text-center">
+              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500" />
+              <CardHeader className="pb-2 pt-5">
+                <CardTitle className="truncate text-lg font-semibold tracking-tight">
                   {cat.name}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-xs text-gray-600 dark:text-gray-400 text-center mb-2">
-                  Default step: {Number(cat.quantity_step || 1) === 0.5 ? "0.5" : "1"}
-                </p>
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 flex gap-2">
+              <CardContent className="flex items-center justify-between pb-4">
+                <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 dark:border-blue-800 dark:bg-[#0b1b3e] dark:text-blue-200">
+                  Step {Number(cat.quantity_step || 1) === 0.5 ? "0.5" : "1"}
+                </span>
+                <div className="flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <Button
                     variant="outline"
                     size="sm"
+                    className="h-8 w-8 border-slate-300 p-0 dark:border-blue-800"
                     onClick={() => handleEdit(cat, setCategoryForm, "category")}
                   >
                     <FaEdit />
@@ -531,6 +558,7 @@ export default function MenuManagement() {
                   <Button
                     variant="destructive"
                     size="sm"
+                    className="h-8 w-8 p-0"
                     onClick={() =>
                       confirmDelete(cat.id, deleteCategory, cat.name, "Category")
                     }
@@ -547,7 +575,7 @@ export default function MenuManagement() {
       {/* Subcategories (with simple Category filter) */}
       {tab === "subcategories" && (
         <>
-          <Card className="p-4 border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm">
+          <Card className="admin-card p-4 backdrop-blur-sm">
           <div className="flex gap-2 flex-wrap">
             <select
               value={subcategoryCatFilter}
@@ -568,19 +596,21 @@ export default function MenuManagement() {
             {visibleSubcategories.map((sc) => (
               <Card
                 key={sc.id}
-                className="relative group border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow"
+                className="group relative overflow-hidden border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg dark:border-blue-900/70 dark:bg-[#112753]"
               >
-                <CardHeader>
-                  <CardTitle className="text-lg font-bold">{sc.name}</CardTitle>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
+                <CardHeader className="pb-2 pt-5">
+                  <CardTitle className="truncate text-lg font-semibold tracking-tight">{sc.name}</CardTitle>
+                  <p className="text-sm text-slate-500 dark:text-slate-300">
                     {categories.find((c) => c.id === sc.category_id)?.name}
                   </p>
                 </CardHeader>
-                <CardContent>
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 flex gap-2">
+                <CardContent className="flex justify-end pb-4">
+                  <div className="flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                     <Button
                       variant="outline"
                       size="sm"
+                      className="h-8 w-8 border-slate-300 p-0 dark:border-blue-800"
                       onClick={() =>
                         handleEdit(sc, setSubcategoryForm, "subcategory")
                       }
@@ -590,6 +620,7 @@ export default function MenuManagement() {
                     <Button
                       variant="destructive"
                       size="sm"
+                      className="h-8 w-8 p-0"
                       onClick={() =>
                         confirmDelete(
                           sc.id,

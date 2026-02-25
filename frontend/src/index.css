@@ -80,3 +80,34 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .admin-shell {
+    @apply bg-slate-100 text-slate-900 dark:bg-[#07132b] dark:text-slate-100;
+    background-image:
+      radial-gradient(circle at top right, rgba(37, 99, 235, 0.16), transparent 52%),
+      radial-gradient(circle at bottom left, rgba(14, 116, 144, 0.08), transparent 50%);
+  }
+
+  .dark .admin-shell {
+    background-image:
+      radial-gradient(circle at top right, rgba(59, 130, 246, 0.24), transparent 56%),
+      radial-gradient(circle at bottom left, rgba(14, 165, 233, 0.16), transparent 52%);
+  }
+
+  .admin-card {
+    @apply border-slate-200 bg-white shadow-sm dark:border-blue-900/70 dark:bg-[#0d1f45];
+  }
+
+  .admin-hero {
+    @apply bg-gradient-to-r from-[#0a1b3e] via-[#0f2b66] to-[#0a1b3e] text-white;
+  }
+
+  .admin-toolbar {
+    @apply border-t border-slate-200 bg-slate-50 dark:border-blue-900/70 dark:bg-[#0b1a39];
+  }
+
+  .admin-stat {
+    @apply rounded-lg border border-white/20 bg-blue-400/10 px-3 py-2;
+  }
+}
