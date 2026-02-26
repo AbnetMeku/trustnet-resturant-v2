@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { getJobs, markJobPrinted, retryJob, deleteJob } from "@/api/print_jobs";
+import { formatEatDateTime } from "@/lib/timezone";
 
 const STATUS_OPTIONS = ["all", "pending", "printed", "failed"];
 
@@ -261,7 +262,7 @@ export default function PrintJobs() {
                     </td>
                     <td className="px-4 py-3">{prepTag}</td>
                     <td className="px-4 py-3">{stationName}</td>
-                    <td className="px-4 py-3">{new Date(job.created_at).toLocaleString()}</td>
+                    <td className="px-4 py-3">{formatEatDateTime(job.created_at)}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2 justify-end">
                         {job.status === "failed" && (
@@ -297,3 +298,4 @@ export default function PrintJobs() {
     </div>
   );
 }
+

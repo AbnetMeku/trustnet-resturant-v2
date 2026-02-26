@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
+import { formatEatDateTime } from "@/lib/timezone";
 import {
   getTransfers,
   createTransfer,
@@ -286,7 +287,7 @@ export default function TransferManagement() {
                       {t.quantity} units
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {new Date(t.created_at).toLocaleString()}
+                      {formatEatDateTime(t.created_at)}
                     </div>
                   </Card>
                 ))}
@@ -329,7 +330,7 @@ export default function TransferManagement() {
                   </td>
                   <td className="p-2 border dark:border-gray-700">{t.quantity}</td>
                   <td className="p-2 border dark:border-gray-700">
-                    {new Date(t.created_at).toLocaleString()}
+                    {formatEatDateTime(t.created_at)}
                   </td>
                   {user?.role === "admin" && (
                     <td className="p-2 border dark:border-gray-700 flex gap-2">
@@ -404,3 +405,4 @@ export default function TransferManagement() {
     </Card>
   );
 }
+

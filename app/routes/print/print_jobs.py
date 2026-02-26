@@ -2,12 +2,12 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from datetime import datetime
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app.extensions import db
 from app.models.models import PrintJob, Order, Station, OrderItem
 from app.utils.decorators import extract_roles_from_claims
+from app.utils.timezone import eat_now_naive
 
 print_jobs_bp = Blueprint("print_jobs", __name__, url_prefix="/print-jobs")
 
@@ -190,7 +190,7 @@ def create_cashier_print_job(order_id: int):
             "waiter": waiter_name,
             "items": items_data,
             "total": float(order.total_amount),
-            "closed_at": datetime.utcnow().isoformat(),
+            "closed_at": eat_now_naive().isoformat(),
         },
     )
     db.session.add(job)
@@ -211,7 +211,7 @@ def mark_job_printed(job_id: int):
         return jsonify({"error": "Unauthorized"}), 403
 
     job.status = "printed"
-    job.printed_at = datetime.utcnow()
+    job.printed_at = eat_now_naive()
     db.session.commit()
     return jsonify({"message": f"Print job {job.id} marked as printed"}), 200
 
@@ -375,7 +375,7 @@ def print_cashier_manual():
             "waiter": waiter_name,
             "items": items_data,
             "total": float(order.total_amount) if order.total_amount else 0.0,
-            "closed_at": datetime.utcnow().isoformat(),
+            "closed_at": eat_now_naive().isoformat(),
         },
         status="pending",
     )

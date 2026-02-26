@@ -3,7 +3,7 @@ from flask_jwt_extended import jwt_required
 from app.extensions import db
 from app.models import InventoryItem, StoreStock, StationStock, StockTransfer, Station
 from app.services.inventory_service import adjust_inventory_for_addition, get_or_create_today_snapshot
-from datetime import datetime
+from app.utils.timezone import eat_now_naive
 
 inventory_transfer_bp = Blueprint("inventory_transfer_bp", __name__, url_prefix="/inventory/transfers")
 
@@ -63,7 +63,7 @@ def create_transfer():
         station_id=station_id,
         quantity=quantity,
         status="Transferred",
-        created_at=datetime.utcnow()
+        created_at=eat_now_naive()
     )
     db.session.add(transfer)
     db.session.commit()

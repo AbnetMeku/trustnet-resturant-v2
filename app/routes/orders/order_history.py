@@ -6,6 +6,7 @@ from app.models.models import Order, OrderItem, Table, User
 from app.routes.orders.order import order_to_dict, error_response
 from app.utils.decorators import roles_required, extract_roles_from_claims
 from datetime import datetime
+from app.utils.timezone import get_business_day_bounds
 
 order_history_bp = Blueprint("order_history_bp", __name__, url_prefix="/order-history")
 
@@ -20,7 +21,8 @@ def get_order_history():
     if date_str:
         try:
             day = datetime.strptime(date_str, "%Y-%m-%d").date()
-            query = query.filter(db.func.date(Order.created_at) == day)
+            start_dt, end_dt = get_business_day_bounds(day)
+            query = query.filter(Order.created_at >= start_dt, Order.created_at < end_dt)
         except ValueError:
             return error_response("Invalid date format. Use YYYY-MM-DD.", 400)
 
@@ -59,7 +61,8 @@ def get_order_summary():
 
     try:
         day = datetime.strptime(date_str, "%Y-%m-%d").date()
-        query = query.filter(db.func.date(Order.created_at) == day)
+        start_dt, end_dt = get_business_day_bounds(day)
+        query = query.filter(Order.created_at >= start_dt, Order.created_at < end_dt)
     except ValueError:
         return error_response("Invalid date format. Use YYYY-MM-DD.", 400)
 
@@ -172,8 +175,10 @@ def get_order_summary_range():
     try:
         start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
         end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
-        query = query.filter(db.func.date(Order.created_at) >= start_date)
-        query = query.filter(db.func.date(Order.created_at) <= end_date)
+        start_dt, _ = get_business_day_bounds(start_date)
+        _, end_dt = get_business_day_bounds(end_date)
+        query = query.filter(Order.created_at >= start_dt)
+        query = query.filter(Order.created_at < end_dt)
     except ValueError:
         return error_response("Invalid date format. Use YYYY-MM-DD.", 400)
 
@@ -284,7 +289,8 @@ def get_order_history_raw():
     if date_str:
         try:
             day = datetime.strptime(date_str, "%Y-%m-%d").date()
-            query = query.filter(db.func.date(Order.created_at) == day)
+            start_dt, end_dt = get_business_day_bounds(day)
+            query = query.filter(Order.created_at >= start_dt, Order.created_at < end_dt)
         except ValueError:
             return error_response("Invalid date format. Use YYYY-MM-DD.", 400)
     else:

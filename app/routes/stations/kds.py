@@ -6,6 +6,7 @@ from sqlalchemy import asc, desc
 from datetime import datetime
 from app.routes.orders.order import recalc_order_total
 from app.services.inventory_integration import send_inventory_adjustment_or_queue
+from app.utils.timezone import eat_now_naive
 stations_kds_bp = Blueprint("stations_kds_bp", __name__, url_prefix="/stations/kds")
 
 def parse_station_identity(identity):
@@ -119,7 +120,7 @@ def update_order_item_status(order_item_id):
 
     prev_status = item.status
     item.status = new_status
-    item.updated_at = datetime.utcnow()
+    item.updated_at = eat_now_naive()
 
     if prev_status != "ready" and new_status == "ready":
         # Deduct inventory

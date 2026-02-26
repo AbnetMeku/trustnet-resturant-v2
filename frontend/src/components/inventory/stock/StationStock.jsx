@@ -4,6 +4,7 @@ import { getStations } from "@/api/stations";
 import { useAuth } from "@/context/AuthContext";
 import { Card } from "@/components/ui/card";
 import { toast } from "react-hot-toast";
+import { formatEatDateTime } from "@/lib/timezone";
 
 export default function StationStock() {
   const { token } = useAuth();
@@ -110,7 +111,7 @@ export default function StationStock() {
                     {row.quantity}
                   </td>
                   <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right text-sm text-gray-500 dark:text-gray-400">
-                    {new Date(row.updated_at).toLocaleString()}
+                    {formatEatDateTime(row.updated_at)}
                   </td>
                 </tr>
               ))}
@@ -121,3 +122,4 @@ export default function StationStock() {
     </Card>
   );
 }
+

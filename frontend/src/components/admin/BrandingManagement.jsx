@@ -20,6 +20,7 @@ export default function BrandingManagement() {
   const [form, setForm] = useState({
     logo_url: "",
     background_url: "",
+    business_day_start_time: "06:00",
   });
   const [preview, setPreview] = useState(DEFAULT_BRANDING);
 
@@ -31,6 +32,7 @@ export default function BrandingManagement() {
         setForm({
           logo_url: data.custom_logo_url || "",
           background_url: data.custom_background_url || "",
+          business_day_start_time: data.business_day_start_time || "06:00",
         });
         setPreview(data);
       } catch (error) {
@@ -49,10 +51,12 @@ export default function BrandingManagement() {
       const data = await updateBrandingSettings({
         logo_url: form.logo_url,
         background_url: form.background_url,
+        business_day_start_time: form.business_day_start_time,
       });
       setForm({
         logo_url: data.custom_logo_url || "",
         background_url: data.custom_background_url || "",
+        business_day_start_time: data.business_day_start_time || "06:00",
       });
       setPreview(data);
       toast.success("Branding updated successfully");
@@ -69,10 +73,12 @@ export default function BrandingManagement() {
       const data = await updateBrandingSettings({
         logo_url: "",
         background_url: "",
+        business_day_start_time: "06:00",
       });
       setForm({
         logo_url: data.custom_logo_url || "",
         background_url: data.custom_background_url || "",
+        business_day_start_time: data.business_day_start_time || "06:00",
       });
       setPreview(data);
       toast.success("Branding reset to defaults");
@@ -93,6 +99,7 @@ export default function BrandingManagement() {
       setForm({
         logo_url: data.custom_logo_url || "",
         background_url: data.custom_background_url || "",
+        business_day_start_time: data.business_day_start_time || "06:00",
       });
       setPreview(data);
       toast.success(`${assetType === "logo" ? "Logo" : "Background"} uploaded`);
@@ -160,6 +167,24 @@ export default function BrandingManagement() {
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="branding-business-day-start">Business Day Start Time</Label>
+            <Input
+              id="branding-business-day-start"
+              type="time"
+              value={form.business_day_start_time}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  business_day_start_time: e.target.value || "06:00",
+                }))
+              }
+            />
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Defines when a new business day starts (Ethiopian time).
+            </p>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="branding-background-upload">Background Upload</Label>
             <Input
               id="branding-background-upload"
@@ -209,6 +234,9 @@ export default function BrandingManagement() {
             </div>
             <div className="rounded-md border border-slate-200 dark:border-slate-700 p-2 text-slate-700 dark:text-slate-200">
               <span className="font-medium">Background source:</span> {preview.custom_background_url ? "Custom" : "Default"}
+            </div>
+            <div className="rounded-md border border-slate-200 dark:border-slate-700 p-2 text-slate-700 dark:text-slate-200 col-span-2">
+              <span className="font-medium">Business day starts at:</span> {preview.business_day_start_time || "06:00"}
             </div>
           </div>
         </Card>

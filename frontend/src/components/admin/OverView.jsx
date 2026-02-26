@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { eatBusinessDateISO, eatDateISO } from "@/lib/timezone";
 
 export default function OverView() {
   const [metrics, setMetrics] = useState(null);
@@ -19,17 +20,17 @@ export default function OverView() {
   function getDateRange(filter) {
     const today = new Date();
     let startDate;
-    const endDate = today.toISOString().slice(0, 10);
+    const endDate = eatBusinessDateISO(today);
 
     if (filter === "today") startDate = endDate;
     else if (filter === "last7") {
       const d = new Date();
       d.setDate(today.getDate() - 6);
-      startDate = d.toISOString().slice(0, 10);
+      startDate = eatDateISO(d);
     } else {
       const d = new Date();
       d.setDate(today.getDate() - 29);
-      startDate = d.toISOString().slice(0, 10);
+      startDate = eatDateISO(d);
     }
     return { startDate, endDate };
   }
@@ -198,3 +199,4 @@ function ListBlock({ title, items, money }) {
     </Card>
   );
 }
+

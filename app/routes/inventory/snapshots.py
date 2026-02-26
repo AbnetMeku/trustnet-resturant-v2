@@ -2,7 +2,8 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from app.extensions import db
 from app.models import StationStockSnapshot, StationStock, InventoryItem, Station
-from datetime import datetime, date
+from datetime import datetime
+from app.utils.timezone import get_eat_today
 
 inventory_snapshot_bp = Blueprint("inventory_snapshot_bp", __name__, url_prefix="/inventory/snapshots")
 
@@ -23,7 +24,7 @@ def create_snapshot():
     if not station or not item:
         return jsonify({"msg": "Station or Inventory Item not found"}), 404
 
-    today = date.today()
+    today = get_eat_today()
     existing = StationStockSnapshot.query.filter_by(
         station_id=station_id, inventory_item_id=inventory_item_id, snapshot_date=today
     ).first()
@@ -163,7 +164,7 @@ def delete_snapshot(snapshot_id):
 
 # --------------------- HELPER: Initialize Snapshot for First Order --------------------- #
 def init_snapshot_if_missing(station_id, inventory_item_id):
-    today = date.today()
+    today = get_eat_today()
     snapshot = StationStockSnapshot.query.filter_by(
         station_id=station_id, inventory_item_id=inventory_item_id, snapshot_date=today
     ).first()

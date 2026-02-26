@@ -6,6 +6,7 @@ from flask_jwt_extended import create_access_token
 
 from app import create_app, db
 from app.models.models import Category, MenuItem, Order, OrderItem, Station, SubCategory, Table, User
+from app.utils.timezone import eat_now_naive
 
 
 @pytest.fixture
@@ -47,7 +48,7 @@ def test_order_history_raw_returns_paginated_response(client, app):
         db.session.add_all([admin, waiter, table, station, category, subcategory, item])
         db.session.flush()
 
-        day = datetime.utcnow().replace(hour=12, minute=0, second=0, microsecond=0)
+        day = eat_now_naive().replace(hour=12, minute=0, second=0, microsecond=0)
         for i in range(5):
             order = Order(
                 table_id=table.id,
@@ -105,7 +106,7 @@ def test_order_history_raw_rejects_bad_pagination_params(client, app):
             additional_claims={"role": "admin", "username": admin.username},
         )
 
-    day_str = datetime.utcnow().date().isoformat()
+    day_str = eat_now_naive().date().isoformat()
     response = client.get(
         f"/api/order-history/raw?date={day_str}&page=abc&page_size=2",
         headers=_auth_headers(token),
@@ -136,7 +137,7 @@ def test_order_history_raw_filters_by_table_number(client, app):
         )
         db.session.flush()
 
-        day = datetime.utcnow().replace(hour=12, minute=0, second=0, microsecond=0)
+        day = eat_now_naive().replace(hour=12, minute=0, second=0, microsecond=0)
         order_a = Order(
             table_id=table_a.id,
             user_id=waiter.id,

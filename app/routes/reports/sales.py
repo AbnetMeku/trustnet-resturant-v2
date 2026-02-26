@@ -5,6 +5,7 @@ from sqlalchemy.orm import aliased
 from datetime import datetime, timedelta
 from app.models.models import db, Order, OrderItem, MenuItem, SubCategory, Category, Table
 from app.utils.decorators import roles_required
+from app.utils.timezone import get_business_day_bounds
 
 reports_bp = Blueprint('reports_bp', __name__, url_prefix='/reports')
 
@@ -24,8 +25,10 @@ def sales_summary():
         return jsonify({'error': 'start_date and end_date query params are required (format YYYY-MM-DD)'}), 400
 
     try:
-        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
-        end_dt = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
+        start_day = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_day = datetime.strptime(end_date, '%Y-%m-%d').date()
+        start_dt, _ = get_business_day_bounds(start_day)
+        _, end_dt = get_business_day_bounds(end_day)
     except ValueError:
         return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
 
@@ -188,8 +191,10 @@ def waiter_summary():
         return jsonify({'error': 'start_date and end_date query params are required (format YYYY-MM-DD)'}), 400
 
     try:
-        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
-        end_dt = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
+        start_day = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_day = datetime.strptime(end_date, '%Y-%m-%d').date()
+        start_dt, _ = get_business_day_bounds(start_day)
+        _, end_dt = get_business_day_bounds(end_day)
     except ValueError:
         return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
 
@@ -265,8 +270,10 @@ def waiter_details(waiter_id):
         return jsonify({'error': 'start_date and end_date query params are required (format YYYY-MM-DD)'}), 400
 
     try:
-        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
-        end_dt = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
+        start_day = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_day = datetime.strptime(end_date, '%Y-%m-%d').date()
+        start_dt, _ = get_business_day_bounds(start_day)
+        _, end_dt = get_business_day_bounds(end_day)
     except ValueError:
         return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
 

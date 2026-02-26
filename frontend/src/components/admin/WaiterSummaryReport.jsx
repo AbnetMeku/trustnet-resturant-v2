@@ -3,9 +3,10 @@ import { getWaiterSummary, getWaiterDetails } from "@/api/reportApi";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
+import { eatBusinessDateISO } from "@/lib/timezone";
 
 export default function WaiterSummaryReport() {
-  const today = new Date().toISOString().split("T")[0];
+  const today = eatBusinessDateISO();
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [report, setReport] = useState([]);
@@ -276,3 +277,4 @@ export default function WaiterSummaryReport() {
     </div>
   );
 }
+

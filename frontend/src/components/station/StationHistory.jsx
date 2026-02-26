@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchReadyOrdersHistory } from "@/api/kds";
+import { eatBusinessDateISO, formatEatDateTime } from "@/lib/timezone";
 
 export default function StationHistory() {
   const { stationToken } = useAuth();
   // ✅ Default to today's date
-  const today = new Date().toISOString().slice(0, 10);
+  const today = eatBusinessDateISO();
   const [orders, setOrders] = useState([]);
   const [filterWaiter, setFilterWaiter] = useState("");
   const [filterDate, setFilterDate] = useState(today);
@@ -177,9 +178,9 @@ export default function StationHistory() {
                     አስተናጋጅ: {order.waiter_name || "N/A"}
                   </p>
                   <p className="text-sm text-gray-700 dark:text-gray-300">
-                    ተዘጋጅቷል: {new Date(order.items.reduce((latest, item) =>
+                    ተዘጋጅቷል: {formatEatDateTime(order.items.reduce((latest, item) =>
                       new Date(item.created_at) > new Date(latest.created_at) ? item : latest
-                    ).created_at).toLocaleString()}
+                    ).created_at)}
                   </p>
                 </div>
                 <span className="px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-sm font-semibold text-gray-900 dark:text-gray-100">
@@ -202,7 +203,7 @@ export default function StationHistory() {
                       </span>{" "}
                       ×{item.quantity}
                       <span className="text-sm text-gray-700 dark:text-gray-300 ml-2">
-                        ({new Date(item.created_at).toLocaleString()})
+                        ({formatEatDateTime(item.created_at)})
                       </span>
                     </div>
                     <span

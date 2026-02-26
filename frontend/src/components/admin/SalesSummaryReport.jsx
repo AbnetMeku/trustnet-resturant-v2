@@ -8,6 +8,7 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { Loader2 } from "lucide-react";
 import { buildSalesExcelRows } from "./reportExportUtils";
+import { eatBusinessDateISO } from "@/lib/timezone";
 
 const PDF_THEME = {
   title: [15, 23, 42],
@@ -22,17 +23,6 @@ const PDF_THEME = {
   totalBarBg: [2, 6, 23],
   totalBarText: [255, 255, 255],
 };
-
-function getAdjustedEATDate() {
-  const now = new Date();
-  const utcHour = now.getUTCHours();
-  if (utcHour < 3) {
-    const yesterday = new Date(now);
-    yesterday.setDate(now.getDate() - 1);
-    return yesterday;
-  }
-  return now;
-}
 
 async function applyEthiopicFontIfAvailable(pdf) {
   try {
@@ -63,11 +53,11 @@ export default function SalesSummaryReport({ darkMode }) {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const adjustedToday = getAdjustedEATDate();
+  const today = eatBusinessDateISO();
   const [waiterId, setWaiterId] = useState("");
   const [vipOnly, setVipOnly] = useState("all");
-  const [startDate, setStartDate] = useState(adjustedToday.toISOString().slice(0, 10));
-  const [endDate, setEndDate] = useState(adjustedToday.toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
 
   useEffect(() => {
     async function fetchWaiters() {
@@ -602,3 +592,4 @@ export default function SalesSummaryReport({ darkMode }) {
     </div>
   );
 }
+

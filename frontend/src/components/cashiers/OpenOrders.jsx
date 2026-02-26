@@ -4,6 +4,7 @@ import { fetchOrders } from "@/api/orders";
 import { getUsers } from "@/api/users";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { formatEatTime } from "@/lib/timezone";
 
 export default function OpenOrders() {
   const { authToken } = useAuth();
@@ -125,7 +126,7 @@ export default function OpenOrders() {
                     Waiter: {order.user?.username || "—"}
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                    Time: {new Date(order.created_at).toLocaleTimeString()}
+                    Time: {formatEatTime(order.created_at)}
                   </p>
 
                   <span className="inline-block px-2 py-1 text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 rounded-full text-xs font-medium">
@@ -204,3 +205,4 @@ export default function OpenOrders() {
     </div>
   );
 }
+

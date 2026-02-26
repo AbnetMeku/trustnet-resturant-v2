@@ -7,6 +7,7 @@ export const DEFAULT_BRANDING = {
   background_url: "/Background.jpeg",
   custom_logo_url: null,
   custom_background_url: null,
+  business_day_start_time: "06:00",
 };
 
 const getAuthHeader = (token) => ({
@@ -15,7 +16,9 @@ const getAuthHeader = (token) => ({
 
 export const getBrandingSettings = async () => {
   const res = await axios.get(BASE_URL);
-  return { ...DEFAULT_BRANDING, ...(res.data || {}) };
+  const next = { ...DEFAULT_BRANDING, ...(res.data || {}) };
+  localStorage.setItem("business_day_start_time", next.business_day_start_time || "06:00");
+  return next;
 };
 
 export const updateBrandingSettings = async (brandingData, token = null) => {
@@ -25,7 +28,9 @@ export const updateBrandingSettings = async (brandingData, token = null) => {
       "Content-Type": "application/json",
     },
   });
-  return { ...DEFAULT_BRANDING, ...(res.data || {}) };
+  const next = { ...DEFAULT_BRANDING, ...(res.data || {}) };
+  localStorage.setItem("business_day_start_time", next.business_day_start_time || "06:00");
+  return next;
 };
 
 export const uploadBrandingAsset = async (assetType, file, token = null) => {
@@ -37,5 +42,7 @@ export const uploadBrandingAsset = async (assetType, file, token = null) => {
       ...getAuthHeader(token),
     },
   });
-  return { ...DEFAULT_BRANDING, ...(res.data || {}) };
+  const next = { ...DEFAULT_BRANDING, ...(res.data || {}) };
+  localStorage.setItem("business_day_start_time", next.business_day_start_time || "06:00");
+  return next;
 };

@@ -1,7 +1,7 @@
 # app/services/inventory_service.py
-from datetime import date
 from app.models import InventoryMenuLink, Station, StationStock, StationStockSnapshot
 from app.extensions import db
+from app.utils.timezone import get_eat_today
 
 def adjust_inventory_for_order_item(station_name, menu_item_id, quantity, reverse=False):
     """
@@ -19,7 +19,7 @@ def adjust_inventory_for_order_item(station_name, menu_item_id, quantity, revers
     if not links:
         return
 
-    today = date.today()
+    today = get_eat_today()
 
     for link in links:
         inventory_item = link.inventory_item
@@ -85,7 +85,7 @@ def get_or_create_today_snapshot(station_name, inventory_item_id):
     if not station:
         return None
 
-    today = date.today()
+    today = get_eat_today()
 
     snapshot = StationStockSnapshot.query.filter_by(
         station_id=station.id,
@@ -135,7 +135,7 @@ def adjust_inventory_for_addition(station_name, inventory_item_id, quantity):
     if not station:
         return
 
-    today = date.today()
+    today = get_eat_today()
 
     # Ensure station stock exists (we do NOT change its quantity here; caller should have updated StationStock)
     station_stock = StationStock.query.filter_by(

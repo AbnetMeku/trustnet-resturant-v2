@@ -5,6 +5,7 @@ from app.extensions import db
 from app.models import InventoryItem, StoreStock, StationStock, StockPurchase, StockTransfer, StationStockSnapshot
 from app.models import MenuItem, Station , OrderItem
 from datetime import datetime, timedelta
+from app.utils.timezone import get_eat_today, get_business_day_bounds
 
 inventory_bp = Blueprint("inventory_bp", __name__, url_prefix="/inventory")
 
@@ -404,14 +405,14 @@ def get_station_stock_with_sales():
     date_str = request.args.get("date")
 
     try:
-        query_date = datetime.fromisoformat(date_str).date() if date_str else datetime.utcnow().date()
+        query_date = datetime.fromisoformat(date_str).date() if date_str else get_eat_today()
     except ValueError:
         return jsonify({"msg": "Invalid date format, use YYYY-MM-DD"}), 400
 
     result = []
 
     # -------------------- TODAY -------------------- #
-    if query_date == date.today():
+    if query_date == get_eat_today():
         stations_query = Station.query
         if station_name:
             stations_query = stations_query.filter_by(name=station_name)
@@ -433,7 +434,8 @@ def get_station_stock_with_sales():
                 StockTransfer.query
                 .filter_by(station_id=station.id)
                 .filter(StockTransfer.status != "Deleted")
-                .filter(db.func.date(StockTransfer.created_at) == query_date)
+                .filter(StockTransfer.created_at >= get_business_day_bounds(query_date)[0])
+                .filter(StockTransfer.created_at < get_business_day_bounds(query_date)[1])
                 .all()
             )
             added_map = {}
@@ -447,7 +449,8 @@ def get_station_stock_with_sales():
                     db.func.coalesce(db.func.sum(OrderItem.quantity), 0).label("sold_qty")
                 )
                 .filter(OrderItem.station == station.name)
-                .filter(db.func.date(OrderItem.created_at) == query_date)
+                .filter(OrderItem.created_at >= get_business_day_bounds(query_date)[0])
+                .filter(OrderItem.created_at < get_business_day_bounds(query_date)[1])
                 .filter(OrderItem.status == "ready")
                 .group_by(OrderItem.menu_item_id)
                 .all()
@@ -522,7 +525,7 @@ def get_store_stock_with_date():
 
     date_str = request.args.get("date")
     try:
-        query_date = datetime.fromisoformat(date_str).date() if date_str else date.today()
+        query_date = datetime.fromisoformat(date_str).date() if date_str else get_eat_today()
     except ValueError:
         return jsonify({"msg": "Invalid date format, use YYYY-MM-DD"}), 400
 
@@ -537,7 +540,8 @@ def get_store_stock_with_date():
             .filter(
                 StockPurchase.inventory_item_id == item.id,
                 StockPurchase.status != "Deleted",
-                db.func.date(StockPurchase.created_at) == query_date
+                StockPurchase.created_at >= get_business_day_bounds(query_date)[0],
+                StockPurchase.created_at < get_business_day_bounds(query_date)[1],
             )
             .scalar()
         )
@@ -548,7 +552,8 @@ def get_store_stock_with_date():
             .filter(
                 StockTransfer.inventory_item_id == item.id,
                 StockTransfer.status != "Deleted",
-                db.func.date(StockTransfer.created_at) == query_date
+                StockTransfer.created_at >= get_business_day_bounds(query_date)[0],
+                StockTransfer.created_at < get_business_day_bounds(query_date)[1],
             )
             .scalar()
         )
@@ -559,7 +564,7 @@ def get_store_stock_with_date():
             .filter(
                 StockPurchase.inventory_item_id == item.id,
                 StockPurchase.status != "Deleted",
-                db.func.date(StockPurchase.created_at) <= query_date
+                StockPurchase.created_at < get_business_day_bounds(query_date)[1],
             )
             .scalar()
         )
@@ -570,7 +575,7 @@ def get_store_stock_with_date():
             .filter(
                 StockTransfer.inventory_item_id == item.id,
                 StockTransfer.status != "Deleted",
-                db.func.date(StockTransfer.created_at) <= query_date
+                StockTransfer.created_at < get_business_day_bounds(query_date)[1],
             )
             .scalar()
         )
@@ -630,7 +635,7 @@ def create_station_snapshot():
     date_str = data.get("date")
 
     try:
-        snapshot_date = datetime.fromisoformat(date_str).date() if date_str else date.today()
+        snapshot_date = datetime.fromisoformat(date_str).date() if date_str else get_eat_today()
     except ValueError:
         return jsonify({"msg": "Invalid date format, use YYYY-MM-DD"}), 400
 
@@ -662,7 +667,8 @@ def create_station_snapshot():
                     StockTransfer.station_id == station.id,
                     StockTransfer.inventory_item_id == item_id,
                     StockTransfer.status != "Deleted",
-                    db.func.date(StockTransfer.created_at) == snapshot_date
+                    StockTransfer.created_at >= get_business_day_bounds(snapshot_date)[0],
+                    StockTransfer.created_at < get_business_day_bounds(snapshot_date)[1],
                 )
                 .scalar()
             )
@@ -673,7 +679,8 @@ def create_station_snapshot():
                 .filter(OrderItem.station == station.name)
                 .filter(OrderItem.menu_item_id == stock_item.inventory_item.menu_item_id)
                 .filter(OrderItem.status == "ready")
-                .filter(db.func.date(OrderItem.created_at) == snapshot_date)
+                .filter(OrderItem.created_at >= get_business_day_bounds(snapshot_date)[0])
+                .filter(OrderItem.created_at < get_business_day_bounds(snapshot_date)[1])
                 .scalar()
             )
 
@@ -742,7 +749,7 @@ def backfill_station_snapshot_day():
     date_str = data.get("date")
 
     try:
-        target_date = datetime.fromisoformat(date_str).date() if date_str else date.today()
+        target_date = datetime.fromisoformat(date_str).date() if date_str else get_eat_today()
     except ValueError:
         return jsonify({"msg": "Invalid date format, use YYYY-MM-DD"}), 400
 
@@ -786,7 +793,8 @@ def backfill_station_snapshot_day():
                     StockTransfer.station_id == station.id,
                     StockTransfer.inventory_item_id == item_id,
                     StockTransfer.status != "Deleted",
-                    db.func.date(StockTransfer.created_at) == target_date
+                    StockTransfer.created_at >= get_business_day_bounds(target_date)[0],
+                    StockTransfer.created_at < get_business_day_bounds(target_date)[1],
                 )
                 .scalar()
             )
@@ -798,7 +806,8 @@ def backfill_station_snapshot_day():
                 .filter(
                     OrderItem.station == station.name,
                     OrderItem.menu_item_id == menu_item_id,
-                    db.func.date(OrderItem.created_at) == target_date
+                    OrderItem.created_at >= get_business_day_bounds(target_date)[0],
+                    OrderItem.created_at < get_business_day_bounds(target_date)[1],
                 )
                 .scalar()
             )

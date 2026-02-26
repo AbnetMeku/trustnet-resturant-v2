@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from app.extensions import db
 from app.models import InventoryItem, StoreStock, StockPurchase
-from datetime import datetime
+from app.utils.timezone import eat_now_naive
 
 inventory_purchase_bp = Blueprint("inventory_purchase_bp", __name__, url_prefix="/inventory/purchases")
 
@@ -32,7 +32,7 @@ def create_stock_purchase():
         quantity=quantity,
         unit_price=unit_price,
         status="Purchased",
-        created_at=datetime.utcnow(),
+        created_at=eat_now_naive(),
     )
     db.session.add(purchase)
 

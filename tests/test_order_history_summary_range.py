@@ -6,6 +6,7 @@ from flask_jwt_extended import create_access_token
 
 from app import create_app, db
 from app.models.models import Category, MenuItem, Order, OrderItem, Station, SubCategory, Table, User
+from app.utils.timezone import eat_now_naive
 
 
 @pytest.fixture
@@ -46,7 +47,7 @@ def test_summary_range_excludes_voided_items_from_totals_and_item_summary(app, c
             user_id=admin.id,
             status="open",
             total_amount=Decimal("10.00"),
-            created_at=datetime.utcnow(),
+            created_at=eat_now_naive(),
         )
         db.session.add(order)
         db.session.flush()
@@ -78,7 +79,7 @@ def test_summary_range_excludes_voided_items_from_totals_and_item_summary(app, c
             additional_claims={"role": "admin", "username": admin.username},
         )
 
-    day = datetime.utcnow().date().isoformat()
+    day = eat_now_naive().date().isoformat()
     response = client.get(
         f"/api/order-history/summary-range?start_date={day}&end_date={day}",
         headers={"Authorization": f"Bearer {token}"},
@@ -115,7 +116,7 @@ def test_summary_range_end_to_end_counts_and_amounts_for_overview(app, client):
         db.session.add_all([admin, waiter, table, station, category, subcategory, item])
         db.session.flush()
 
-        today = datetime.utcnow().replace(hour=12, minute=0, second=0, microsecond=0)
+        today = eat_now_naive().replace(hour=12, minute=0, second=0, microsecond=0)
         yesterday = today - timedelta(days=1)
         eight_days_ago = today - timedelta(days=8)
 
@@ -178,8 +179,8 @@ def test_summary_range_end_to_end_counts_and_amounts_for_overview(app, client):
             additional_claims={"role": "admin", "username": admin.username},
         )
 
-    start = (datetime.utcnow().date() - timedelta(days=6)).isoformat()
-    end = datetime.utcnow().date().isoformat()
+    start = (eat_now_naive().date() - timedelta(days=6)).isoformat()
+    end = eat_now_naive().date().isoformat()
     response = client.get(
         f"/api/order-history/summary-range?start_date={start}&end_date={end}",
         headers={"Authorization": f"Bearer {token}"},

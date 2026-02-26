@@ -6,6 +6,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from werkzeug.security import generate_password_hash
 
 from app import create_app, db
+from app.utils.timezone import eat_now_naive
 from app.models.models import (
     BrandingSettings,
     Category,
@@ -222,7 +223,7 @@ def seed_orders_and_print_jobs(ctx: dict, target_orders: int, days: int):
     if to_create == 0:
         return 0
 
-    now = datetime.utcnow().replace(minute=0, second=0, microsecond=0)
+    now = eat_now_naive().replace(minute=0, second=0, microsecond=0)
     prep_counter = 4000
 
     for idx in range(to_create):

@@ -1,6 +1,6 @@
 from app.models.models import KitchenTagCounter, db
-from datetime import date
 import logging
+from app.utils.timezone import get_eat_today
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -10,7 +10,7 @@ def generate_kitchen_tag() -> str:
     Generates a 4-digit kitchen tag that resets daily.
     Format: '0001', '0002', ..., '9999'
     """
-    today = date.today()
+    today = get_eat_today()
 
     try:
         # Lock the counter record to prevent race conditions

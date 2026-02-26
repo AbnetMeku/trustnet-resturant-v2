@@ -1,9 +1,10 @@
 # tests/test_orders.py
 import pytest
-from datetime import date, timedelta
+from datetime import timedelta
 from app import create_app, db
 from app.models.models import User, Table, MenuItem, Order, OrderItem, KitchenTagCounter, Station
 from app.routes.orders.kitchen_tag import generate_kitchen_tag
+from app.utils.timezone import get_eat_today
 
 @pytest.fixture
 def app():
@@ -61,7 +62,7 @@ def test_kitchen_tag_counter_simple(app):
     assert tag2 == "0002"
 
     # Simulate next day
-    tomorrow = date.today() + timedelta(days=1)
+    tomorrow = get_eat_today() + timedelta(days=1)
     counter = KitchenTagCounter.query.filter_by(date=tomorrow).first()
     assert counter is None  # Should not exist yet
 

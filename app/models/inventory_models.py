@@ -1,5 +1,5 @@
-from datetime import datetime
 from ..extensions import db
+from ..utils.timezone import eat_now_naive
 
 # ============================================================
 # INVENTORY ITEM (Master item — registered before purchase)
@@ -12,7 +12,7 @@ class InventoryItem(db.Model):
     name = db.Column(db.String(120), nullable=False, unique=True)
     unit = db.Column(db.String(50), default="Bottle")  # Bottle, Shot, Liter, Kg, etc.
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=eat_now_naive)
 
     # Relationships
     menu_links = db.relationship("InventoryMenuLink", back_populates="inventory_item", cascade="all, delete-orphan")
@@ -34,7 +34,7 @@ class InventoryMenuLink(db.Model):
     # Deduction ratio: amount to deduct from inventory per sale of menu item
     deduction_ratio = db.Column(db.Float, nullable=False, default=1.0)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=eat_now_naive)
 
     inventory_item = db.relationship("InventoryItem", back_populates="menu_links")
     menu_item = db.relationship("MenuItem", backref="inventory_links")
@@ -51,7 +51,7 @@ class StoreStock(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     inventory_item_id = db.Column(db.Integer, db.ForeignKey("inventory_items.id"), nullable=False, unique=True)
     quantity = db.Column(db.Float, default=0)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=eat_now_naive, onupdate=eat_now_naive)
 
     inventory_item = db.relationship("InventoryItem", back_populates="store_stock")
 
@@ -64,7 +64,7 @@ class StationStock(db.Model):
     station_id = db.Column(db.Integer, db.ForeignKey("stations.id"), nullable=False)
     inventory_item_id = db.Column(db.Integer, db.ForeignKey("inventory_items.id"), nullable=False)
     quantity = db.Column(db.Float, default=0)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=eat_now_naive, onupdate=eat_now_naive)
 
     inventory_item = db.relationship("InventoryItem", back_populates="station_stocks")
     station = db.relationship("Station", backref="station_stocks")
@@ -82,7 +82,7 @@ class StockPurchase(db.Model):
     inventory_item_id = db.Column(db.Integer, db.ForeignKey("inventory_items.id"), nullable=False)
     quantity = db.Column(db.Float, nullable=False)
     unit_price = db.Column(db.Float)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=eat_now_naive)
     status = db.Column(db.String(20), default="Purchased")  # Purchased, Updated, Deleted
 
     inventory_item = db.relationship("InventoryItem", back_populates="purchases")
@@ -96,7 +96,7 @@ class StockTransfer(db.Model):
     inventory_item_id = db.Column(db.Integer, db.ForeignKey("inventory_items.id"), nullable=False)
     station_id = db.Column(db.Integer, db.ForeignKey("stations.id"), nullable=False)
     quantity = db.Column(db.Float, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=eat_now_naive)
     status = db.Column(db.String(20), default="Transferred")  # Transferred, Updated, Deleted
 
     inventory_item = db.relationship("InventoryItem", back_populates="transfers")
@@ -117,7 +117,7 @@ class StationStockSnapshot(db.Model):
     sold_quantity = db.Column(db.Float, nullable=False, default=0.0)    # updated per order
     remaining_quantity = db.Column(db.Float, nullable=False, default=0.0)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=eat_now_naive)
 
     inventory_item = db.relationship("InventoryItem", back_populates="snapshots")
     station = db.relationship("Station", backref="snapshots")

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchKDSOrders, updateOrderItemStatus } from "@/api/kds";
+import { formatEatTime } from "@/lib/timezone";
 
 export default function StationOrders() {
   const { stationToken } = useAuth();
@@ -79,7 +80,7 @@ export default function StationOrders() {
               </p>
               <p className="text-xs text-gray-400 dark:text-gray-500">
                 ትዕዛዝ ሰዐት:{" "}
-                {new Date(order.order_created_at).toLocaleTimeString([], {
+                {formatEatTime(order.order_created_at, {
                   hour: "2-digit",
                   minute: "2-digit",
                 })}
@@ -145,3 +146,4 @@ export default function StationOrders() {
     </div>
   );
 }
+

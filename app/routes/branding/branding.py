@@ -1,4 +1,5 @@
 import os
+import re
 from uuid import uuid4
 
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
@@ -17,6 +18,8 @@ MAX_URL_LENGTH = 2000
 LOCAL_ASSET_PREFIX = "/api/branding/assets/"
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 ALLOWED_CONTENT_TYPES = {"image/png", "image/jpeg", "image/webp"}
+DEFAULT_BUSINESS_DAY_START = "06:00"
+TIME_PATTERN = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 
 
 def _serialize_branding(settings):
@@ -28,6 +31,9 @@ def _serialize_branding(settings):
         "background_url": custom_background or DEFAULT_BACKGROUND_URL,
         "custom_logo_url": custom_logo,
         "custom_background_url": custom_background,
+        "business_day_start_time": (
+            settings.business_day_start_time if settings and settings.business_day_start_time else DEFAULT_BUSINESS_DAY_START
+        ),
     }
 
 
@@ -44,6 +50,18 @@ def _normalize_nullable_url(value, field_name):
     if len(normalized) > MAX_URL_LENGTH:
         raise ValueError(f"{field_name} is too long")
 
+    return normalized
+
+
+def _normalize_business_day_start_time(value):
+    if value is None:
+        return DEFAULT_BUSINESS_DAY_START
+    if not isinstance(value, str):
+        raise ValueError("business_day_start_time must be a string in HH:MM format")
+
+    normalized = value.strip()
+    if not TIME_PATTERN.match(normalized):
+        raise ValueError("business_day_start_time must be in HH:MM format (24h)")
     return normalized
 
 
@@ -129,8 +147,12 @@ def get_branding():
 def update_branding():
     data = request.get_json() or {}
 
-    if "logo_url" not in data and "background_url" not in data:
-        return jsonify({"error": "Provide logo_url and/or background_url"}), 400
+    if (
+        "logo_url" not in data
+        and "background_url" not in data
+        and "business_day_start_time" not in data
+    ):
+        return jsonify({"error": "Provide logo_url, background_url, and/or business_day_start_time"}), 400
 
     settings = db.session.get(BrandingSettings, 1)
     if settings is None:
@@ -148,6 +170,8 @@ def update_branding():
             if next_background != settings.background_url:
                 _delete_local_asset(settings.background_url)
                 settings.background_url = next_background
+        if "business_day_start_time" in data:
+            settings.business_day_start_time = _normalize_business_day_start_time(data.get("business_day_start_time"))
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 

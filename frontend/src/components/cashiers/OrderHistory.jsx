@@ -8,6 +8,7 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { Loader2 } from "lucide-react";
+import { eatBusinessDateISO, eatDateISO } from "@/lib/timezone";
 
 function getAdjustedEATDate() {
   const now = new Date();
@@ -31,7 +32,7 @@ export default function SalesSummaryReport({ darkMode }) {
   const [error, setError] = useState(null);
 
   // ✅ Adjusted “today” based on EAT–UTC difference
-  const adjustedToday = getAdjustedEATDate();
+  const adjustedToday = new Date(`${eatBusinessDateISO()}T12:00:00`);
 
   // ✅ Make sure these are defined before they are used
   const [waiterId, setWaiterId] = useState("");
@@ -64,8 +65,8 @@ export default function SalesSummaryReport({ darkMode }) {
       try {
         const vipParam = vipOnly === "all" ? null : vipOnly === "vip";
         const result = await getSalesSummary(
-          startDate.toISOString().slice(0, 10),
-          endDate.toISOString().slice(0, 10),
+          eatDateISO(startDate),
+          eatDateISO(endDate),
           waiterId === "" ? null : waiterId,
           vipParam
         );
@@ -620,3 +621,4 @@ export default function SalesSummaryReport({ darkMode }) {
     </div>
   );
 }
+

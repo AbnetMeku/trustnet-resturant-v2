@@ -1,5 +1,5 @@
-from datetime import datetime
 from ..extensions import db
+from ..utils.timezone import eat_now_naive
 
 class User(db.Model):
     __tablename__ = "users"
@@ -45,11 +45,11 @@ class WaiterProfile(db.Model):
     name = db.Column(db.String(80), unique=True, nullable=False)
     max_tables = db.Column(db.Integer, nullable=False, default=5)
     allow_vip = db.Column(db.Boolean, nullable=False, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=eat_now_naive, nullable=False)
     updated_at = db.Column(
         db.DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=eat_now_naive,
+        onupdate=eat_now_naive,
         nullable=False,
     )
 
@@ -102,8 +102,8 @@ class Order(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     status = db.Column(db.String(20), default="pending")
     total_amount = db.Column(db.Numeric(15, 2))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=eat_now_naive)
+    updated_at = db.Column(db.DateTime, default=eat_now_naive, onupdate=eat_now_naive)
 
     table = db.relationship("Table", back_populates="orders")
     user = db.relationship("User")
@@ -124,8 +124,8 @@ class OrderItem(db.Model):
     prep_tag = db.Column(db.String(20))
     status = db.Column(db.String(20), default="pending")
     station = db.Column(db.String(20), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=eat_now_naive)
+    updated_at = db.Column(db.DateTime, default=eat_now_naive, onupdate=eat_now_naive)
 
     order = db.relationship("Order", back_populates="items")
     menu_item = db.relationship("MenuItem")
@@ -161,8 +161,8 @@ class PrintJob(db.Model):
     printed_at = db.Column(db.DateTime, nullable=True)
     attempts = db.Column(db.Integer, default=0)
     
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=eat_now_naive)
+    updated_at = db.Column(db.DateTime, default=eat_now_naive, onupdate=eat_now_naive)
 
     order = db.relationship("Order", back_populates="print_jobs")  # ✅ matches Order.print_jobs
     station = db.relationship("Station", backref="print_jobs")
@@ -208,7 +208,8 @@ class BrandingSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True, default=1)
     logo_url = db.Column(db.Text, nullable=True)
     background_url = db.Column(db.Text, nullable=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    business_day_start_time = db.Column(db.String(5), nullable=False, default="06:00")
+    updated_at = db.Column(db.DateTime, default=eat_now_naive, onupdate=eat_now_naive)
 
 
 class InventoryOutbox(db.Model):
@@ -220,10 +221,10 @@ class InventoryOutbox(db.Model):
     status = db.Column(db.String(20), nullable=False, default="pending")
     retry_count = db.Column(db.Integer, nullable=False, default=0)
     last_error = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=eat_now_naive, nullable=False)
     updated_at = db.Column(
         db.DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=eat_now_naive,
+        onupdate=eat_now_naive,
         nullable=False,
     )

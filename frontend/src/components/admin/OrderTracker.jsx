@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Select from "react-select";
 import toast from "react-hot-toast";
+import { eatBusinessDateISO, formatEatTime } from "@/lib/timezone";
 
 export default function AdminOrders() {
   const { authToken } = useAuth();
@@ -32,7 +33,7 @@ export default function AdminOrders() {
   const [filterTable, setFilterTable] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = eatBusinessDateISO();
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const isDarkMode = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
   const waiterOptions = useMemo(
@@ -404,7 +405,7 @@ export default function AdminOrders() {
                 </div>
                 <div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Time</p>
-                  <p className="font-medium text-slate-900 dark:text-slate-100">{new Date(order.created_at).toLocaleTimeString()}</p>
+                  <p className="font-medium text-slate-900 dark:text-slate-100">{formatEatTime(order.created_at)}</p>
                 </div>
               </div>
 
@@ -501,7 +502,7 @@ export default function AdminOrders() {
                 <div className="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1.5">
                   <p className="text-slate-500 dark:text-slate-400">Created</p>
                   <p className="font-semibold text-sm text-slate-800 dark:text-slate-100">
-                    {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleTimeString() : "-"}
+                    {selectedOrder.created_at ? formatEatTime(selectedOrder.created_at) : "-"}
                   </p>
                 </div>
               </div>
@@ -517,7 +518,7 @@ export default function AdminOrders() {
                       {item.name} {item.status === "void" && "(voided)"}
                     </span>
                     {item.prep_tag && <span className="text-sm text-slate-500 dark:text-slate-400">Prep Tag: {item.prep_tag}</span>}
-                    {item.created_at && <span className="text-sm text-slate-500 dark:text-slate-400">Time: {new Date(item.created_at).toLocaleTimeString()}</span>}
+                    {item.created_at && <span className="text-sm text-slate-500 dark:text-slate-400">Time: {formatEatTime(item.created_at)}</span>}
                   </div>
 
                   <div className="flex items-center gap-2 mt-1 md:mt-0">
@@ -617,3 +618,4 @@ export default function AdminOrders() {
     </div>
   );
 }
+

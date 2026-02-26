@@ -9,6 +9,7 @@ import { getAllStoreStock } from "@/api/inventory/stock";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import ReactSelect from "react-select";
 import { toast } from "react-hot-toast";
+import { formatEatDateTime } from "@/lib/timezone";
 
 const PAGE_SIZE = 10;
 
@@ -201,7 +202,7 @@ const handleSubmit = async () => {
                     <div className="font-medium text-gray-900 dark:text-white">{p.inventory_item_name}</div>
                     <div className="mt-1 text-blue-600 dark:text-blue-400 font-semibold">{p.quantity} units</div>
                     <div className="text-sm text-gray-600 dark:text-gray-300">Unit Price: {p.unit_price ?? "-"}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{new Date(p.created_at).toLocaleString()}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{formatEatDateTime(p.created_at)}</div>
                   </Card>
                 ))}
               </div>
@@ -231,7 +232,7 @@ const handleSubmit = async () => {
                   <td className="p-2 border dark:border-gray-700">{p.inventory_item_name}</td>
                   <td className="p-2 border dark:border-gray-700">{p.quantity}</td>
                   <td className="p-2 border dark:border-gray-700">{p.unit_price ?? "-"}</td>
-                  <td className="p-2 border dark:border-gray-700">{new Date(p.created_at).toLocaleString()}</td>
+                  <td className="p-2 border dark:border-gray-700">{formatEatDateTime(p.created_at)}</td>
                   {user?.role === "admin" && (
                     <td className="p-2 border dark:border-gray-700 flex gap-2">
                       <Button
@@ -280,3 +281,4 @@ const handleSubmit = async () => {
     </Card>
   );
 }
+

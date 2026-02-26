@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { eatBusinessDateISO } from "@/lib/timezone";
 
 export default function StationStockHistory() {
   const { token } = useAuth();
@@ -18,7 +19,7 @@ export default function StationStockHistory() {
 
   const [selectedStation, setSelectedStation] = useState("");
   const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().split("T")[0] // 🎯 default = today
+    eatBusinessDateISO() // 🎯 default = business day
   );
 
   // Load stations and default to the first allowed one
@@ -74,7 +75,7 @@ export default function StationStockHistory() {
 
   const handleReset = () => {
     if (stations.length > 0) setSelectedStation(stations[0].id);
-    setSelectedDate(new Date().toISOString().split("T")[0]); // reset to today
+    setSelectedDate(eatBusinessDateISO()); // reset to business day
   };
 
   return (
@@ -175,3 +176,4 @@ export default function StationStockHistory() {
     </Card>
   );
 }
+

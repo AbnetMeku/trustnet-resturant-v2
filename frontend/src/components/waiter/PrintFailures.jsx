@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
+import { formatEatDateTime } from "@/lib/timezone";
 
 import { useAuth } from "@/context/AuthContext";
 import { Card } from "@/components/ui/card";
@@ -104,7 +105,7 @@ export default function PrintFailures() {
                   <td className="px-4 py-3">#{row.orderId}</td>
                   <td className="px-4 py-3">{row.itemLabel}</td>
                   <td className="px-4 py-3">{row.station}</td>
-                  <td className="px-4 py-3">{new Date(row.createdAt).toLocaleString()}</td>
+                  <td className="px-4 py-3">{formatEatDateTime(row.createdAt)}</td>
                   <td className="px-4 py-3">{row.error}</td>
                   <td className="px-4 py-3 text-right">
                     <Button
@@ -125,3 +126,4 @@ export default function PrintFailures() {
     </div>
   );
 }
+

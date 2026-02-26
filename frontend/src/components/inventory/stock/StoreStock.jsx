@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { getAllStoreStock } from "@/api/inventory/stock";
+import { formatEatDateTime } from "@/lib/timezone";
 
 export default function StoreStock() {
   const [stockItems, setStockItems] = useState([]);
@@ -71,7 +72,7 @@ export default function StoreStock() {
               <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">{item.inventory_item_name}</td>
                 <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right font-semibold text-indigo-600 dark:text-indigo-400">{item.quantity}</td>
-                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">{new Date(item.updated_at).toLocaleString()}</td>
+                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-right">{formatEatDateTime(item.updated_at)}</td>
               </tr>
             ))}
           </tbody>
@@ -80,3 +81,4 @@ export default function StoreStock() {
     </div>
   );
 }
+

@@ -2,7 +2,7 @@ import sys
 import os
 import time
 import socket
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
 from PIL import Image, ImageDraw, ImageFont
 from escpos.printer import Network
 from sqlalchemy import create_engine
@@ -10,6 +10,7 @@ from sqlalchemy.orm import sessionmaker
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from app.models.models import PrintJob, OrderItem, Station
+from app.utils.timezone import eat_now, eat_now_naive
 
 # -----------------------------
 # CONFIG
@@ -66,7 +67,7 @@ def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="stat
         lines.append(("---- Non Fiscal ----", font_header, 'ma'))
         lines.append(("-" * 45, font_header, 'ma'))
         lines.append((f"ORDER #: {job.order_id}", font_header, 'la'))
-        lines.append((f"DATE: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}", font_header, 'la'))
+        lines.append((f"DATE: {eat_now().strftime('%Y-%m-%d %H:%M:%S')}", font_header, 'la'))
         waiter_name = job.items_data.get("waiter", "Unknown")
         table_number = job.items_data.get("table", "N/A")
         lines.append((f"WAITER: {waiter_name}", font_header, 'la'))
@@ -183,7 +184,7 @@ def render_ticket(job: PrintJob, items: list, station_name: str, copy_type="stat
         # lines.append(station_name)    
         lines.append(f"Order ID: {job.order_id}")
         lines.append("." * 28) 
-        lines.append(f"Time: {datetime.now().strftime('%H:%M:%S')}")
+        lines.append(f"Time: {eat_now().strftime('%H:%M:%S')}")
         waiter_name = job.items_data.get("waiter", "Unknown")
         table_number = job.items_data.get("table", "N/A")
         lines.append(f"Waiter: {waiter_name}  Table: {table_number}")
@@ -313,7 +314,7 @@ def print_job(job: PrintJob):
             return
         if success:
             job_db.status = "printed"
-            job_db.printed_at = datetime.now(timezone.utc)
+            job_db.printed_at = eat_now_naive()
             for item_dict in items:
                 item_id = item_dict.get("item_id")
                 if item_id:
@@ -328,7 +329,7 @@ def print_job(job: PrintJob):
                 print(f"[FAILED] Job {job.id} marked as failed after {job_db.attempts} attempts")
             else:
                 job_db.status = "pending"
-                job_db.retry_after = datetime.now(timezone.utc) + timedelta(seconds=60)
+                job_db.retry_after = eat_now_naive() + timedelta(seconds=60)
                 print(f"[RETRY] Job {job.id} will retry later (attempt {job_db.attempts})")
         session.commit()
     except Exception as e:

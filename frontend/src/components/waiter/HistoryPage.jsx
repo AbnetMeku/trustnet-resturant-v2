@@ -5,6 +5,7 @@ import { fetchOrderHistory, fetchOrderSummary } from "@/api/order_history";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { eatBusinessDateISO, formatEatTime } from "@/lib/timezone";
 
 export default function HistoryPage() {
   const { authToken, user } = useAuth();
@@ -24,7 +25,7 @@ export default function HistoryPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const todayISO = new Date().toISOString().slice(0, 10);
+        const todayISO = eatBusinessDateISO();
         const filters = { date: todayISO, user_id: user?.id };
 
         const [ordersData, summaryData] = await Promise.all([
@@ -125,7 +126,7 @@ export default function HistoryPage() {
                     <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
                       <strong>ጊዜ:</strong>{" "}
                       {order.created_at
-                        ? new Date(order.created_at).toLocaleTimeString()
+                        ? formatEatTime(order.created_at)
                         : "N/A"}
                     </p>
                     <p className={`mt-2 font-semibold ${statusColor}`}>{statusText}</p>
@@ -219,3 +220,4 @@ export default function HistoryPage() {
     </div>
   );
 }
+
