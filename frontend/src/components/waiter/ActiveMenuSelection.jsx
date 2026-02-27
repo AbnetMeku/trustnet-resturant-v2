@@ -38,9 +38,17 @@ export default function ActiveMenuSelection({
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedSubcategory, setSelectedSubcategory] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
   const [cartOpenMobile, setCartOpenMobile] = useState(false);
   const isAdding = useRef(false);
+
+  const categoriesById = useMemo(
+    () => Object.fromEntries(categories.map((c) => [c.id, c])),
+    [categories]
+  );
+  const subcategoriesById = useMemo(
+    () => Object.fromEntries(subcategories.map((s) => [s.id, s])),
+    [subcategories]
+  );
 
   // Fetch categories
   useEffect(() => {
@@ -60,27 +68,28 @@ export default function ActiveMenuSelection({
     fetchCategories();
   }, []);
 
-  // Fetch subcategories
+  // Fetch subcategories once; filtering is done client-side.
   useEffect(() => {
     const fetchSubcategories = async () => {
       try {
         const subs = await getSubcategories();
-        setSubcategories(
-          selectedCategory ? subs.filter((s) => s.category_id === selectedCategory) : subs
-        );
+        setSubcategories(subs);
       } catch (err) {
         console.error("Failed to load subcategories:", err);
         setSubcategories([]);
       }
     };
     fetchSubcategories();
+  }, []);
+
+  // Reset selected subcategory when category changes.
+  useEffect(() => {
     setSelectedSubcategory(null);
   }, [selectedCategory]);
 
 // Fetch menu items
 useEffect(() => {
   const fetchMenuItems = async () => {
-    if (categories.length === 0 || subcategories.length === 0) return;
     try {
       setLoading(true);
       const items = await getMenuItems({});
@@ -107,8 +116,8 @@ const updatedItems = items
     return true;
   })
   .map((item) => {
-    const category = categories.find((c) => c.id === item.category_id) || {};
-    const subcategory = subcategories.find((s) => s.id === item.subcategory_id) || {};
+    const category = categoriesById[item.category_id] || {};
+    const subcategory = subcategoriesById[item.subcategory_id] || {};
     const categoryName = (category.name || "Unknown").trim();
     const subcategoryName = (subcategory.name || "Unknown").trim();
 
@@ -138,7 +147,12 @@ const updatedItems = items
     }
   };
   fetchMenuItems();
-}, [categories, subcategories, selectedOrder]);
+}, [categoriesById, subcategoriesById, selectedOrder]);
+
+  const visibleSubcategories = useMemo(() => {
+    if (!selectedCategory) return subcategories;
+    return subcategories.filter((sub) => sub.category_id === selectedCategory);
+  }, [subcategories, selectedCategory]);
 
 
   // Filtered items
@@ -146,13 +160,9 @@ const updatedItems = items
     return menuItems.filter((item) => {
       const categoryMatch = !selectedCategory || item.category_id === selectedCategory;
       const subcategoryMatch = !selectedSubcategory || item.subcategory_id === selectedSubcategory;
-      const searchMatch =
-        !searchTerm ||
-        item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.description?.toLowerCase().includes(searchTerm.toLowerCase());
-      return categoryMatch && subcategoryMatch && searchMatch;
+      return categoryMatch && subcategoryMatch;
     });
-  }, [menuItems, selectedCategory, selectedSubcategory, searchTerm]);
+  }, [menuItems, selectedCategory, selectedSubcategory]);
 
   // Subtotal
   const subtotal = useMemo(() => {
@@ -219,7 +229,7 @@ const updatedItems = items
         {/* Subcategories sidebar */}
         <aside className="hidden md:flex md:flex-col w-36 border-r border-gray-200 dark:border-gray-700 p-2 overflow-y-auto">
           <h3 className="text-sm font-semibold mb-2 dark:text-white">Subcategories</h3>
-          {subcategories.map((sub) => (
+          {visibleSubcategories.map((sub) => (
             <button
               key={sub.id}
               onClick={() => setSelectedSubcategory(selectedSubcategory === sub.id ? null : sub.id)}

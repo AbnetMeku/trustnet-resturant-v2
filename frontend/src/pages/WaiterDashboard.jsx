@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   FaUtensils,
   FaHistory,
   FaTable,
   FaUserCircle,
-  FaBars,
-  FaTimes,
   FaPrint,
 } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
@@ -27,15 +25,6 @@ export default function WaiterDashboard() {
   const [darkMode, setDarkMode] = useState(
     localStorage.getItem("darkMode") === "true" || false
   );
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  useEffect(() => {
-    const onResize = () => {
-      if (window.innerWidth > 640) setMobileMenuOpen(false);
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
 
   const toggleDarkMode = () => {
     setDarkMode((prev) => {
@@ -46,7 +35,6 @@ export default function WaiterDashboard() {
 
   const handleSelect = (id) => {
     setActive(id);
-    setMobileMenuOpen(false);
   };
 
   const handleLogout = () => {
@@ -66,33 +54,9 @@ export default function WaiterDashboard() {
       <div className="flex flex-col h-screen w-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
         <header className="flex items-center justify-between bg-white dark:bg-gray-800 shadow px-3 sm:px-4 py-2 sm:py-3">
           <div className="flex items-center space-x-3 sm:space-x-4">
-            <button
-              className="block md:hidden p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-              onClick={() => setMobileMenuOpen((open) => !open)}
-              aria-label="Toggle menu"
-            >
-              {mobileMenuOpen ? <FaTimes /> : <FaBars />}
-            </button>
-
             <img src={branding.logo_url} alt="Logo" className="w-7 h-7 sm:w-8 sm:h-8 object-contain" />
+            <span className="font-semibold text-sm sm:text-base">Waiter</span>
           </div>
-
-          <nav className="hidden md:flex space-x-3 lg:space-x-5">
-            {menuSections.map(({ id, icon: Icon, label }) => (
-              <button
-                key={id}
-                onClick={() => handleSelect(id)}
-                className={`flex items-center space-x-1 px-2 py-1.5 sm:px-3 sm:py-2 rounded-md text-sm sm:text-base ${
-                  active === id
-                    ? "bg-gray-300 dark:bg-gray-700 font-semibold"
-                    : "hover:bg-gray-200 dark:hover:bg-gray-700"
-                }`}
-              >
-                <Icon className="text-base sm:text-lg" />
-                <span className="truncate">{label}</span>
-              </button>
-            ))}
-          </nav>
 
           <div className="flex items-center space-x-2 sm:space-x-3">
             <span className="hidden sm:inline text-sm md:text-base">
@@ -118,31 +82,22 @@ export default function WaiterDashboard() {
           </div>
         </header>
 
-        {mobileMenuOpen && (
-          <aside className="fixed inset-y-0 left-0 w-48 sm:w-56 bg-white dark:bg-gray-800 shadow-lg z-40 p-4 flex flex-col">
-            {menuSections.map(({ id, icon: Icon, label }) => (
-              <button
-                key={id}
-                onClick={() => handleSelect(id)}
-                className={`flex items-center space-x-2 px-2 py-1.5 rounded-md mb-1 text-sm sm:text-base ${
-                  active === id
-                    ? "bg-gray-300 dark:bg-gray-700 font-semibold"
-                    : "hover:bg-gray-200 dark:hover:bg-gray-700"
-                }`}
-              >
-                <Icon className="text-base sm:text-lg" />
-                <span className="truncate">{label}</span>
-              </button>
-            ))}
-          </aside>
-        )}
-
-        {mobileMenuOpen && (
-          <div
-            className="fixed inset-0 bg-black opacity-30 z-30"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-        )}
+        <nav className="flex items-center gap-2 overflow-x-auto p-2 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+          {menuSections.map((section) => (
+            <button
+              key={section.id}
+              onClick={() => handleSelect(section.id)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition ${
+                active === section.id
+                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+              }`}
+            >
+              {React.createElement(section.icon, { className: "text-sm" })}
+              <span>{section.label}</span>
+            </button>
+          ))}
+        </nav>
 
         <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 text-sm sm:text-base">
           {active === "orders" && <OrdersHub />}

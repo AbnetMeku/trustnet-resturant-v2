@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import TableSelection from "./TableSelection";
 import MenuSelection from "./MenuSelection";
@@ -13,7 +14,7 @@ export default function NewOrder({ goBack, setError }) {
   const [orderItems, setOrderItems] = useState([]);
   const [localError, setLocalError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [successVisible, setSuccessVisible] = useState(false); // ✅ modal visibility
+  const submittingRef = useRef(false);
 
   const token = authToken;
 
@@ -100,11 +101,15 @@ export default function NewOrder({ goBack, setError }) {
   };
 
   const handlePlaceOrder = async () => {
+    if (submittingRef.current) return;
     if (!token) {
       setLocalError("You are not logged in.");
       setError("You are not logged in.");
       return;
     }
+    if (!selectedTable || orderItems.length === 0) return;
+
+    submittingRef.current = true;
     setLoading(true);
     try {
       const items = orderItems.map((item) => ({
@@ -119,22 +124,33 @@ export default function NewOrder({ goBack, setError }) {
       if (items.some((item) => !Number.isFinite(item.quantity) || item.quantity <= 0)) {
         setLocalError("All items must have a positive quantity.");
         setError("All items must have a positive quantity.");
-        setLoading(false);
         return;
       }
 
       await createOrder(token, selectedTable.id, items);
 
-      // Show success modal
-      setSuccessVisible(true);
+      toast.custom(
+        (t) => (
+          <div
+            className={`${
+              t.visible ? "animate-enter" : "animate-leave"
+            } max-w-sm rounded-2xl border border-emerald-200 bg-white px-4 py-3 shadow-xl dark:border-emerald-900 dark:bg-gray-900`}
+          >
+            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+              Order sent successfully
+            </p>
+            <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+              Kitchen/station tickets were queued.
+            </p>
+          </div>
+        ),
+        { duration: 2200, position: "top-center" }
+      );
 
-      setTimeout(() => {
-        setSuccessVisible(false);
-        setStep("table");
-        setSelectedTable(null);
-        setOrderItems([]);
-        goBack();
-      }, 2000);
+      setStep("table");
+      setSelectedTable(null);
+      setOrderItems([]);
+      goBack();
     } catch (err) {
       const isConflict = typeof err?.message === "string" && err.message.includes("[409]");
       if (isConflict) {
@@ -146,25 +162,10 @@ export default function NewOrder({ goBack, setError }) {
         setError(errorMessage);
       }
       console.error("Order submission error:", err);
+    } finally {
+      setLoading(false);
+      submittingRef.current = false;
     }
-    setLoading(false);
-  };
-
-  // ✅ Full-screen success modal component
-  const SuccessModal = ({ visible }) => {
-    if (!visible) return null;
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-[9999]">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm text-center">
-          <h2 className="text-xl font-semibold mb-4 text-green-600">
-            ✅ ትዕዛዙ ተሳክቷል!
-          </h2>
-          <p className="text-gray-600 dark:text-gray-300">
-            ትዕዛዝ በተሳካ ሁኔታ ተልኳል 🚀
-          </p>
-        </div>
-      </div>
-    );
   };
 
   if (!token) {
@@ -214,12 +215,9 @@ export default function NewOrder({ goBack, setError }) {
           onPlaceOrder={handlePlaceOrder}
           onBack={prevStep}
           setError={setError}
-          disabled={loading} // ✅ disable button while submitting
+          disabled={loading}
         />
       )}
-
-      {/* ✅ Success Modal */}
-      <SuccessModal visible={successVisible} onClose={() => setSuccessVisible(false)} />
     </div>
   );
 }

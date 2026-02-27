@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { getJobs, retryJob } from "@/api/print_jobs";
 
 export default function PrintFailures() {
-  const { authToken } = useAuth();
+  const { authToken, user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [retryingId, setRetryingId] = useState(null);
   const [jobs, setJobs] = useState([]);
@@ -19,7 +19,11 @@ export default function PrintFailures() {
     try {
       const data = await getJobs(null, authToken, "failed");
       const list = Array.isArray(data) ? data : [];
-      setJobs(list);
+      const ownFailedJobs =
+        user?.role === "waiter"
+          ? list.filter((job) => Number(job.order_user_id) === Number(user.id))
+          : list;
+      setJobs(ownFailedJobs);
     } catch (error) {
       toast.error(error?.response?.data?.error || error.message || "Failed to load failed prints");
     } finally {
@@ -30,7 +34,7 @@ export default function PrintFailures() {
   useEffect(() => {
     loadFailedJobs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authToken]);
+  }, [authToken, user?.id, user?.role]);
 
   const handleRetry = async (jobId) => {
     setRetryingId(jobId);

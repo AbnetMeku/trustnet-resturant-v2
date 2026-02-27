@@ -7,6 +7,7 @@ export default function OrderSummary({
   removeItem,
   onPlaceOrder,
   onBack,
+  disabled = false,
 }) {
   const total = orderItems.reduce(
     (sum, item) => sum + (item.price || 0) * item.quantity,
@@ -19,7 +20,7 @@ export default function OrderSummary({
 
       {selectedTable && (
         <p className="mb-4">
-          <strong>Table:</strong> {selectedTable.name}
+          <strong>Table:</strong> {selectedTable.number}
           {selectedTable.is_vip && (
             <span className="ml-2 text-yellow-500"> (VIP)</span>
           )}
@@ -83,7 +84,7 @@ export default function OrderSummary({
 
         <Button
           variant="default"
-          disabled={orderItems.length === 0}
+          disabled={orderItems.length === 0 || disabled}
           onClick={onPlaceOrder} // just call the callback
         >
           እዘዝ

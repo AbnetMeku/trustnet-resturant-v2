@@ -93,12 +93,20 @@ def get_table(table_id):
     table = db.session.get(Table, table_id)
     if not table:
         abort(404)
+
+    jwt_data = get_jwt()
+    roles = extract_roles_from_claims(jwt_data)
+    if "waiter" in roles:
+        user = db.session.get(User, int(get_jwt_identity()))
+        if not waiter_can_access_table(user, table):
+            abort(403, "You are not allowed to access this table")
+
     return jsonify(table_to_dict(table)), 200
 
 # ---- UPDATE TABLE ----
 @tables_bp.route("/<int:table_id>", methods=["PUT"])
 @jwt_required()
-@roles_required("admin", "manager", "waiter")
+@roles_required("admin", "manager")
 def update_table(table_id):
     table = db.session.get(Table, table_id)
     if not table:

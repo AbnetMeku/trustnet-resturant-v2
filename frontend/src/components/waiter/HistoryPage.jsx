@@ -50,7 +50,6 @@ export default function HistoryPage() {
       <div className="flex-1">
         <h1 className="text-3xl font-bold mb-6">የቀኑ የተዘጉ እና የተከፈሉ ትዕዛዞች</h1>
 
-        {/* Summary cards */}
         {summary && (
           <div className="flex flex-wrap gap-4 mb-6">
             <div className="bg-blue-100 dark:bg-blue-800 p-4 rounded-lg shadow flex-1 min-w-[150px]">
@@ -81,7 +80,6 @@ export default function HistoryPage() {
           </div>
         )}
 
-        {/* Orders list */}
         {loading ? (
           <div className="flex justify-center items-center py-4">
             <Loader2 className="animate-spin h-6 w-6 text-gray-600 dark:text-gray-400" />
@@ -92,7 +90,8 @@ export default function HistoryPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {orders.map((order) => {
-              let statusText, statusColor;
+              let statusText = order.status;
+              let statusColor = "text-gray-600 dark:text-gray-400";
 
               if (order.status === "paid") {
                 statusText = "የተከፈለ";
@@ -103,9 +102,6 @@ export default function HistoryPage() {
               } else if (order.status === "open") {
                 statusText = "ክፍት ትዕዛዝ";
                 statusColor = "text-yellow-600 dark:text-yellow-400";
-              } else {
-                statusText = order.status;
-                statusColor = "text-gray-600 dark:text-gray-400";
               }
 
               return (
@@ -120,21 +116,13 @@ export default function HistoryPage() {
                   </CardHeader>
                   <CardContent>
                     <p>
-                      <strong>አጠቃላይ:</strong> $
-                      {order.total_amount?.toFixed(2) || "0.00"}
+                      <strong>አጠቃላይ:</strong> ${order.total_amount?.toFixed(2) || "0.00"}
                     </p>
                     <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                      <strong>ጊዜ:</strong>{" "}
-                      {order.created_at
-                        ? formatEatTime(order.created_at)
-                        : "N/A"}
+                      <strong>ጊዜ:</strong> {order.created_at ? formatEatTime(order.created_at) : "N/A"}
                     </p>
                     <p className={`mt-2 font-semibold ${statusColor}`}>{statusText}</p>
-                    <Button
-                      variant="outline"
-                      className="mt-3 w-full"
-                      onClick={() => setSelectedOrder(order)}
-                    >
+                    <Button variant="outline" className="mt-3 w-full" onClick={() => setSelectedOrder(order)}>
                       ዝርዝር እይ
                     </Button>
                   </CardContent>
@@ -145,7 +133,6 @@ export default function HistoryPage() {
         )}
       </div>
 
-      {/* Sidebar for daily items summary */}
       {showSummarySidebar && summary && (
         <div className="w-64 ml-6 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg shadow-lg max-h-screen overflow-y-auto">
           <h2 className="text-xl font-bold mb-4">አጠቃላይ ዛሬ የተሸጡ</h2>
@@ -167,57 +154,49 @@ export default function HistoryPage() {
         </div>
       )}
 
-      {/* Order Details Modal */}
-{selectedOrder && (
-  <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-11/12 max-w-lg">
-      <h3 className="text-xl font-bold mb-4">
-        Table {selectedOrder.table?.number || "N/A"} - ትዕዛዝ #{selectedOrder.id}
-      </h3>
-      <div className="max-h-80 overflow-y-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b dark:border-gray-600">
-              <th className="pb-2">ትዕዛዝ</th>
-              <th className="pb-2">ብዛት</th>
-              <th className="pb-2">ዋጋ</th>
-              <th className="pb-2">አጠቃላይ ዋጋ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {([...selectedOrder.active_items, ...selectedOrder.voided_items] || []).map(item => {
-              const isVoided = item.status?.includes("void");
-              return (
-                <tr
-                  key={item.id}
-                  className={`border-b dark:border-gray-700 ${
-                    isVoided
-                      ? "bg-red-100 dark:bg-red-800/50 line-through text-gray-500 dark:text-gray-300"
-                      : ""
-                  }`}
-                >
-                  <td>{item.name}</td>
-                  <td>{item.quantity}</td>
-                  <td>${item.price.toFixed(2)}</td>
-                  <td>${(item.price * item.quantity).toFixed(2)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <p className="mt-4 font-bold text-right">
-        አጠቃላይ: ${selectedOrder.total_amount.toFixed(2)}
-      </p>
-      <div className="flex justify-end mt-4">
-        <Button onClick={() => setSelectedOrder(null)}>Close</Button>
-      </div>
-    </div>
-  </div>
-)}
-
-
+      {selectedOrder && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-11/12 max-w-lg">
+            <h3 className="text-xl font-bold mb-4">
+              Table {selectedOrder.table?.number || "N/A"} - ትዕዛዝ #{selectedOrder.id}
+            </h3>
+            <div className="max-h-80 overflow-y-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b dark:border-gray-600">
+                    <th className="pb-2">ትዕዛዝ</th>
+                    <th className="pb-2">ብዛት</th>
+                    <th className="pb-2">ዋጋ</th>
+                    <th className="pb-2">አጠቃላይ ዋጋ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...(selectedOrder.active_items || []), ...(selectedOrder.voided_items || [])].map((item) => {
+                    const isVoided = item.status?.includes("void");
+                    return (
+                      <tr
+                        key={item.id}
+                        className={`border-b dark:border-gray-700 ${
+                          isVoided ? "bg-red-100 dark:bg-red-800/50 line-through text-gray-500 dark:text-gray-300" : ""
+                        }`}
+                      >
+                        <td>{item.name}</td>
+                        <td>{item.quantity}</td>
+                        <td>${item.price.toFixed(2)}</td>
+                        <td>${(item.price * item.quantity).toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-4 font-bold text-right">አጠቃላይ: ${selectedOrder.total_amount.toFixed(2)}</p>
+            <div className="flex justify-end mt-4">
+              <Button onClick={() => setSelectedOrder(null)}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

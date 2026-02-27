@@ -15,7 +15,6 @@ export default function MyTables() {
     const fetchAssignedTables = async () => {
       setLoading(true);
       try {
-        // Backend already returns only tables this waiter can access.
         const myTables = await getTables(authToken);
         setAssignedTables(myTables);
       } catch (err) {
@@ -36,24 +35,20 @@ export default function MyTables() {
       {loading ? (
         <div className="text-center text-lg">Loading your assigned tables...</div>
       ) : assignedTables.length === 0 ? (
-        <p className="text-center text-gray-500 dark:text-gray-400">
-          ምንም ጠረጴዛ አልተመደበም 
-        </p>
+        <p className="text-center text-gray-500 dark:text-gray-400">ምንም ጠረጴዛ አልተመደበም</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {assignedTables.map(table => (
+          {assignedTables.map((table) => (
             <Card
               key={table.id}
-              className={`relative transform hover:scale-105 transition-all duration-300 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-3 bg-gray-300 dark:bg-gray-800`}
+              className="relative transform hover:scale-105 transition-all duration-300 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-3 bg-gray-300 dark:bg-gray-800"
             >
-              {/* VIP Ribbon */}
               {table.is_vip && (
                 <div className="absolute top-0 left-0 bg-gradient-to-r from-yellow-400 via-pink-500 to-red-500 text-white px-2 py-1 text-xs font-bold rounded-br-lg animate-pulse z-10">
                   VIP
                 </div>
               )}
 
-              {/* Status Badge */}
               <div
                 className={`absolute top-2 right-2 px-3 py-1 text-xs font-semibold rounded-full text-white ${
                   table.status === "available"
@@ -67,16 +62,14 @@ export default function MyTables() {
               </div>
 
               <CardHeader>
-                <CardTitle className="text-xl font-bold text-center truncate">
-                  Table {table.number}
-                </CardTitle>
+                <CardTitle className="text-xl font-bold text-center truncate">Table {table.number}</CardTitle>
               </CardHeader>
 
               <CardContent className="pt-2 flex flex-col gap-2">
                 <p className="text-sm font-medium">የተመደበ አስተናጋጅ</p>
                 <div className="flex flex-wrap gap-1">
                   {table.waiters.length ? (
-                    table.waiters.map(w => (
+                    table.waiters.map((w) => (
                       <span
                         key={w.id}
                         className="bg-indigo-500 text-white text-xs px-2 py-0.5 rounded-full truncate hover:bg-indigo-600 transition"

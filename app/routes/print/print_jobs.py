@@ -420,6 +420,7 @@ def get_all_print_jobs():
         result.append({
             "id": job.id,
             "order_id": job.order_id,
+            "order_user_id": job.order.user_id if job.order else None,
             "station_id": job.station_id,
             "type": job.type,
             "items_data": job.items_data,

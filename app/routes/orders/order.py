@@ -52,6 +52,12 @@ def _ensure_waiter_can_access_table(waiter: User | None, table: Table):
     return None
 
 
+def _waiter_accessible_table_ids(waiter: User | None) -> set[int]:
+    if not waiter:
+        return set()
+    return {table.id for table in waiter.tables if waiter_can_access_table(waiter, table)}
+
+
 def _ensure_waiter_can_order_station(waiter: User | None, menu_item: MenuItem):
     if not waiter:
         return None
@@ -431,6 +437,12 @@ def update_order(order_id):
         return error_response("Invalid status. Allowed: open, closed, paid.", 400)
 
     order.status = status
+    # Keep table occupancy in sync with order lifecycle.
+    if status == "open":
+        table.status = "occupied"
+    elif status in {"closed", "paid"}:
+        table.status = "available"
+
     try:
         db.session.commit()
         logger.info(f"Updated order {order_id} status to {status} by user {user_id}")
@@ -460,6 +472,17 @@ def list_orders():
 
     jwt_data = get_jwt()
     roles = jwt_roles(jwt_data)
+
+    if "waiter" in roles:
+        try:
+            user_id = safe_int_identity()
+        except ValueError:
+            return error_response("Invalid token identity.", 401)
+        waiter = db.session.get(User, user_id)
+        allowed_table_ids = _waiter_accessible_table_ids(waiter)
+        if not allowed_table_ids:
+            return jsonify([]), 200
+        query = query.filter(Order.table_id.in_(allowed_table_ids))
 
     orders = query.order_by(Order.created_at.desc()).all()
 
@@ -491,6 +514,16 @@ def get_order(order_id):
 
     jwt_data = get_jwt()
     roles = jwt_roles(jwt_data)
+
+    if "waiter" in roles:
+        try:
+            user_id = safe_int_identity()
+        except ValueError:
+            return error_response("Invalid token identity.", 401)
+        waiter = db.session.get(User, user_id)
+        table_error = _ensure_waiter_can_access_table(waiter, order.table)
+        if table_error:
+            return table_error
 
     if "station" in roles:
         station_name = jwt_data.get("station_name")

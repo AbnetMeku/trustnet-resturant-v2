@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from "react"; 
+import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
 import { fetchOrders, addOrderItems, updateOrderStatus } from "@/api/orders";
-import { getTables, updateTable } from "@/api/tables";
 import ActiveMenuSelection from "./ActiveMenuSelection";
 import ActiveOrderSummary from "./ActiveOrderSummary";
 import { Button } from "@/components/ui/button";
@@ -20,20 +19,11 @@ export default function ActiveOrders({ goBack }) {
   useEffect(() => {
     if (!authToken || !user) return;
 
-    const loadOrdersAndTables = async () => {
+    const loadOrders = async () => {
       try {
         setLoading(true);
-
-        const [tables, orders] = await Promise.all([
-          getTables(authToken),
-          fetchOrders(authToken, { status: "open" })
-        ]);
-
-        // Backend already returns only tables this waiter can access.
-        const assignedTableIds = tables.map((t) => t.id);
-
-        const myOrders = orders.filter(o => assignedTableIds.includes(o.table_id));
-        setOpenOrders(myOrders);
+        const orders = await fetchOrders(authToken, { status: "open" });
+        setOpenOrders(orders);
       } catch (err) {
         toast.error(err.message || "Failed to load orders");
       } finally {
@@ -41,10 +31,9 @@ export default function ActiveOrders({ goBack }) {
       }
     };
 
-    loadOrdersAndTables();
+    loadOrders();
   }, [authToken, user]);
 
-  // --- Order manipulation ---
   const selectOrder = (order) => {
     setSelectedOrder(order);
     setOrderItems([]);
@@ -86,12 +75,8 @@ export default function ActiveOrders({ goBack }) {
 
   const refreshOrders = async () => {
     try {
-      const [tables, orders] = await Promise.all([
-        getTables(authToken),
-        fetchOrders(authToken, { status: "open" })
-      ]);
-      const assignedTableIds = tables.map((t) => t.id);
-      setOpenOrders(orders.filter(o => assignedTableIds.includes(o.table_id)));
+      const orders = await fetchOrders(authToken, { status: "open" });
+      setOpenOrders(orders);
     } catch {
       // ignore
     }
@@ -99,37 +84,26 @@ export default function ActiveOrders({ goBack }) {
 
   const handleSave = async () => {
     if (!authToken || !selectedOrder) return;
-    try {
-      const itemsToSend = orderItems.map(i => ({
-        menu_item_id: i.menu_item_id,
-        quantity: i.quantity,
-        notes: i.notes || ""
-      }));
+    if (orderItems.length === 0) return;
 
-      await addOrderItems(authToken, selectedOrder.id, itemsToSend);
-      await refreshOrders();
+    const itemsToSend = orderItems.map((i) => ({
+      menu_item_id: i.menu_item_id,
+      quantity: i.quantity,
+      notes: i.notes || "",
+    }));
 
-      setTimeout(() => {
-        setStep("list");
-        setSelectedOrder(null);
-        setOrderItems([]);
-      }, 2000);
-    } catch (err) {
-      throw err;
-    }
+    await addOrderItems(authToken, selectedOrder.id, itemsToSend);
+    setOrderItems([]);
+    await refreshOrders();
+    setSelectedOrder(null);
+    setStep("list");
   };
 
   const handleCloseOrder = async (orderId) => {
     if (!authToken) return;
     try {
       await updateOrderStatus(authToken, orderId, "closed");
-
-      const order = openOrders.find(o => o.id === orderId);
-      if (order?.table_id) {
-        await updateTable(order.table_id, { status: "available" }, authToken);
-      }
-
-      toast.success("ትዕዛዙ ተዘግቷል!");
+      toast.success("Order closed");
       await refreshOrders();
 
       if (selectedOrder?.id === orderId) {
@@ -144,7 +118,6 @@ export default function ActiveOrders({ goBack }) {
     }
   };
 
-  // --- Step rendering ---
   if (step === "menu" && selectedOrder)
     return (
       <ActiveMenuSelection
@@ -170,12 +143,13 @@ export default function ActiveOrders({ goBack }) {
       />
     );
 
-  // --- Default list ---
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold">የተከፈተ ትዕዛዝ</h2>
-        <Button variant="outline" onClick={goBack}>← Back</Button>
+        <Button variant="outline" onClick={goBack}>
+          ← Back
+        </Button>
       </div>
 
       {loading ? (
@@ -184,12 +158,13 @@ export default function ActiveOrders({ goBack }) {
         <p className="text-gray-500">ምንም የተከፈተ ትዕዛዝ የለም</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {openOrders.map(order => (
-            <div key={order.id} className="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border rounded-2xl p-5 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all flex flex-col justify-between">
+          {openOrders.map((order) => (
+            <div
+              key={order.id}
+              className="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border rounded-2xl p-5 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all flex flex-col justify-between"
+            >
               <div onClick={() => selectOrder(order)} className="cursor-pointer">
-                <h3 className="font-bold text-xl mb-2 text-gray-900 dark:text-white">
-                  Table {order.table.number}
-                </h3>
+                <h3 className="font-bold text-xl mb-2 text-gray-900 dark:text-white">Table {order.table.number}</h3>
                 <span className="inline-block px-3 py-1 text-sm font-semibold bg-blue-100 text-blue-700 rounded-full dark:bg-blue-900 dark:text-blue-200">
                   ጠቅላላ ዋጋ: ${order.total_amount.toFixed(2)}
                 </span>
@@ -205,26 +180,26 @@ export default function ActiveOrders({ goBack }) {
         </div>
       )}
 
-      {/* Confirm Close Modal */}
       {confirmCloseId && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-11/12 max-w-md">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">እርግጠኛ ነዎት ይህ ትዕዛዝ ይዘጋ?</h3>
             <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setConfirmCloseId(null)}>አይ</Button>
-              <Button variant="destructive" onClick={() => handleCloseOrder(confirmCloseId)}>አዎ ዝጋ</Button>
+              <Button variant="outline" onClick={() => setConfirmCloseId(null)}>
+                አይ
+              </Button>
+              <Button variant="destructive" onClick={() => handleCloseOrder(confirmCloseId)}>
+                አዎ ዝጋ
+              </Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Details Modal */}
       {detailsOrder && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-11/12 max-w-lg">
-            <h3 className="text-xl font-bold mb-4">
-              Table {detailsOrder.table.number} - ትዕዛዝ #{detailsOrder.id}
-            </h3>
+            <h3 className="text-xl font-bold mb-4">Table {detailsOrder.table.number} - Order #{detailsOrder.id}</h3>
             <div className="max-h-80 overflow-y-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -236,8 +211,8 @@ export default function ActiveOrders({ goBack }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {([...detailsOrder.active_items, ...detailsOrder.voided_items] || []).map(item => {
-                    const isVoided = item.status?.includes("void"); // check if item is voided
+                  {[...(detailsOrder.active_items || []), ...(detailsOrder.voided_items || [])].map((item) => {
+                    const isVoided = item.status?.includes("void");
                     return (
                       <tr
                         key={item.id}
