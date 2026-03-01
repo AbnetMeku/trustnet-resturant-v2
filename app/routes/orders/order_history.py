@@ -1,14 +1,22 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt
+from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from sqlalchemy.orm import joinedload
 from app.extensions import db
 from app.models.models import Order, OrderItem, Table, User
 from app.routes.orders.order import order_to_dict, error_response
 from app.utils.decorators import roles_required, extract_roles_from_claims
 from datetime import datetime
-from app.utils.timezone import get_business_day_bounds
+from app.utils.timezone import get_business_day_bounds, get_eat_today
 
 order_history_bp = Blueprint("order_history_bp", __name__, url_prefix="/order-history")
+
+
+def _current_waiter_from_jwt():
+    try:
+        user_id = int(get_jwt_identity())
+    except (TypeError, ValueError):
+        return None
+    return db.session.get(User, user_id)
 
 # ---------------------- GET /order-history ---------------------- #
 @order_history_bp.route("/", methods=["GET"])
@@ -46,6 +54,108 @@ def get_order_history():
 
     orders = query.order_by(Order.created_at.desc()).all()
     return jsonify([order_to_dict(o) for o in orders]), 200
+
+
+@order_history_bp.route("/waiter/day-close-status", methods=["GET"])
+@jwt_required()
+@roles_required("waiter")
+def waiter_day_close_status():
+    waiter = _current_waiter_from_jwt()
+    if not waiter:
+        return error_response("Invalid token identity.", 401)
+
+    today = get_eat_today()
+    open_orders_count = (
+        Order.query.filter(Order.user_id == waiter.id, Order.status == "open").count()
+    )
+    is_closed_for_today = waiter.waiter_day_closed_on == today
+
+    return jsonify(
+        {
+            "date": today.isoformat(),
+            "isClosedForToday": is_closed_for_today,
+            "openOrdersCount": open_orders_count,
+            "canCloseForToday": (open_orders_count == 0 and not is_closed_for_today),
+        }
+    ), 200
+
+
+@order_history_bp.route("/waiter/close-day", methods=["POST"])
+@jwt_required()
+@roles_required("waiter")
+def waiter_close_day():
+    waiter = _current_waiter_from_jwt()
+    if not waiter:
+        return error_response("Invalid token identity.", 401)
+
+    today = get_eat_today()
+    if waiter.waiter_day_closed_on == today:
+        return jsonify(
+            {
+                "message": "Shift already closed for today.",
+                "date": today.isoformat(),
+                "isClosedForToday": True,
+            }
+        ), 200
+
+    open_orders_count = (
+        Order.query.filter(Order.user_id == waiter.id, Order.status == "open").count()
+    )
+    if open_orders_count > 0:
+        return error_response(
+            f"You still have {open_orders_count} open order(s). Close them before ending your day.",
+            409,
+        )
+
+    waiter.waiter_day_closed_on = today
+    db.session.commit()
+
+    return jsonify(
+        {
+            "message": "Shift closed for today.",
+            "date": today.isoformat(),
+            "isClosedForToday": True,
+        }
+    ), 200
+
+
+@order_history_bp.route("/waiter/<int:waiter_id>/reopen-day", methods=["POST"])
+@jwt_required()
+@roles_required("admin", "manager", "cashier")
+def reopen_waiter_day(waiter_id):
+    waiter = db.session.get(User, waiter_id)
+    if not waiter or waiter.role != "waiter":
+        return error_response("Waiter not found.", 404)
+
+    target_date = get_eat_today()
+    date_str = (request.get_json(silent=True) or {}).get("date")
+    if date_str:
+        try:
+            target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            return error_response("Invalid date format. Use YYYY-MM-DD.", 400)
+
+    if waiter.waiter_day_closed_on != target_date:
+        return jsonify(
+            {
+                "message": "Waiter shift is already open for that day.",
+                "waiter_id": waiter.id,
+                "date": target_date.isoformat(),
+                "isClosedForToday": False,
+            }
+        ), 200
+
+    waiter.waiter_day_closed_on = None
+    db.session.commit()
+
+    return jsonify(
+        {
+            "message": "Waiter shift reopened successfully.",
+            "waiter_id": waiter.id,
+            "date": target_date.isoformat(),
+            "isClosedForToday": False,
+        }
+    ), 200
 
 
 # ---------------------- GET /order-history/summary ---------------------- #

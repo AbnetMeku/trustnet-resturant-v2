@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { Card } from "@/components/ui/card";
 import NewOrder from "@/components/waiter/NewOrder";
 import ActiveOrders from "@/components/waiter/ActiveOrders";
 
-export default function OrdersHub() {
+export default function OrdersHub({ isShiftClosedToday = false }) {
   const [view, setView] = useState("hub"); // hub | new | active
   const [error, setError] = useState("");
 
@@ -22,28 +22,52 @@ export default function OrdersHub() {
 
   return (
     <main className="flex items-center justify-center h-full px-6 bg-gray-50 dark:bg-gray-900">
-      {error && <div className="text-red-500 mb-4">{error}</div>}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 w-full max-w-5xl">
-        <Card
-          onClick={() => setView("new")}
-          className="cursor-pointer h-48 sm:h-64 flex items-center justify-center text-3xl font-extrabold text-gray-800 bg-slate-200 rounded-2xl shadow-xl transition-transform transform hover:scale-105 hover:bg-slate-300 hover:shadow-2xl focus:outline-none focus:ring-4 focus:ring-slate-300"
-          tabIndex={0}
-          role="button"
-          aria-label="New Order"
-          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setView("new")}
-        >
-          አዲስ ትዕዛዝ
-        </Card>
-        <Card
-          onClick={() => setView("active")}
-          className="cursor-pointer h-48 sm:h-64 flex items-center justify-center text-3xl font-extrabold text-gray-800 bg-slate-200 rounded-2xl shadow-xl transition-transform transform hover:scale-105 hover:bg-slate-300 hover:shadow-2xl focus:outline-none focus:ring-4 focus:ring-slate-300"
-          tabIndex={0}
-          role="button"
-          aria-label="Active Orders"
-          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setView("active")}
-        >
-          ጭማሪ ትዕዛዝ
-        </Card>
+      <div className="w-full max-w-5xl">
+        {error && <div className="text-red-500 mb-4">{error}</div>}
+
+        {isShiftClosedToday && (
+          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+            ዛሬ ቀንዎን ዘግተዋል። አዲስ/ጭማሪ ትዕዛዝ መክፈት እስከ ነገ አይቻልም።
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+          <Card
+            onClick={() => !isShiftClosedToday && setView("new")}
+            className={`h-48 sm:h-64 flex items-center justify-center text-3xl font-extrabold text-gray-800 bg-slate-200 rounded-2xl shadow-xl transition-transform transform focus:outline-none focus:ring-4 focus:ring-slate-300 ${
+              isShiftClosedToday
+                ? "cursor-not-allowed opacity-50"
+                : "cursor-pointer hover:scale-105 hover:bg-slate-300 hover:shadow-2xl"
+            }`}
+            tabIndex={0}
+            role="button"
+            aria-disabled={isShiftClosedToday}
+            aria-label="New Order"
+            onKeyDown={(e) =>
+              !isShiftClosedToday && (e.key === "Enter" || e.key === " ") && setView("new")
+            }
+          >
+            አዲስ ትዕዛዝ
+          </Card>
+
+          <Card
+            onClick={() => !isShiftClosedToday && setView("active")}
+            className={`h-48 sm:h-64 flex items-center justify-center text-3xl font-extrabold text-gray-800 bg-slate-200 rounded-2xl shadow-xl transition-transform transform focus:outline-none focus:ring-4 focus:ring-slate-300 ${
+              isShiftClosedToday
+                ? "cursor-not-allowed opacity-50"
+                : "cursor-pointer hover:scale-105 hover:bg-slate-300 hover:shadow-2xl"
+            }`}
+            tabIndex={0}
+            role="button"
+            aria-disabled={isShiftClosedToday}
+            aria-label="Active Orders"
+            onKeyDown={(e) =>
+              !isShiftClosedToday && (e.key === "Enter" || e.key === " ") && setView("active")
+            }
+          >
+            ጭማሪ ትዕዛዝ
+          </Card>
+        </div>
       </div>
     </main>
   );

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { getWaiterSummary, getWaiterDetails } from "@/api/reportApi";
+import { getWaiterSummary, getWaiterDetails, reopenWaiterDay } from "@/api/reportApi";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
@@ -55,6 +55,16 @@ export default function WaiterSummaryReport() {
       toast.error("Failed to fetch waiter details");
     } finally {
       setModalLoading(false);
+    }
+  };
+
+  const handleReopenShift = async (waiterId) => {
+    try {
+      const data = await reopenWaiterDay(waiterId, endDate);
+      toast.success(data?.message || "Shift reopened");
+      await fetchReport();
+    } catch (err) {
+      toast.error(err?.response?.data?.error || err.message || "Failed to reopen shift");
     }
   };
 
@@ -155,6 +165,7 @@ export default function WaiterSummaryReport() {
               <tr className="bg-slate-100 dark:bg-slate-800/70 text-left">
                 <th className="border border-slate-200 dark:border-slate-700 p-3">Waiter Name</th>
                 <th className="border border-slate-200 dark:border-slate-700 p-3 text-right">Total Sales</th>
+                <th className="border border-slate-200 dark:border-slate-700 p-3 text-center">Shift</th>
                 <th className="border border-slate-200 dark:border-slate-700 p-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -165,10 +176,28 @@ export default function WaiterSummaryReport() {
                   <td className="border border-slate-200 dark:border-slate-700 p-3 text-right font-medium">
                     {Number(waiter.total_sales || 0).toFixed(2)}
                   </td>
+                  <td className="border border-slate-200 dark:border-slate-700 p-3 text-center">
+                    {waiter.is_shift_closed ? (
+                      <span className="rounded-full border border-emerald-300 bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                        Ended
+                      </span>
+                    ) : (
+                      <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                        Open
+                      </span>
+                    )}
+                  </td>
                   <td className="border border-slate-200 dark:border-slate-700 p-3 text-right">
-                    <Button size="sm" onClick={() => viewDetails(waiter)}>
-                      View Details
-                    </Button>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button size="sm" onClick={() => viewDetails(waiter)}>
+                        View Details
+                      </Button>
+                      {waiter.is_shift_closed && (
+                        <Button size="sm" variant="outline" onClick={() => handleReopenShift(waiter.waiter_id)}>
+                          Reopen Shift
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -178,6 +207,7 @@ export default function WaiterSummaryReport() {
                 <td className="border border-slate-200 dark:border-slate-700 p-3 text-right">
                   {Number(grandTotal || 0).toFixed(2)}
                 </td>
+                <td className="border border-slate-200 dark:border-slate-700 p-3" />
                 <td className="border border-slate-200 dark:border-slate-700 p-3" />
               </tr>
             </tbody>

@@ -12,6 +12,7 @@ from app.routes.print.print_jobs import create_station_print_jobs, create_cashie
 from sqlalchemy.exc import IntegrityError
 from app.services.inventory_integration import send_inventory_adjustment_or_queue
 from app.services.waiter_profiles import waiter_allowed_station_ids, waiter_can_access_table
+from app.utils.timezone import get_eat_today
 
 
 orders_bp = Blueprint("orders_bp", __name__, url_prefix="/orders")
@@ -69,6 +70,18 @@ def _ensure_waiter_can_order_station(waiter: User | None, menu_item: MenuItem):
             f"You are not allowed to order items from station '{menu_item.station_rel.name}'.",
             403,
         )
+    return None
+
+
+def _is_waiter_closed_for_day(waiter: User | None) -> bool:
+    if not waiter:
+        return False
+    return waiter.waiter_day_closed_on == get_eat_today()
+
+
+def _ensure_waiter_shift_open(waiter: User | None):
+    if _is_waiter_closed_for_day(waiter):
+        return error_response("Your shift is closed for today. You cannot open or modify orders until next day.", 403)
     return None
 
 # ---------------- Preflight ----------------
@@ -225,6 +238,9 @@ def create_order():
 
     roles = jwt_roles()
     waiter = _current_waiter_or_none(user_id, roles)
+    shift_error = _ensure_waiter_shift_open(waiter)
+    if shift_error:
+        return shift_error
     table_error = _ensure_waiter_can_access_table(waiter, table)
     if table_error:
         return table_error
@@ -333,6 +349,9 @@ def add_order_item(order_id):
 
     roles = jwt_roles()
     waiter = _current_waiter_or_none(user_id, roles)
+    shift_error = _ensure_waiter_shift_open(waiter)
+    if shift_error:
+        return shift_error
     table_error = _ensure_waiter_can_access_table(waiter, table)
     if table_error:
         return table_error
@@ -435,6 +454,10 @@ def update_order(order_id):
     status = data.get("status")
     if status not in {"open", "closed", "paid"}:
         return error_response("Invalid status. Allowed: open, closed, paid.", 400)
+    if status == "open":
+        shift_error = _ensure_waiter_shift_open(waiter)
+        if shift_error:
+            return shift_error
 
     order.status = status
     # Keep table occupancy in sync with order lifecycle.

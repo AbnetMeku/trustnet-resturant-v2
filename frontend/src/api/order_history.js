@@ -36,3 +36,19 @@ export const fetchOrderSummary = async (token, filters = {}) => {
   });
   return res.data;
 };
+
+export const fetchWaiterDayCloseStatus = async (token) => {
+  const res = await axiosInstance.get("/order-history/waiter/day-close-status", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
+};
+
+export const closeWaiterDay = async (token) => {
+  const res = await axiosInstance.post(
+    "/order-history/waiter/close-day",
+    {},
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return res.data;
+};

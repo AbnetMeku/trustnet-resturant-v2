@@ -19,6 +19,12 @@ def create_inventory_app(config_name="development"):
     config_class = config_map.get(config_name, DevelopmentConfig)
     app.config.from_object(config_class)
     app.url_map.strict_slashes = False
+    if str(app.config.get("SQLALCHEMY_DATABASE_URI", "")).startswith("postgresql"):
+        engine_options = dict(app.config.get("SQLALCHEMY_ENGINE_OPTIONS") or {})
+        connect_args = dict(engine_options.get("connect_args") or {})
+        connect_args.setdefault("options", "-c timezone=Africa/Addis_Ababa")
+        engine_options["connect_args"] = connect_args
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = engine_options
 
     db.init_app(app)
     migrate.init_app(app, db)

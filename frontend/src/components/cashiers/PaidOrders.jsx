@@ -4,13 +4,17 @@ import { fetchOrders } from "@/api/orders";
 import { getUsers } from "@/api/users";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import axios from "axios";
+import toast from "react-hot-toast";
+import { FaEye, FaPrint } from "react-icons/fa";
 import { eatBusinessDateISO, formatEatTime } from "@/lib/timezone";
 
-export default function OpenOrders() {
+export default function PaidOrders() {
   const { authToken } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [confirmPrint, setConfirmPrint] = useState(null);
 
   const [waiters, setWaiters] = useState([]);
   const [filterWaiter, setFilterWaiter] = useState("");
@@ -35,10 +39,10 @@ export default function OpenOrders() {
     const loadOrders = async () => {
       setLoading(true);
       try {
-        const data = await fetchOrders(authToken, { status: "open" });
+        const data = await fetchOrders(authToken, { status: "paid" });
         setOrders(data);
       } catch (err) {
-        console.error("Failed to load open orders:", err);
+        toast.error(err.message || "Failed to load paid orders");
       } finally {
         setLoading(false);
       }
@@ -46,6 +50,19 @@ export default function OpenOrders() {
 
     loadOrders();
   }, [authToken]);
+
+  const handlePrintReceipt = async (orderId) => {
+    try {
+      await axios.post(
+        "/api/print-jobs/cashier/manual",
+        { order_id: orderId },
+        { headers: { Authorization: `Bearer ${authToken}` } }
+      );
+      toast.success("Receipt print job created.");
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message || "Failed to print receipt");
+    }
+  };
 
   const filteredOrders = orders.filter((order) => {
     const orderDate = eatBusinessDateISO(order.created_at);
@@ -62,8 +79,8 @@ export default function OpenOrders() {
         <div className="admin-hero px-4 py-5 md:px-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h3 className="text-xl font-semibold">Open Orders</h3>
-              <p className="text-sm text-slate-200">Track active dine-in orders by table and waiter.</p>
+              <h3 className="text-xl font-semibold">Paid Orders</h3>
+              <p className="text-sm text-slate-200">Completed and paid orders.</p>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <div className="admin-stat">
@@ -71,7 +88,7 @@ export default function OpenOrders() {
                 <p className="text-sm font-medium">{filteredOrders.length}</p>
               </div>
               <div className="admin-stat">
-                <p className="text-[11px] uppercase tracking-wide text-slate-300">Total Open</p>
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">Total Paid</p>
                 <p className="text-sm font-medium">{orders.length}</p>
               </div>
               <div className="admin-stat col-span-2 sm:col-span-1">
@@ -111,7 +128,7 @@ export default function OpenOrders() {
               <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Table</span>
               <input
                 type="text"
-                placeholder="e.g. 12"
+                placeholder="e.g. 5"
                 className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                 value={filterTable}
                 onChange={(e) => setFilterTable(e.target.value)}
@@ -123,53 +140,59 @@ export default function OpenOrders() {
 
       {loading ? (
         <Card className="admin-card p-8 text-center text-sm text-slate-500 dark:text-slate-300">
-          Loading open orders...
+          Loading paid orders...
         </Card>
       ) : filteredOrders.length === 0 ? (
         <Card className="admin-card p-8 text-center text-sm text-slate-500 dark:text-slate-300">
-          No open orders available.
+          No paid orders found.
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filteredOrders.map((order) => {
-            const totalItemsCount = (order.active_items?.length || 0) + (order.voided_items?.length || 0);
-            return (
-              <Card key={order.id} className="admin-card p-5 transition hover:shadow-md">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Order #{order.id}</p>
-                    <h4 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">Table {order.table?.number ?? "-"}</h4>
-                  </div>
-                  <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                    Open
-                  </span>
+          {filteredOrders.map((order) => (
+            <Card key={order.id} className="admin-card p-5 transition hover:shadow-md">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Order #{order.id}</p>
+                  <h4 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">Table {order.table?.number ?? "-"}</h4>
                 </div>
+                <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
+                  Paid
+                </span>
+              </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-900">
-                  <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Total</p>
-                    <p className="font-semibold text-slate-900 dark:text-slate-100">${Number(order.total_amount || 0).toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Items</p>
-                    <p className="font-semibold text-slate-900 dark:text-slate-100">{totalItemsCount}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Waiter</p>
-                    <p className="font-medium text-slate-900 dark:text-slate-100">{order.user?.username || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Time</p>
-                    <p className="font-medium text-slate-900 dark:text-slate-100">{formatEatTime(order.created_at)}</p>
-                  </div>
+              <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-900">
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Total</p>
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">${Number(order.total_amount || 0).toFixed(2)}</p>
                 </div>
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Items</p>
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">
+                    {(order.active_items?.length || 0) + (order.voided_items?.length || 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Waiter</p>
+                  <p className="font-medium text-slate-900 dark:text-slate-100">{order.user?.username || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Time</p>
+                  <p className="font-medium text-slate-900 dark:text-slate-100">{formatEatTime(order.created_at)}</p>
+                </div>
+              </div>
 
-                <Button className="mt-4 w-full" variant="outline" onClick={() => setSelectedOrder(order)}>
+              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Button variant="outline" onClick={() => setSelectedOrder(order)}>
+                  <FaEye className="mr-2" />
                   Details
                 </Button>
-              </Card>
-            );
-          })}
+                <Button className="bg-slate-700 text-white hover:bg-slate-800" onClick={() => setConfirmPrint(order)}>
+                  <FaPrint className="mr-2" />
+                  Print Copy
+                </Button>
+              </div>
+            </Card>
+          ))}
         </div>
       )}
 
@@ -205,7 +228,7 @@ export default function OpenOrders() {
                 </thead>
                 <tbody>
                   {[...(selectedOrder.active_items || []), ...(selectedOrder.voided_items || [])].map((item) => {
-                    const isVoided = item.status?.includes("void");
+                    const isVoided = selectedOrder.voided_items?.some((v) => v.id === item.id);
                     return (
                       <tr
                         key={item.id}
@@ -230,6 +253,30 @@ export default function OpenOrders() {
                   .reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0)
                   .toFixed(2)}
               </p>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {confirmPrint && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="admin-card w-full max-w-sm p-6">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Confirm Print</h3>
+            <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+              Print receipt copy for table {confirmPrint.table?.number ?? "-"} (Order #{confirmPrint.id})?
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirmPrint(null)}>Cancel</Button>
+              <Button
+                className="bg-slate-700 text-white hover:bg-slate-800"
+                onClick={() => {
+                  handlePrintReceipt(confirmPrint.id);
+                  setConfirmPrint(null);
+                }}
+              >
+                <FaPrint className="mr-2" />
+                Print
+              </Button>
             </div>
           </Card>
         </div>

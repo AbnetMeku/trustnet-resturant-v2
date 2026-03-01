@@ -17,7 +17,7 @@ function coerceDate(value) {
 function parseStartTime(value) {
   const raw = typeof value === "string" ? value : DEFAULT_BUSINESS_DAY_START_TIME;
   const match = raw.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
-  if (!match) return { hour: 3, minute: 0 };
+  if (!match) return { hour: 6, minute: 0 };
   return { hour: Number(match[1]), minute: Number(match[2]) };
 }
 

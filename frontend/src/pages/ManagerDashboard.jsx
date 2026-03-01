@@ -1,11 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   FaUserPlus,
   FaTable,
   FaUtensils,
   FaBars,
-  FaChartBar,
   FaBoxes,
+  FaSun,
+  FaMoon,
+  FaChevronLeft,
+  FaChevronRight,
+  FaSignOutAlt,
+  FaPrint,
 } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -16,14 +21,15 @@ import { useBranding } from "@/hooks/useBranding";
 import UserManagement from "@/components/admin/UserManagement";
 import TableManagement from "@/components/admin/TableManagement";
 import MenuManagement from "@/components/admin/MenuManagement";
+import PrintJobs from "@/components/admin/PrintJobs";
 
 export default function ManagerDashboard() {
   const { user, logout } = useAuth();
   const branding = useBranding();
   const navigate = useNavigate();
-  const [active, setActive] = useState("overview");
+  const [active, setActive] = useState("users");
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 900);
-  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 900);
   const [darkMode, setDarkMode] = useState(
     localStorage.getItem("darkMode") === "true" || false
   );
@@ -32,13 +38,16 @@ export default function ManagerDashboard() {
     const onResize = () => {
       const mobile = window.innerWidth <= 900;
       setIsMobile(mobile);
-      if (mobile && !sidebarOpen) {
-        setSidebarOpen(false);
-      }
+      setSidebarOpen(!mobile);
     };
+
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [sidebarOpen]);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", darkMode);
+  }, [darkMode]);
 
   const toggleDarkMode = () => {
     setDarkMode((prev) => {
@@ -58,126 +67,133 @@ export default function ManagerDashboard() {
     if (isMobile) setSidebarOpen(false);
   };
 
-  // Omit 'stations' from menu for managers
-  const menuItems = [
-    { id: "overview", icon: FaChartBar, label: "Overview" },
-    { id: "users", icon: FaUserPlus, label: "Users" },
-    { id: "tables", icon: FaTable, label: "Tables" },
-    { id: "menu", icon: FaUtensils, label: "Menu" },
-    { id: "reports", icon: FaBars, label: "Reports" },
-    { id: "inventory", icon: FaBoxes, label: "Inventory" },
+  const menuSections = [
+    {
+      title: "Operations",
+      items: [
+        { id: "users", icon: FaUserPlus, label: "Users" },
+        { id: "tables", icon: FaTable, label: "Tables" },
+        { id: "menu", icon: FaUtensils, label: "Menu" },
+        { id: "print", icon: FaPrint, label: "Print Jobs" },
+      ],
+    },
+    {
+      title: "Inventory",
+      items: [{ id: "inventory", icon: FaBoxes, label: "Inventory" }],
+    },
   ];
 
   return (
     <div className={darkMode ? "dark" : ""}>
-      <div className="flex h-screen w-screen overflow-hidden bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-
-        {/* Sidebar */}
+      <div className="admin-shell admin-shell-grid flex h-screen w-screen overflow-hidden">
         <aside
-          className={`
+          className={`admin-sidebar
             fixed md:relative z-30 top-0 left-0 h-full md:h-auto
-            bg-white dark:bg-gray-800 shadow-lg transition-all duration-300
+            border-r border-slate-200/70 dark:border-slate-800/80
             flex flex-col
-            ${isMobile ? (sidebarOpen ? "w-64" : "w-0") : sidebarOpen ? "w-64" : "w-16"}
+            ${isMobile ? (sidebarOpen ? "w-72" : "w-0") : sidebarOpen ? "w-72" : "w-20"}
           `}
         >
-          {/* Sidebar Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center space-x-2">
-              <img src={branding.logo_url} alt="Logo" className="w-8 h-8 object-contain" />
-              {!isMobile && sidebarOpen && (
-                <span className="font-bold text-lg">Manager Panel</span>
+          <div className="admin-sidebar-header flex items-center justify-between p-4">
+            <div className="flex items-center space-x-3">
+              <div className="admin-logo-wrap">
+                <img
+                  src={branding.logo_url}
+                  alt="Logo"
+                  className="w-9 h-9 object-contain rounded"
+                />
+              </div>
+              {sidebarOpen && (
+                <div className="leading-tight">
+                  <p className="font-semibold text-base">Manager Console</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    TrustNet Restaurant
+                  </p>
+                </div>
               )}
             </div>
+            {!isMobile && (
+              <button
+                onClick={toggleSidebar}
+                className="admin-icon-btn"
+                aria-label="Toggle sidebar"
+              >
+                {sidebarOpen ? <FaChevronLeft size={14} /> : <FaChevronRight size={14} />}
+              </button>
+            )}
           </div>
 
-          {/* Sidebar Menu */}
-          <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar">
-            {menuItems.map((item) => (
-              <div
-                key={item.id}
-                className={`flex items-center cursor-pointer px-4 py-3 rounded-md mx-2 mb-2
-                  hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors
-                  ${active === item.id ? "bg-gray-300 dark:bg-gray-700 font-semibold" : ""}
-                `}
-                onClick={() => handleSelect(item.id)}
-              >
-                <item.icon className="text-lg" />
-                {sidebarOpen && <span className="ml-3">{item.label}</span>}
+          <nav className="flex-1 mt-3 overflow-y-auto no-scrollbar px-2 pb-4">
+            {menuSections.map((section) => (
+              <div key={section.title} className="mb-4">
+                {sidebarOpen && <p className="admin-section-title">{section.title}</p>}
+                {section.items.map((item) => (
+                  <button
+                    key={item.id}
+                    className={`admin-nav-item ${active === item.id ? "is-active" : ""}`}
+                    onClick={() => handleSelect(item.id)}
+                  >
+                    <item.icon className="admin-nav-icon" />
+                    {sidebarOpen && <span className="text-sm font-medium tracking-wide">{item.label}</span>}
+                  </button>
+                ))}
               </div>
             ))}
           </nav>
         </aside>
 
-        {/* Backdrop for mobile */}
         {isMobile && sidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black/50 z-20 md:hidden"
-            onClick={toggleSidebar}
-          />
+          <div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={toggleSidebar} />
         )}
 
-        {/* Main Content */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Topbar */}
-          <header className="flex justify-between items-center bg-white dark:bg-gray-800 shadow px-4 py-3">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={toggleSidebar}
-                className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-              >
-                <FaBars />
-              </button>
+          <header className="admin-header px-4 py-3 md:px-6">
+            <div className="admin-header-inner">
+              <div className="flex items-center gap-3">
+                {isMobile && (
+                  <button onClick={toggleSidebar} className="admin-icon-btn" aria-label="Open sidebar">
+                    <FaBars />
+                  </button>
+                )}
+              </div>
 
-              <span>
-                Welcome, <strong>{user?.username || "Manager"}</strong>
-              </span>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm" onClick={toggleDarkMode}>
-                {darkMode ? "Light Mode" : "Dark Mode"}
-              </Button>
-              <Button variant="destructive" size="sm" onClick={logout}>
-                Logout
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="admin-user-pill">
+                  <strong>{user?.username || "Manager"}</strong>
+                </div>
+                <Button variant="outline" size="sm" onClick={toggleDarkMode}>
+                  {darkMode ? <FaSun className="mr-2" /> : <FaMoon className="mr-2" />}
+                  {darkMode ? "Light" : "Dark"}
+                </Button>
+                <Button variant="destructive" size="sm" onClick={logout}>
+                  <FaSignOutAlt className="mr-2" /> Logout
+                </Button>
+              </div>
             </div>
           </header>
 
-          {/* Content Area */}
-          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4">
-            {active === "overview" && (
-              <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Overview</h2>
-                <p>Quick stats and KPIs will go here.</p>
-              </Card>
-            )}
-
+          <main className="admin-main">
             {active === "users" && (
-              <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Users Management</h2>
+              <Card className="admin-card p-5 md:p-6 w-full">
                 <UserManagement />
               </Card>
             )}
 
             {active === "tables" && (
-              <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Tables Management</h2>
+              <Card className="admin-card p-5 md:p-6 w-full">
                 <TableManagement />
               </Card>
             )}
 
             {active === "menu" && (
-              <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Menu Items</h2>
+              <Card className="admin-card p-5 md:p-6 w-full">
                 <MenuManagement />
               </Card>
             )}
 
-            {active === "reports" && (
-              <Card className="p-6 w-full">
-                <h2 className="text-xl font-bold mb-4">Reports</h2>
-                <p>Sales, orders, and performance reports will appear here.</p>
+            {active === "print" && (
+              <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]">
+                <PrintJobs />
               </Card>
             )}
           </main>

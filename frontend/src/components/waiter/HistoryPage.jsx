@@ -1,19 +1,28 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
-import { fetchOrderHistory, fetchOrderSummary } from "@/api/order_history";
+import {
+  fetchOrderHistory,
+  fetchOrderSummary,
+  fetchWaiterDayCloseStatus,
+  closeWaiterDay,
+} from "@/api/order_history";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { eatBusinessDateISO, formatEatTime } from "@/lib/timezone";
 
-export default function HistoryPage() {
+export default function HistoryPage({ onDayCloseChange }) {
   const { authToken, user } = useAuth();
+  const todayISO = eatBusinessDateISO();
+  const [selectedDate, setSelectedDate] = useState(todayISO);
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
   const [summary, setSummary] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showSummarySidebar, setShowSummarySidebar] = useState(false);
+  const [dayCloseStatus, setDayCloseStatus] = useState(null);
+  const [closingDay, setClosingDay] = useState(false);
 
   useEffect(() => {
     if (!authToken || !user) {
@@ -25,16 +34,18 @@ export default function HistoryPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const todayISO = eatBusinessDateISO();
-        const filters = { date: todayISO, user_id: user?.id };
+        const filters = { date: selectedDate, user_id: user?.id };
 
-        const [ordersData, summaryData] = await Promise.all([
+        const [ordersData, summaryData, dayCloseData] = await Promise.all([
           fetchOrderHistory(authToken, filters),
           fetchOrderSummary(authToken, filters),
+          fetchWaiterDayCloseStatus(authToken),
         ]);
 
         setOrders(ordersData || []);
         setSummary(summaryData || null);
+        setDayCloseStatus(dayCloseData || null);
+        onDayCloseChange?.(dayCloseData || null);
       } catch (err) {
         toast.error(err.message || "Failed to load orders");
       } finally {
@@ -43,12 +54,80 @@ export default function HistoryPage() {
     };
 
     fetchData();
-  }, [authToken, user]);
+  }, [authToken, user, selectedDate, onDayCloseChange]);
+
+  const refreshDayCloseStatus = async () => {
+    if (!authToken) return;
+    try {
+      const status = await fetchWaiterDayCloseStatus(authToken);
+      setDayCloseStatus(status || null);
+      onDayCloseChange?.(status || null);
+    } catch (err) {
+      toast.error(err.message || "Failed to load day-close status");
+    }
+  };
+
+  const handleCloseForDay = async () => {
+    if (!authToken) return;
+    setClosingDay(true);
+    try {
+      const result = await closeWaiterDay(authToken);
+      toast.success(result?.message || "Shift closed for today");
+    } catch (err) {
+      toast.error(err.message || "Failed to close for the day");
+    } finally {
+      await refreshDayCloseStatus();
+      setClosingDay(false);
+    }
+  };
+
+  const isClosedForToday = Boolean(dayCloseStatus?.isClosedForToday);
+  const openOrdersCount = Number(dayCloseStatus?.openOrdersCount || 0);
+  const canCloseForToday = Boolean(dayCloseStatus?.canCloseForToday);
+  const isViewingToday = selectedDate === todayISO;
 
   return (
     <div className="p-4 dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 flex">
       <div className="flex-1">
-        <h1 className="text-3xl font-bold mb-6">የቀኑ የተዘጉ እና የተከፈሉ ትዕዛዞች</h1>
+        <div className="flex flex-col gap-3 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <h1 className="text-3xl font-bold mb-0">የቀኑ የተዘጉ እና የተከፈሉ ትዕዛዞች</h1>
+            {isViewingToday && (
+              <Button
+                variant={isClosedForToday ? "outline" : "default"}
+                onClick={handleCloseForDay}
+                disabled={loading || closingDay || !canCloseForToday}
+              >
+                {isClosedForToday ? "ዛሬ ተዘግቷል" : closingDay ? "በመዝጋት ላይ..." : "ቀኑን ዝጋ"}
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <label htmlFor="history-date" className="text-sm font-medium">
+              ቀን
+            </label>
+            <input
+              id="history-date"
+              type="date"
+              value={selectedDate}
+              max={todayISO}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            />
+          </div>
+        </div>
+
+        {isViewingToday && dayCloseStatus && !isClosedForToday && openOrdersCount > 0 && (
+          <p className="text-sm text-amber-600 dark:text-amber-400 mb-4">
+            ቀኑን ከመዝጋት በፊት ክፍት ትዕዛዞችን ዝጋ ({openOrdersCount})።
+          </p>
+        )}
+
+        {isViewingToday && dayCloseStatus && isClosedForToday && (
+          <p className="text-sm text-green-600 dark:text-green-400 mb-4">
+            የዛሬ ስራ ቀንዎ ተዘግቷል። እስከ ነገ አዲስ ትዕዛዝ መክፈት አይቻልም።
+          </p>
+        )}
 
         {summary && (
           <div className="flex flex-wrap gap-4 mb-6">
@@ -64,7 +143,7 @@ export default function HistoryPage() {
                   <p className="text-lg font-bold">${summary.paidAmount.toFixed(2)}</p>
                 </div>
                 <div>
-                  <p className="text-xs">ይልተከፈለ</p>
+                  <p className="text-xs">ያልተከፈለ</p>
                   <p className="text-lg font-bold">${summary.pendingAmount.toFixed(2)}</p>
                 </div>
               </div>
@@ -97,7 +176,7 @@ export default function HistoryPage() {
                 statusText = "የተከፈለ";
                 statusColor = "text-green-600 dark:text-green-400";
               } else if (order.status === "closed") {
-                statusText = "ይልተከፈለ";
+                statusText = "ያልተከፈለ";
                 statusColor = "text-red-600 dark:text-red-400";
               } else if (order.status === "open") {
                 statusText = "ክፍት ትዕዛዝ";

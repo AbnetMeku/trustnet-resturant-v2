@@ -65,3 +65,19 @@ export const getWaiterDetails = async (waiterId, startDate, endDate, token = nul
     throw err;
   }
 };
+
+export const reopenWaiterDay = async (waiterId, date = null, token = null) => {
+  try {
+    const authToken = token || localStorage.getItem("auth_token");
+    const payload = date ? { date } : {};
+    const res = await axios.post(
+      `${BASE_URL}/order-history/waiter/${waiterId}/reopen-day`,
+      payload,
+      { headers: { Authorization: `Bearer ${authToken}` } }
+    );
+    return res.data;
+  } catch (err) {
+    console.error("Error reopening waiter day:", err);
+    throw err;
+  }
+};

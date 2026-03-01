@@ -251,6 +251,19 @@ def waiter_summary():
 
     report = list(report_dict.values())
 
+    # Attach shift-close state for the report end date.
+    waiter_ids = [entry["waiter_id"] for entry in report]
+    waiter_rows = (
+        User.query.filter(User.id.in_(waiter_ids)).all()
+        if waiter_ids
+        else []
+    )
+    waiter_state = {w.id: w.waiter_day_closed_on for w in waiter_rows}
+    for entry in report:
+        closed_on = waiter_state.get(entry["waiter_id"])
+        entry["shift_closed_on"] = closed_on.isoformat() if closed_on else None
+        entry["is_shift_closed"] = bool(closed_on and closed_on == end_day)
+
     return jsonify({
         "from": start_date,
         "to": end_date,

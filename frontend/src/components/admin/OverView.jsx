@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { eatBusinessDateISO, eatDateISO } from "@/lib/timezone";
+import { eatBusinessDateISO } from "@/lib/timezone";
 
 export default function OverView() {
   const [metrics, setMetrics] = useState(null);
@@ -26,11 +26,11 @@ export default function OverView() {
     else if (filter === "last7") {
       const d = new Date();
       d.setDate(today.getDate() - 6);
-      startDate = eatDateISO(d);
+      startDate = eatBusinessDateISO(d);
     } else {
       const d = new Date();
       d.setDate(today.getDate() - 29);
-      startDate = eatDateISO(d);
+      startDate = eatBusinessDateISO(d);
     }
     return { startDate, endDate };
   }
