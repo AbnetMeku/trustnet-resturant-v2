@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw, ImageFont
 from sqlalchemy import and_, create_engine, or_
 from sqlalchemy.orm import sessionmaker
 
-from app.models.models import OrderItem, PrintJob, Station
+from app.models.models import BrandingSettings, OrderItem, PrintJob, Station
 from app.utils.timezone import eat_now, eat_now_naive
 
 LOGGER = logging.getLogger("print_worker")
@@ -213,6 +213,8 @@ class PrintWorker:
             printer_ip = station.printer_identifier if station and station.printer_identifier else self.default_printer_ip
 
             image = self.render_ticket(job, items)
+            if self._is_preview_enabled(session):
+                self._show_preview(image, job.id)
             success, error_message = self.print_ticket_image(printer_ip, image)
 
             if success:
@@ -244,6 +246,16 @@ class PrintWorker:
             return
         finally:
             session.close()
+
+    def _is_preview_enabled(self, session) -> bool:
+        settings = session.get(BrandingSettings, 1)
+        return bool(settings and settings.print_preview_enabled)
+
+    def _show_preview(self, image: Image.Image, job_id: int):
+        try:
+            image.show(title=f"Job {job_id} Preview")
+        except Exception as exc:
+            LOGGER.warning("Unable to show print preview for job %s: %s", job_id, exc)
 
     def run_forever(self):
         LOGGER.info("Print worker started")

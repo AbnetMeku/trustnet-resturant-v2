@@ -213,6 +213,7 @@ class BrandingSettings(db.Model):
     logo_url = db.Column(db.Text, nullable=True)
     background_url = db.Column(db.Text, nullable=True)
     business_day_start_time = db.Column(db.String(5), nullable=False, default="06:00")
+    print_preview_enabled = db.Column(db.Boolean, nullable=False, default=False)
     updated_at = db.Column(db.DateTime, default=eat_now_naive, onupdate=eat_now_naive)
 
 

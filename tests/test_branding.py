@@ -34,6 +34,7 @@ def test_get_branding_defaults(client):
     data = response.get_json()
     assert data["logo_url"] == "/logo.png"
     assert data["background_url"] == "/Background.jpeg"
+    assert data["print_preview_enabled"] is False
 
 
 def test_admin_can_update_branding(client, app):
@@ -48,6 +49,7 @@ def test_admin_can_update_branding(client, app):
         json={
             "logo_url": "https://example.com/logo.png",
             "background_url": "https://example.com/bg.jpg",
+            "print_preview_enabled": True,
         },
         headers=auth_headers(token),
     )
@@ -55,11 +57,30 @@ def test_admin_can_update_branding(client, app):
     data = response.get_json()
     assert data["logo_url"] == "https://example.com/logo.png"
     assert data["background_url"] == "https://example.com/bg.jpg"
+    assert data["print_preview_enabled"] is True
 
     with app.app_context():
         saved = db.session.get(BrandingSettings, 1)
         assert saved is not None
         assert saved.logo_url == "https://example.com/logo.png"
+        assert saved.print_preview_enabled is True
+
+
+def test_update_branding_rejects_non_boolean_print_preview(client, app):
+    with app.app_context():
+        admin = User(username="admin_brand_bool", password_hash="hash", role="admin")
+        db.session.add(admin)
+        db.session.commit()
+        token = create_access_token(identity=str(admin.id), additional_claims={"role": "admin"})
+
+    response = client.put(
+        "/api/branding",
+        json={"print_preview_enabled": "yes"},
+        headers=auth_headers(token),
+    )
+    assert response.status_code == 400
+    data = response.get_json()
+    assert "print_preview_enabled must be a boolean" in data["error"]
 
 
 def test_waiter_cannot_update_branding(client, app):

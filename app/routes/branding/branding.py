@@ -34,6 +34,7 @@ def _serialize_branding(settings):
         "business_day_start_time": (
             settings.business_day_start_time if settings and settings.business_day_start_time else DEFAULT_BUSINESS_DAY_START
         ),
+        "print_preview_enabled": bool(settings.print_preview_enabled) if settings else False,
     }
 
 
@@ -63,6 +64,12 @@ def _normalize_business_day_start_time(value):
     if not TIME_PATTERN.match(normalized):
         raise ValueError("business_day_start_time must be in HH:MM format (24h)")
     return normalized
+
+
+def _normalize_print_preview_enabled(value):
+    if isinstance(value, bool):
+        return value
+    raise ValueError("print_preview_enabled must be a boolean")
 
 
 def _upload_dir():
@@ -151,8 +158,9 @@ def update_branding():
         "logo_url" not in data
         and "background_url" not in data
         and "business_day_start_time" not in data
+        and "print_preview_enabled" not in data
     ):
-        return jsonify({"error": "Provide logo_url, background_url, and/or business_day_start_time"}), 400
+        return jsonify({"error": "Provide logo_url, background_url, business_day_start_time, and/or print_preview_enabled"}), 400
 
     settings = db.session.get(BrandingSettings, 1)
     if settings is None:
@@ -172,6 +180,8 @@ def update_branding():
                 settings.background_url = next_background
         if "business_day_start_time" in data:
             settings.business_day_start_time = _normalize_business_day_start_time(data.get("business_day_start_time"))
+        if "print_preview_enabled" in data:
+            settings.print_preview_enabled = _normalize_print_preview_enabled(data.get("print_preview_enabled"))
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 

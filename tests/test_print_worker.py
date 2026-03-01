@@ -4,7 +4,7 @@ import pytest
 from PIL import Image
 
 from app import create_app, db
-from app.models.models import MenuItem, Order, OrderItem, PrintJob, Station, Table, User
+from app.models.models import BrandingSettings, MenuItem, Order, OrderItem, PrintJob, Station, Table, User
 from app.utils.timezone import eat_now_naive
 from app.workers.PrintWorker import PrintWorker
 
@@ -169,3 +169,32 @@ def test_process_job_failure_retries_then_fails(app, worker, monkeypatch):
         assert second.retry_after is None
         assert second.error_message == "printer offline"
 
+
+def test_process_job_shows_preview_when_enabled(app, worker, monkeypatch):
+    with app.app_context():
+        order, _, station = _seed_order_base()
+        settings = BrandingSettings(id=1, print_preview_enabled=True)
+        db.session.add(settings)
+
+        job = PrintJob(
+            order_id=order.id,
+            station_id=station.id,
+            type="station",
+            status="pending",
+            items_data={"items": [{"name": "PW-Item", "quantity": 1}]},
+        )
+        db.session.add(job)
+        db.session.commit()
+
+        preview_calls = []
+        monkeypatch.setattr(Image.Image, "show", lambda _self, title=None: preview_calls.append(title))
+        monkeypatch.setattr(worker, "render_ticket", lambda *_: Image.new("1", (10, 10), 1))
+        monkeypatch.setattr(worker, "print_ticket_image", lambda *_: (True, None))
+
+        session = worker.Session()
+        picked = worker.fetch_next_job(session)
+        session.close()
+        worker.process_job(picked.id)
+
+        assert len(preview_calls) == 1
+        assert preview_calls[0] == f"Job {job.id} Preview"

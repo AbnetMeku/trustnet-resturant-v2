@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DEFAULT_BRANDING,
   getBrandingSettings,
@@ -21,6 +22,7 @@ export default function BrandingManagement() {
     logo_url: "",
     background_url: "",
     business_day_start_time: "06:00",
+    print_preview_enabled: false,
   });
   const [preview, setPreview] = useState(DEFAULT_BRANDING);
 
@@ -33,6 +35,7 @@ export default function BrandingManagement() {
           logo_url: data.custom_logo_url || "",
           background_url: data.custom_background_url || "",
           business_day_start_time: data.business_day_start_time || "06:00",
+          print_preview_enabled: Boolean(data.print_preview_enabled),
         });
         setPreview(data);
       } catch (error) {
@@ -52,11 +55,13 @@ export default function BrandingManagement() {
         logo_url: form.logo_url,
         background_url: form.background_url,
         business_day_start_time: form.business_day_start_time,
+        print_preview_enabled: Boolean(form.print_preview_enabled),
       });
       setForm({
         logo_url: data.custom_logo_url || "",
         background_url: data.custom_background_url || "",
         business_day_start_time: data.business_day_start_time || "06:00",
+        print_preview_enabled: Boolean(data.print_preview_enabled),
       });
       setPreview(data);
       toast.success("Branding updated successfully");
@@ -74,11 +79,13 @@ export default function BrandingManagement() {
         logo_url: "",
         background_url: "",
         business_day_start_time: "06:00",
+        print_preview_enabled: false,
       });
       setForm({
         logo_url: data.custom_logo_url || "",
         background_url: data.custom_background_url || "",
         business_day_start_time: data.business_day_start_time || "06:00",
+        print_preview_enabled: Boolean(data.print_preview_enabled),
       });
       setPreview(data);
       toast.success("Branding reset to defaults");
@@ -100,6 +107,7 @@ export default function BrandingManagement() {
         logo_url: data.custom_logo_url || "",
         background_url: data.custom_background_url || "",
         business_day_start_time: data.business_day_start_time || "06:00",
+        print_preview_enabled: Boolean(data.print_preview_enabled),
       });
       setPreview(data);
       toast.success(`${assetType === "logo" ? "Logo" : "Background"} uploaded`);
@@ -185,6 +193,25 @@ export default function BrandingManagement() {
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="branding-print-preview">Print Worker Preview</Label>
+            <div className="flex items-center gap-2 rounded-md border border-slate-200 p-3 dark:border-slate-700">
+              <Checkbox
+                id="branding-print-preview"
+                checked={form.print_preview_enabled}
+                onCheckedChange={(value) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    print_preview_enabled: Boolean(value),
+                  }))
+                }
+              />
+              <span className="text-sm text-slate-700 dark:text-slate-200">
+                Show ticket simulation preview on the print worker screen
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="branding-background-upload">Background Upload</Label>
             <Input
               id="branding-background-upload"
@@ -237,6 +264,10 @@ export default function BrandingManagement() {
             </div>
             <div className="rounded-md border border-slate-200 dark:border-slate-700 p-2 text-slate-700 dark:text-slate-200 col-span-2">
               <span className="font-medium">Business day starts at:</span> {preview.business_day_start_time || "06:00"}
+            </div>
+            <div className="rounded-md border border-slate-200 dark:border-slate-700 p-2 text-slate-700 dark:text-slate-200 col-span-2">
+              <span className="font-medium">Print worker preview:</span>{" "}
+              {preview.print_preview_enabled ? "Enabled" : "Disabled"}
             </div>
           </div>
         </Card>

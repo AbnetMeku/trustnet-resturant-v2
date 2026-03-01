@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-from app.models.models import PrintJob, OrderItem, Station
+from app.models.models import BrandingSettings, PrintJob, OrderItem, Station
 from app.utils.timezone import eat_now, eat_now_naive
 
 # -----------------------------
@@ -301,10 +301,12 @@ def print_job(job: PrintJob):
         else:
             items = job.items_data.get("items", []) or [job.items_data.get("item")]
         img = render_ticket(job, items, station.name if station else "CASHIER", copy_type)
-        # try:
-        #     img.show(title=f"Job {job.id} Preview")
-        # except Exception as e:
-        #     print(f"[WARN] Could not preview image: {e}")
+        settings = session.get(BrandingSettings, 1)
+        if settings and settings.print_preview_enabled:
+            try:
+                img.show(title=f"Job {job.id} Preview")
+            except Exception as e:
+                print(f"[WARN] Could not preview image: {e}")
         success = print_ticket_image(printer_ip, img)
         job_db = session.get(PrintJob, job.id)
         if job_db.status != "in_progress":
