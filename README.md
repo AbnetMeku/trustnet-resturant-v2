@@ -80,3 +80,29 @@ Demo logins created:
 - Manager: `manager_demo` / `manager123`
 - Cashier: `cashier_demo` / `cashier123`
 - Waiters: `waiter_demo_1..8` / `waiter123` (PINs `1001..1008`)
+
+## Docker (4 Containers)
+
+This repo now includes a 4-container setup:
+
+- `frontend` (Nginx + built React app)
+- `backend` (POS API + PrintWorker in same container)
+- `inventory` (Inventory API)
+- `postgres` (PostgreSQL)
+
+Run:
+
+```bash
+docker compose up -d --build
+```
+
+App URLs:
+
+- Frontend: `http://localhost:8080`
+- POS API: `http://localhost:5000`
+- Inventory API: `http://localhost:5001`
+
+Notes:
+
+- Backend automatically runs `flask db upgrade` on startup.
+- Frontend proxies `/api/inventory/*` to inventory container and other `/api/*` routes to backend.

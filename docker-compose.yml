@@ -1,0 +1,77 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: trustnet-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  inventory:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: trustnet-inventory
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+    command: ["/app/docker/backend/start_inventory.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - "5001"
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: trustnet-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      INVENTORY_BASE_URL: http://inventory:5001
+      DATABASE_URI: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      inventory:
+        condition: service_started
+    ports:
+      - "5000:5000"
+    volumes:
+      - branding_data:/app/app/static/branding
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: trustnet-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+      inventory:
+        condition: service_started
+    ports:
+      - "8080:80"
+
+volumes:
+  postgres_data:
+  branding_data:
