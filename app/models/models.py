@@ -14,6 +14,7 @@ class User(db.Model):
         nullable=True,
     )
     waiter_profile = db.relationship("WaiterProfile", back_populates="waiters")
+    waiter_day_closed_on = db.Column(db.Date, nullable=True)
 # ---------------------- Tables ---------------------- #
 # Many-to-many Waiter ↔ Table
 waiter_table_assoc = db.Table(
@@ -72,6 +73,8 @@ class Station(db.Model):
     name = db.Column(db.String(50), unique=True, nullable=False)
     password_hash = db.Column(db.Text, nullable=False)  # used as PIN
     printer_identifier = db.Column(db.String(50), nullable=True)
+    print_mode = db.Column(db.String(20), nullable=False, default="grouped")
+    cashier_printer = db.Column(db.Boolean, nullable=False, default=False)
     menu_items = db.relationship("MenuItem", back_populates="station_rel")
 
 # ---------------------- Menu Items ---------------------- #
@@ -160,6 +163,7 @@ class PrintJob(db.Model):
     error_message = db.Column(db.Text, nullable=True)
     printed_at = db.Column(db.DateTime, nullable=True)
     attempts = db.Column(db.Integer, default=0)
+    retry_after = db.Column(db.DateTime, nullable=True)
     
     created_at = db.Column(db.DateTime, default=eat_now_naive)
     updated_at = db.Column(db.DateTime, default=eat_now_naive, onupdate=eat_now_naive)

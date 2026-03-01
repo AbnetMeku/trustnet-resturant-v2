@@ -19,6 +19,8 @@ export default function StationManagement() {
     name: "",
     password: "",
     printer_identifier: "",
+    print_mode: "grouped",
+    cashier_printer: false,
   });
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [error, setError] = useState("");
@@ -50,17 +52,28 @@ export default function StationManagement() {
   );
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: name === "password" ? value.replace(/\D/g, "").slice(0, 4) : value,
+      [name]:
+        type === "checkbox"
+          ? checked
+          : name === "password"
+            ? value.replace(/\D/g, "").slice(0, 4)
+            : value,
     }));
   };
 
   const closeModal = () => {
     setModalOpen(false);
     setCurrentStation(null);
-    setFormData({ name: "", password: "", printer_identifier: "" });
+    setFormData({
+      name: "",
+      password: "",
+      printer_identifier: "",
+      print_mode: "grouped",
+      cashier_printer: false,
+    });
     setError("");
   };
 
@@ -74,9 +87,13 @@ export default function StationManagement() {
 
     if (!currentStation || formData.password) {
       if (!/^\d{4}$/.test(formData.password)) {
-        setError("PIN must be 4 digits");
-        return;
-      }
+      setError("PIN must be 4 digits");
+      return;
+    }
+    if (formData.cashier_printer && !formData.printer_identifier.trim()) {
+      setError("Cashier printer requires printer identifier (IP)");
+      return;
+    }
     }
 
     try {
@@ -104,6 +121,8 @@ export default function StationManagement() {
       name: station.name,
       password: "",
       printer_identifier: station.printer_identifier || "",
+      print_mode: station.print_mode || "grouped",
+      cashier_printer: !!station.cashier_printer,
     });
     setModalOpen(true);
   };
@@ -167,6 +186,8 @@ export default function StationManagement() {
                 <tr className="bg-slate-100 text-left dark:bg-slate-800/70">
                   <th className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">Station</th>
                   <th className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">Printer</th>
+                  <th className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">Cashier</th>
+                  <th className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">Print Mode</th>
                   <th className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">PIN</th>
                   <th className="px-4 py-3 text-right font-medium text-slate-700 dark:text-slate-200">Actions</th>
                 </tr>
@@ -184,6 +205,20 @@ export default function StationManagement() {
                       ) : (
                         <span className="text-slate-500 dark:text-slate-400">Not set</span>
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {station.cashier_printer ? (
+                        <span className="rounded-md bg-emerald-100 px-2 py-1 text-xs text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                          Yes
+                        </span>
+                      ) : (
+                        <span className="text-slate-500 dark:text-slate-400">No</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="rounded-md bg-slate-100 px-2 py-1 text-xs dark:bg-slate-800">
+                        {station.print_mode === "separate" ? "Separate Tickets" : "Grouped Ticket"}
+                      </span>
                     </td>
                     <td className="px-4 py-3">****</td>
                     <td className="px-4 py-3">
@@ -253,6 +288,30 @@ export default function StationManagement() {
                   className={inputClass}
                 />
               </div>
+              <div>
+                <Label htmlFor="station-print-mode">Kitchen Print Mode</Label>
+                <select
+                  id="station-print-mode"
+                  name="print_mode"
+                  value={formData.print_mode}
+                  onChange={handleChange}
+                  className={inputClass}
+                >
+                  <option value="grouped">Grouped (one job per station)</option>
+                  <option value="separate">Separate (one job per item)</option>
+                </select>
+              </div>
+              <label className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 dark:border-slate-700">
+                <input
+                  type="checkbox"
+                  name="cashier_printer"
+                  checked={formData.cashier_printer}
+                  onChange={handleChange}
+                />
+                <span className="text-sm text-slate-700 dark:text-slate-200">
+                  Use this station printer for cashier receipts
+                </span>
+              </label>
             </div>
 
             <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/30">

@@ -3,7 +3,7 @@ from flask_jwt_extended import create_access_token
 
 from app import create_app, db
 from app.models.models import MenuItem, Order, OrderItem, PrintJob, Station, Table, User
-from app.routes.print.print_jobs import create_station_print_jobs
+from app.routes.print.print_jobs import create_cashier_print_job, create_station_print_jobs
 
 
 @pytest.fixture
@@ -130,6 +130,58 @@ def test_create_station_print_jobs_only_new_item_ids(app):
         items = jobs[0].items_data.get("items", [])
         assert len(items) == 1
         assert items[0]["item_id"] == new_order_item.id
+        assert "copy" not in jobs[0].items_data
+
+
+def test_create_station_print_jobs_separate_mode_creates_one_job_per_item(app):
+    with app.app_context():
+        waiter = User(username="print_waiter_sep", password_hash="h", role="waiter")
+        table = Table(number="T-3B")
+        station = Station(
+            name="split-station",
+            password_hash="hash",
+            printer_identifier="192.168.1.101",
+            print_mode="separate",
+        )
+        db.session.add_all([waiter, table, station])
+        db.session.commit()
+
+        item_a = MenuItem(name="Split A", price=10, station_id=station.id, is_available=True)
+        item_b = MenuItem(name="Split B", price=12, station_id=station.id, is_available=True)
+        db.session.add_all([item_a, item_b])
+        db.session.commit()
+
+        order = Order(table_id=table.id, user_id=waiter.id, status="open", total_amount=22)
+        db.session.add(order)
+        db.session.commit()
+
+        order_item_a = OrderItem(
+            order_id=order.id,
+            menu_item_id=item_a.id,
+            quantity=1,
+            price=10,
+            station="split-station",
+            status="pending",
+        )
+        order_item_b = OrderItem(
+            order_id=order.id,
+            menu_item_id=item_b.id,
+            quantity=1,
+            price=12,
+            station="split-station",
+            status="pending",
+        )
+        db.session.add_all([order_item_a, order_item_b])
+        db.session.commit()
+
+        create_station_print_jobs(order, only_new_items=True, item_ids=[order_item_a.id, order_item_b.id])
+
+        jobs = PrintJob.query.filter_by(order_id=order.id, station_id=station.id).order_by(PrintJob.id.asc()).all()
+        assert len(jobs) == 2
+        for job in jobs:
+            payload_items = job.items_data.get("items", [])
+            assert len(payload_items) == 1
+            assert "copy" not in job.items_data
 
 
 def test_admin_print_jobs_end_to_end_list_mark_retry_delete(client, app):
@@ -228,3 +280,74 @@ def test_admin_print_jobs_end_to_end_list_mark_retry_delete(client, app):
         headers=_auth_headers(admin_token),
     )
     assert delete_response.status_code == 200
+
+
+def test_create_cashier_print_job_uses_cashier_flagged_station(app):
+    with app.app_context():
+        waiter = User(username="cash_waiter", password_hash="h", role="waiter")
+        table = Table(number="T-CASH")
+        kitchen_station = Station(name="KitchenX", password_hash="hash", printer_identifier="10.0.0.10")
+        cashier_station = Station(
+            name="CashierPrinterStation",
+            password_hash="hash",
+            printer_identifier="10.0.0.20",
+            cashier_printer=True,
+        )
+        db.session.add_all([waiter, table, kitchen_station, cashier_station])
+        db.session.flush()
+
+        menu_item = MenuItem(name="Cash Item", price=20, station_id=kitchen_station.id, is_available=True)
+        db.session.add(menu_item)
+        db.session.flush()
+
+        order = Order(table_id=table.id, user_id=waiter.id, status="closed", total_amount=20)
+        db.session.add(order)
+        db.session.flush()
+
+        db.session.add(
+            OrderItem(
+                order_id=order.id,
+                menu_item_id=menu_item.id,
+                quantity=1,
+                price=20,
+                station=kitchen_station.name,
+                status="ready",
+            )
+        )
+        db.session.commit()
+
+        job = create_cashier_print_job(order.id)
+        assert job.type == "cashier"
+        assert job.station_id == cashier_station.id
+
+
+def test_create_cashier_print_job_requires_flagged_cashier_station(app):
+    with app.app_context():
+        waiter = User(username="cash_waiter_missing", password_hash="h", role="waiter")
+        table = Table(number="T-CASH-ERR")
+        kitchen_station = Station(name="KitchenOnly", password_hash="hash", printer_identifier="10.0.0.10")
+        db.session.add_all([waiter, table, kitchen_station])
+        db.session.flush()
+
+        menu_item = MenuItem(name="Cash Item Missing", price=20, station_id=kitchen_station.id, is_available=True)
+        db.session.add(menu_item)
+        db.session.flush()
+
+        order = Order(table_id=table.id, user_id=waiter.id, status="closed", total_amount=20)
+        db.session.add(order)
+        db.session.flush()
+
+        db.session.add(
+            OrderItem(
+                order_id=order.id,
+                menu_item_id=menu_item.id,
+                quantity=1,
+                price=20,
+                station=kitchen_station.name,
+                status="ready",
+            )
+        )
+        db.session.commit()
+
+        with pytest.raises(ValueError, match="No cashier printer station configured"):
+            create_cashier_print_job(order.id)

@@ -14,6 +14,8 @@ def station_to_dict(station: Station):
         "id": station.id,
         "name": station.name,
         "printer_identifier": station.printer_identifier,
+        "print_mode": station.print_mode or "grouped",
+        "cashier_printer": bool(station.cashier_printer),
         "pin": "****"  # never return plain PIN, frontend can enter for validation
     }
 
@@ -38,12 +40,18 @@ def create_station():
     name = data.get("name")
     password = data.get("password")  # the 4-digit PIN
     printer_identifier = data.get("printer_identifier")
+    print_mode = (data.get("print_mode") or "grouped").strip().lower()
+    cashier_printer = bool(data.get("cashier_printer", False))
 
     if not name or not password:
         abort(400, "Name and PIN are required")
 
     if len(password) != 4 or not password.isdigit():
         abort(400, "PIN must be exactly 4 digits")
+    if print_mode not in {"grouped", "separate"}:
+        abort(400, "print_mode must be 'grouped' or 'separate'")
+    if cashier_printer and not printer_identifier:
+        abort(400, "cashier_printer requires printer_identifier")
 
     if Station.query.filter_by(name=name).first():
         abort(400, "Station with this name already exists")
@@ -57,9 +65,14 @@ def create_station():
     station = Station(
         name=name,
         password_hash=generate_password_hash(password),
-        printer_identifier=printer_identifier
+        printer_identifier=printer_identifier,
+        print_mode=print_mode,
+        cashier_printer=cashier_printer,
     )
     db.session.add(station)
+    db.session.flush()
+    if cashier_printer:
+        Station.query.filter(Station.id != station.id).update({"cashier_printer": False})
     db.session.commit()
 
     return jsonify(station_to_dict(station)), 201
@@ -87,6 +100,11 @@ def update_station(station_id):
 
     data = request.get_json() or {}
     station.name = data.get("name", station.name)
+    if "print_mode" in data:
+        next_mode = (data.get("print_mode") or "").strip().lower()
+        if next_mode not in {"grouped", "separate"}:
+            abort(400, "print_mode must be 'grouped' or 'separate'")
+        station.print_mode = next_mode
     if "password" in data:
         password = data["password"]
         if len(password) != 4 or not password.isdigit():
@@ -99,6 +117,13 @@ def update_station(station_id):
         station.password_hash = generate_password_hash(password)
 
     station.printer_identifier = data.get("printer_identifier", station.printer_identifier)
+    if "cashier_printer" in data:
+        next_cashier = bool(data.get("cashier_printer"))
+        if next_cashier and not station.printer_identifier:
+            abort(400, "cashier_printer requires printer_identifier")
+        station.cashier_printer = next_cashier
+        if next_cashier:
+            Station.query.filter(Station.id != station.id).update({"cashier_printer": False})
     db.session.commit()
     return jsonify(station_to_dict(station)), 200
 

@@ -95,31 +95,17 @@ def create_station_print_jobs(order: Order, only_new_items=True, item_ids=None):
         if not station_items:
             continue
 
-        if station.name.lower() in ["butcher", "feyel"]:
-            # db.session.add(PrintJob(
-            #     order_id=order.id,
-            #     station_id=station.id,
-            #     type="station",
-            #     items_data={
-            #         "copy": "customer",
-            #         "order_id": order.id,
-            #         "table": table_number,
-            #         "waiter": waiter_name,
-            #         "items": station_items,
-            #     }
-            # ))
+        if (station.print_mode or "grouped") == "separate":
             for it in station_items:
                 db.session.add(PrintJob(
                     order_id=order.id,
                     station_id=station.id,
                     type="station",
                     items_data={
-                        "copy": "kitchen",
                         "order_id": order.id,
                         "table": table_number,
                         "waiter": waiter_name,
-                        "item": it,
-                        "prep_tag": it.get("prep_tag"),
+                        "items": [it],
                     }
                 ))
         else:
@@ -179,10 +165,17 @@ def create_cashier_print_job(order_id: int):
         grouped_items[item_id]["total"] += float(item.price) * float(item.quantity) if item.price else 0.0
 
     items_data = list(grouped_items.values())
+    cashier_station = (
+        Station.query.filter_by(cashier_printer=True)
+        .filter(Station.printer_identifier.isnot(None))
+        .first()
+    )
+    if not cashier_station:
+        raise ValueError("No cashier printer station configured")
 
     job = PrintJob(
         order_id=order.id,
-        station_id=None,
+        station_id=cashier_station.id if cashier_station else None,
         type="cashier",
         items_data={
             "order_id": order.id,
@@ -212,6 +205,8 @@ def mark_job_printed(job_id: int):
 
     job.status = "printed"
     job.printed_at = eat_now_naive()
+    job.retry_after = None
+    job.error_message = None
     db.session.commit()
     return jsonify({"message": f"Print job {job.id} marked as printed"}), 200
 
@@ -237,6 +232,7 @@ def get_pending_jobs(station_id: int):
             "status": job.status,
             "created_at": job.created_at.isoformat(),
             "updated_at": job.updated_at.isoformat(),
+            "retry_after": job.retry_after.isoformat() if job.retry_after else None,
         }
         for job in jobs
     ])
@@ -261,6 +257,8 @@ def retry_failed_job(job_id: int):
 
     # Retry the job
     job.status = "pending"
+    job.retry_after = None
+    job.error_message = None
     db.session.commit()
 
     return jsonify({"message": f"Print job {job.id} set to pending for retry"}), 200
@@ -365,9 +363,16 @@ def print_cashier_manual():
         })
 
     # Create cashier print job
+    cashier_station = (
+        Station.query.filter_by(cashier_printer=True)
+        .filter(Station.printer_identifier.isnot(None))
+        .first()
+    )
+    if not cashier_station:
+        return jsonify({"error": "No cashier printer station configured"}), 400
     job = PrintJob(
         order_id=order.id,
-        station_id=None,
+        station_id=cashier_station.id if cashier_station else None,
         type="cashier",
         items_data={
             "order_id": order.id,
@@ -427,6 +432,7 @@ def get_all_print_jobs():
             "status": job.status,
             "error_message": job.error_message,
             "attempts": job.attempts,
+            "retry_after": job.retry_after.isoformat() if job.retry_after else None,
             "created_at": job.created_at.isoformat(),
             "updated_at": job.updated_at.isoformat(),
         })
