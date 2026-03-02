@@ -13,7 +13,7 @@ from app.utils.decorators import roles_required
 branding_bp = Blueprint("branding_bp", __name__, url_prefix="/branding")
 
 DEFAULT_LOGO_URL = "/logo.png"
-DEFAULT_BACKGROUND_URL = "/Background.jpeg"
+DEFAULT_BACKGROUND_URL = "/Background.png"
 MAX_URL_LENGTH = 2000
 LOCAL_ASSET_PREFIX = "/api/branding/assets/"
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}

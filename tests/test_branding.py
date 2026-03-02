@@ -33,7 +33,7 @@ def test_get_branding_defaults(client):
     assert response.status_code == 200
     data = response.get_json()
     assert data["logo_url"] == "/logo.png"
-    assert data["background_url"] == "/Background.jpeg"
+    assert data["background_url"] == "/Background.png"
     assert data["print_preview_enabled"] is False
 
 

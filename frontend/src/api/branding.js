@@ -4,7 +4,7 @@ const BASE_URL = "/api/branding";
 
 export const DEFAULT_BRANDING = {
   logo_url: "/logo.png",
-  background_url: "/Background.jpeg",
+  background_url: "/Background.png",
   custom_logo_url: null,
   custom_background_url: null,
   business_day_start_time: "06:00",
