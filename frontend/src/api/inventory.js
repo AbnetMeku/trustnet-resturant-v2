@@ -1,256 +1,47 @@
-import axios from "axios";
+import {
+  getAllStoreStock,
+  getAllStationStock,
+  getOverallStock,
+} from "@/api/inventory/stock";
+import {
+  createPurchase,
+  getPurchases,
+  updatePurchase,
+  deletePurchase,
+} from "@/api/inventory/purchases";
+import {
+  createTransfer,
+  getTransfers,
+  updateTransfer,
+  deleteTransfer,
+} from "@/api/inventory/transfer";
+import { getMenuItems } from "@/api/menu_item";
+import { getStations } from "@/api/stations";
 
-const BASE_URL = "/api";
+// Legacy compatibility module.
+// Prefer importing from /api/inventory/* directly in new code.
 
-const getAuthHeader = (token) => ({
-  Authorization: `Bearer ${token || localStorage.getItem("auth_token")}`,
-});
+export { createPurchase, getPurchases, updatePurchase, deletePurchase };
+export { createTransfer, getTransfers, updateTransfer, deleteTransfer };
 
-// ------------------ HELPER ------------------
-const handleError = (error, fallback = "Request failed") => {
-  throw new Error(error.response?.data?.msg || fallback);
+export const getStoreStock = async (token = null) => getAllStoreStock(token);
+
+export const getStationStock = async (token = null) => getAllStationStock(null, token);
+
+export { getMenuItems, getStations, getOverallStock };
+
+export const getAvailableItems = async () => {
+  throw new Error("getAvailableItems is deprecated. Use getAllStoreStock instead.");
 };
 
-// ------------------ STORE STOCK ------------------
-export const getStoreStock = async (token = null) => {
-  try {
-    const res = await axios.get(`${BASE_URL}/inventory/store-stock`, {
-      headers: getAuthHeader(token),
-    });
-    return res.data;
-  } catch (error) {
-    handleError(error, "Failed to fetch store stock");
-  }
+export const getStationStockWithSales = async () => {
+  throw new Error("getStationStockWithSales is deprecated. Use snapshots endpoints.");
 };
 
-// ------------------ STATION STOCK ------------------
-export const getStationStock = async (token = null) => {
-  try {
-    const res = await axios.get(`${BASE_URL}/inventory/station-stock`, {
-      headers: getAuthHeader(token),
-    });
-    return res.data;
-  } catch (error) {
-    handleError(error, "Failed to fetch station stock");
-  }
+export const getStoreStockWithDate = async () => {
+  throw new Error("getStoreStockWithDate is deprecated and unsupported by backend.");
 };
 
-// ------------------ PURCHASES ------------------
-export const createPurchase = async (purchaseData, token = null) => {
-  try {
-    const res = await axios.post(`${BASE_URL}/inventory/purchase`, purchaseData, {
-      headers: {
-        ...getAuthHeader(token),
-        "Content-Type": "application/json",
-      },
-    });
-    return res.data;
-  } catch (error) {
-    handleError(error, "Failed to create purchase");
-  }
-};
-
-export const getPurchases = async (token = null, includeDeleted = false) => {
-  try {
-    const res = await axios.get(`${BASE_URL}/inventory/purchases`, {
-      headers: getAuthHeader(token),
-    });
-    return includeDeleted ? res.data : res.data.filter(p => p.status !== "Deleted");
-  } catch (error) {
-    handleError(error, "Failed to fetch purchases");
-  }
-};
-
-export const updatePurchase = async (purchaseId, updateData, token = null) => {
-  try {
-    const res = await axios.put(`${BASE_URL}/inventory/purchase/${purchaseId}`, updateData, {
-      headers: {
-        ...getAuthHeader(token),
-        "Content-Type": "application/json",
-      },
-    });
-    return res.data;
-  } catch (error) {
-    handleError(error, "Failed to update purchase");
-  }
-};
-
-export const deletePurchase = async (purchaseId, token = null) => {
-  try {
-    const res = await axios.delete(`${BASE_URL}/inventory/purchase/${purchaseId}`, {
-      headers: getAuthHeader(token),
-    });
-    return res.data;
-  } catch (error) {
-    handleError(error, "Failed to delete purchase");
-  }
-};
-
-// ------------------ TRANSFERS ------------------
-export const createTransfer = async (transferData, token = null) => {
-  try {
-    const res = await axios.post(`${BASE_URL}/inventory/transfer`, transferData, {
-      headers: {
-        ...getAuthHeader(token),
-        "Content-Type": "application/json",
-      },
-    });
-    return res.data;
-  } catch (error) {
-    handleError(error, "Failed to create transfer");
-  }
-};
-
-export const getTransfers = async (token = null, includeDeleted = false) => {
-  try {
-    const res = await axios.get(`${BASE_URL}/inventory/transfers`, {
-      headers: getAuthHeader(token),
-    });
-    return includeDeleted ? res.data : res.data.filter(t => t.status !== "Deleted");
-  } catch (error) {
-    handleError(error, "Failed to fetch transfers");
-  }
-};
-
-export const updateTransfer = async (transferId, updateData, token = null) => {
-  try {
-    const res = await axios.put(`${BASE_URL}/inventory/transfer/${transferId}`, updateData, {
-      headers: {
-        ...getAuthHeader(token),
-        "Content-Type": "application/json",
-      },
-    });
-    return res.data;
-  } catch (error) {
-    handleError(error, "Failed to update transfer");
-  }
-};
-
-export const deleteTransfer = async (transferId, token = null) => {
-  try {
-    const res = await axios.delete(`${BASE_URL}/inventory/transfer/${transferId}`, {
-      headers: getAuthHeader(token),
-    });
-    return res.data;
-  } catch (error) {
-    handleError(error, "Failed to delete transfer");
-  }
-};
-
-// ------------------ MENU ITEMS ------------------
-export const getMenuItems = async (token = null) => {
-  try {
-    const res = await axios.get(`${BASE_URL}/menu/items`, {
-      headers: getAuthHeader(token),
-    });
-    return res.data;
-  } catch (error) {
-    handleError(error, "Failed to fetch menu items");
-  }
-};
-
-// ------------------ STATIONS ------------------
-export const getStations = async (token = null) => {
-  try {
-    const res = await axios.get(`${BASE_URL}/stations`, {
-      headers: getAuthHeader(token),
-    });
-    return res.data;
-  } catch (error) {
-    handleError(error, "Failed to fetch stations");
-  }
-};
-
-// ------------------ AVAILABLE ITEMS (for transfer) ------------------
-export const getAvailableItems = async (token = null) => {
-  try {
-    const res = await axios.get(`${BASE_URL}/inventory/available-items`, {
-      headers: getAuthHeader(token),
-    });
-    return res.data;
-  } catch (error) {
-    handleError(error, "Failed to fetch available items");
-  }
-};
-// ------------------ STATION STOCK WITH SALES (LIVE + SNAPSHOT) ------------------
-export const getStationStockWithSales = async ({ station = null, date = null } = {}, token = null) => {
-  try {
-    const params = {};
-    if (station) params.station = station;
-    if (date) params.date = date; // YYYY-MM-DD
-
-    const res = await axios.get(`${BASE_URL}/inventory/station-stock-with-sales`, {
-      headers: getAuthHeader(token),
-      params,
-    });
-
-    // Ensure proper numeric values
-    const data = res.data.map(item => ({
-      ...item,
-      start_of_day_quantity: Number(item.start_of_day_quantity),
-      added_quantity: Number(item.added_quantity || 0),    // <--- NEW
-      sold_quantity: Number(item.sold_quantity || 0),
-      remaining_quantity: Number(item.remaining_quantity)
-    }));
-
-    return data;
-  } catch (error) {
-    handleError(error, "Failed to fetch station stock with sales");
-  }
-};
-
-// ------------------ OVERALL STOCK ------------------
-export const getOverallStock = async (token = null) => {
-  try {
-    const res = await axios.get(`${BASE_URL}/inventory/overall-stock`, {
-      headers: getAuthHeader(token),
-    });
-    // Ensure numeric values
-    const data = res.data.map(item => ({
-      ...item,
-      store_quantity: Number(item.store_quantity || 0),
-      station_quantity: Number(item.station_quantity || 0),
-      total_quantity: Number(item.total_quantity || 0),
-    }));
-    return data;
-  } catch (error) {
-    handleError(error, "Failed to fetch overall stock");
-  }
-};
-
-// ------------------ STORE STOCK WITH DATE ------------------
-export const getStoreStockWithDate = async ({ date = null } = {}, token = null) => {
-  try {
-    const params = {};
-    if (date) params.date = date; // YYYY-MM-DD
-
-    const res = await axios.get(`${BASE_URL}/inventory/store-stock-with-date`, {
-      headers: getAuthHeader(token),
-      params,
-    });
-
-    // Ensure numeric values
-    const data = res.data.map(item => ({
-      ...item,
-      purchased: Number(item.purchased || 0),
-      transferred_out: Number(item.transferred_out || 0),
-      remaining: Number(item.remaining || 0),
-    }));
-
-    return data;
-  } catch (error) {
-    handleError(error, "Failed to fetch store stock with date");
-  }
-};
-
-// ------------------ ITEMS WITH STATION (for transfer auto-select) ------------------
-export const getItemsWithStation = async (token = null) => {
-  try {
-    const res = await axios.get(`${BASE_URL}/inventory/items-with-station`, {
-      headers: getAuthHeader(token),
-    });
-    return res.data;
-  } catch (error) {
-    handleError(error, "Failed to fetch items with station");
-  }
+export const getItemsWithStation = async () => {
+  throw new Error("getItemsWithStation is deprecated and unsupported by backend.");
 };

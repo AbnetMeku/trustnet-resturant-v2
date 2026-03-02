@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,8 +23,27 @@ export default function PurchaseManagement() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
   const [editId, setEditId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({ inventory_item_id: "", quantity: "", unit_price: "" });
+
+  const selectedItem = useMemo(
+    () => items.find((i) => i.id === Number(form.inventory_item_id)),
+    [items, form.inventory_item_id]
+  );
+  const currentStockQty = useMemo(
+    () => {
+      const stock = stocks.find((s) => s.inventory_item_id === Number(form.inventory_item_id));
+      return stock ? stock.quantity : 0;
+    },
+    [stocks, form.inventory_item_id]
+  );
+  const parsedQuantity = Number(form.quantity || 0);
+  const canSubmit =
+    Boolean(form.inventory_item_id) &&
+    Number.isFinite(parsedQuantity) &&
+    parsedQuantity > 0 &&
+    !submitting;
 
   // --- Load data ---
   const loadItems = async () => {
@@ -81,6 +100,7 @@ const handleSubmit = async () => {
   };
 
   try {
+    setSubmitting(true);
     if (editId) {
       await updatePurchase(editId, payload, token);
       toast.success("Purchase updated successfully.");
@@ -95,6 +115,8 @@ const handleSubmit = async () => {
     await loadStocks();
   } catch {
     toast.error("Failed to process purchase. Please check input and try again.");
+  } finally {
+    setSubmitting(false);
   }
 };
 
@@ -159,6 +181,7 @@ const handleSubmit = async () => {
           <div className="flex flex-col gap-4">
             <ReactSelect
               styles={selectStyles}
+              isClearable
               placeholder="Select Inventory Item"
               options={items.map((i) => ({ value: i.id, label: `${i.name} (${getStockQty(i.id)} left)` }))}
               value={
@@ -166,12 +189,13 @@ const handleSubmit = async () => {
                   ? { value: form.inventory_item_id, label: items.find(x => x.id === +form.inventory_item_id)?.name || "" }
                   : null
               }
-              onChange={(opt) => setForm({ ...form, inventory_item_id: opt.value })}
+              onChange={(opt) => setForm({ ...form, inventory_item_id: opt?.value || "" })}
             />
 
             <Input
               name="quantity"
               type="number"
+              step="0.001"
               placeholder="Quantity"
               value={form.quantity}
               onChange={(e) => setForm({ ...form, quantity: e.target.value })}
@@ -181,6 +205,7 @@ const handleSubmit = async () => {
             <Input
               name="unit_price"
               type="number"
+              step="0.001"
               placeholder="Unit Price"
               value={form.unit_price}
               onChange={(e) => setForm({ ...form, unit_price: e.target.value })}
@@ -188,8 +213,24 @@ const handleSubmit = async () => {
             />
           </div>
 
-          <Button onClick={handleSubmit} className="bg-blue-600 hover:bg-blue-700 text-white w-fit">
-            {editId ? "Update Purchase" : "Create Purchase"}
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800">
+            <p className="text-sm font-medium">
+              {selectedItem ? selectedItem.name : "No item selected"}
+            </p>
+            <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+              Current store stock: {currentStockQty}
+            </p>
+            <p className="text-xs text-gray-600 dark:text-gray-300">
+              Stock after this entry: {Number.isFinite(parsedQuantity) ? currentStockQty + parsedQuantity : currentStockQty}
+            </p>
+          </div>
+
+          <Button
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className="bg-blue-600 hover:bg-blue-700 text-white w-fit"
+          >
+            {submitting ? "Saving..." : editId ? "Update Purchase" : "Create Purchase"}
           </Button>
 
           {/* Latest 3 purchases */}

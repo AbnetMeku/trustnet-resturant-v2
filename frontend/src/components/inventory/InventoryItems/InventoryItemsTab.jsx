@@ -228,7 +228,7 @@ export default function InventoryItemsTab() {
                     colSpan={5}
                     className="px-4 py-6 text-center text-muted-foreground"
                   >
-                    Loading items…
+                    Loading items...
                   </td>
                 </tr>
               ) : items.length === 0 ? (

@@ -17,14 +17,20 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column(
-        "stations",
-        sa.Column("cashier_printer", sa.Boolean(), nullable=False, server_default=sa.false()),
-    )
+    inspector = sa.inspect(op.get_bind())
+    columns = {col["name"] for col in inspector.get_columns("stations")}
+
+    if "cashier_printer" not in columns:
+        op.add_column(
+            "stations",
+            sa.Column("cashier_printer", sa.Boolean(), nullable=False, server_default=sa.false()),
+        )
 
     op.execute("UPDATE stations SET cashier_printer = FALSE WHERE cashier_printer IS NULL")
 
 
 def downgrade():
-    op.drop_column("stations", "cashier_printer")
-
+    inspector = sa.inspect(op.get_bind())
+    columns = {col["name"] for col in inspector.get_columns("stations")}
+    if "cashier_printer" in columns:
+        op.drop_column("stations", "cashier_printer")

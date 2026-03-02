@@ -4,6 +4,8 @@ import legacy from "@vitejs/plugin-legacy";
 import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
 
+const enablePwa = process.env.VITE_ENABLE_PWA === "true";
+
 export default defineConfig({
   plugins: [
     react(),
@@ -13,6 +15,7 @@ export default defineConfig({
 
     // ✅ Added PWA plugin
     VitePWA({
+      disable: !enablePwa,
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "robots.txt"],
       manifest: {

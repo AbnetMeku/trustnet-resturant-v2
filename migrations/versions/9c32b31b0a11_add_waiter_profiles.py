@@ -17,48 +17,70 @@ depends_on = None
 
 
 def upgrade():
-    op.create_table(
-        "waiter_profiles",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(length=80), nullable=False),
-        sa.Column("max_tables", sa.Integer(), nullable=False),
-        sa.Column("allow_vip", sa.Boolean(), nullable=False),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("name"),
-    )
+    inspector = sa.inspect(op.get_bind())
+    tables = set(inspector.get_table_names())
 
-    op.add_column("users", sa.Column("waiter_profile_id", sa.Integer(), nullable=True))
-    op.create_foreign_key(
-        "fk_users_waiter_profile_id_waiter_profiles",
-        "users",
-        "waiter_profiles",
-        ["waiter_profile_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    if "waiter_profiles" not in tables:
+        op.create_table(
+            "waiter_profiles",
+            sa.Column("id", sa.Integer(), nullable=False),
+            sa.Column("name", sa.String(length=80), nullable=False),
+            sa.Column("max_tables", sa.Integer(), nullable=False),
+            sa.Column("allow_vip", sa.Boolean(), nullable=False),
+            sa.Column("created_at", sa.DateTime(), nullable=False),
+            sa.Column("updated_at", sa.DateTime(), nullable=False),
+            sa.PrimaryKeyConstraint("id"),
+            sa.UniqueConstraint("name"),
+        )
 
-    op.create_table(
-        "waiter_profile_station_assoc",
-        sa.Column("waiter_profile_id", sa.Integer(), nullable=False),
-        sa.Column("station_id", sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["station_id"],
-            ["stations.id"],
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
+    user_columns = {col["name"] for col in inspector.get_columns("users")}
+    if "waiter_profile_id" not in user_columns:
+        op.add_column("users", sa.Column("waiter_profile_id", sa.Integer(), nullable=True))
+
+    user_fk_names = {fk["name"] for fk in inspector.get_foreign_keys("users") if fk.get("name")}
+    if "fk_users_waiter_profile_id_waiter_profiles" not in user_fk_names:
+        op.create_foreign_key(
+            "fk_users_waiter_profile_id_waiter_profiles",
+            "users",
+            "waiter_profiles",
             ["waiter_profile_id"],
-            ["waiter_profiles.id"],
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("waiter_profile_id", "station_id"),
-    )
+            ["id"],
+            ondelete="SET NULL",
+        )
+
+    if "waiter_profile_station_assoc" not in tables:
+        op.create_table(
+            "waiter_profile_station_assoc",
+            sa.Column("waiter_profile_id", sa.Integer(), nullable=False),
+            sa.Column("station_id", sa.Integer(), nullable=False),
+            sa.ForeignKeyConstraint(
+                ["station_id"],
+                ["stations.id"],
+                ondelete="CASCADE",
+            ),
+            sa.ForeignKeyConstraint(
+                ["waiter_profile_id"],
+                ["waiter_profiles.id"],
+                ondelete="CASCADE",
+            ),
+            sa.PrimaryKeyConstraint("waiter_profile_id", "station_id"),
+        )
 
 
 def downgrade():
-    op.drop_table("waiter_profile_station_assoc")
-    op.drop_constraint("fk_users_waiter_profile_id_waiter_profiles", "users", type_="foreignkey")
-    op.drop_column("users", "waiter_profile_id")
-    op.drop_table("waiter_profiles")
+    inspector = sa.inspect(op.get_bind())
+    tables = set(inspector.get_table_names())
+
+    if "waiter_profile_station_assoc" in tables:
+        op.drop_table("waiter_profile_station_assoc")
+
+    user_fk_names = {fk["name"] for fk in inspector.get_foreign_keys("users") if fk.get("name")}
+    if "fk_users_waiter_profile_id_waiter_profiles" in user_fk_names:
+        op.drop_constraint("fk_users_waiter_profile_id_waiter_profiles", "users", type_="foreignkey")
+
+    user_columns = {col["name"] for col in inspector.get_columns("users")}
+    if "waiter_profile_id" in user_columns:
+        op.drop_column("users", "waiter_profile_id")
+
+    if "waiter_profiles" in tables:
+        op.drop_table("waiter_profiles")

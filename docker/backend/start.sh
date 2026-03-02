@@ -36,6 +36,9 @@ PY
 echo "Running database migrations..."
 flask --app run.py db upgrade
 
+echo "Ensuring default admin user..."
+python -m app.scripts.ensure_default_admin
+
 echo "Starting print worker..."
 python -m app.workers.PrintWorker &
 WORKER_PID=$!

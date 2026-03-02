@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import {
   getInventoryItems,
@@ -30,6 +30,29 @@ import {
 } from "@/components/ui/select";
 import ReactSelect from "react-select";
 
+const selectStyles = {
+  control: (base, state) => ({
+    ...base,
+    backgroundColor: "hsl(var(--background))",
+    color: "hsl(var(--foreground))",
+    borderColor: state.isFocused ? "hsl(var(--ring))" : "hsl(var(--border))",
+    boxShadow: state.isFocused ? "0 0 0 1px hsl(var(--ring))" : "none",
+    "&:hover": { borderColor: "hsl(var(--ring))" },
+  }),
+  menu: (base) => ({
+    ...base,
+    backgroundColor: "hsl(var(--popover))",
+    color: "hsl(var(--foreground))",
+    zIndex: 60,
+  }),
+  singleValue: (base) => ({ ...base, color: "hsl(var(--foreground))" }),
+  option: (base, { isFocused }) => ({
+    ...base,
+    backgroundColor: isFocused ? "hsl(var(--accent))" : "hsl(var(--popover))",
+    color: "hsl(var(--foreground))",
+  }),
+};
+
 export default function InventoryLinksTab() {
   const { token } = useAuth();
   const [items, setItems] = useState([]);
@@ -38,41 +61,55 @@ export default function InventoryLinksTab() {
   const [loadingLinks, setLoadingLinks] = useState(true);
 
   const [linkModalOpen, setLinkModalOpen] = useState(false);
-  const [selectedInventoryItem, setSelectedInventoryItem] = useState(null);
+  const [selectedInventoryItem, setSelectedInventoryItem] = useState("");
   const [selectedMenuItems, setSelectedMenuItems] = useState([]);
-  const [deductionQuantity, setDeductionQuantity] = useState(1.0);
+  const [deductionQuantity, setDeductionQuantity] = useState(1);
   const [linkSubmitting, setLinkSubmitting] = useState(false);
 
   const [editLinkModalOpen, setEditLinkModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState(null);
+  const [editingSubmitting, setEditingSubmitting] = useState(false);
 
-  // ---------------- Load items, menu items, and links ----------------
+  const [inventoryFilter, setInventoryFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+
   const loadData = async () => {
     try {
-      const [i, m] = await Promise.all([
+      setLoadingLinks(true);
+      const [inventoryItems, menus] = await Promise.all([
         getInventoryItems(token),
         getMenuItems({}, token),
       ]);
-      setItems(i);
-      setMenuItems(m);
+      setItems(inventoryItems);
+      setMenuItems(menus);
 
-      const allLinks = [];
-      for (const item of i) {
-        const data = await getInventoryLinks(item.id, token);
-        data.forEach((group) => {
-          allLinks.push({
-            inventory_item_id: item.id,
-            inventory_item_name: item.name,
-            deduction_ratio: group.deduction_ratio,
-            menu_items: group.menu_items,
-            menu_item_ids: group.menu_item_ids,
-            ids: group.ids,
-          });
-        });
-      }
+      const groupedByInventory = await Promise.all(
+        inventoryItems.map(async (item) => ({
+          item,
+          groups: await getInventoryLinks(item.id, token),
+        }))
+      );
+
+      const allLinks = groupedByInventory.flatMap(({ item, groups }) =>
+        groups.map((group) => ({
+          inventory_item_id: item.id,
+          inventory_item_name: item.name,
+          deduction_ratio: group.deduction_ratio,
+          menu_items: group.menu_items,
+          menu_item_ids: group.menu_item_ids,
+          ids: group.ids,
+        }))
+      );
+
+      allLinks.sort((a, b) => {
+        const byName = a.inventory_item_name.localeCompare(b.inventory_item_name);
+        if (byName !== 0) return byName;
+        return Number(a.deduction_ratio) - Number(b.deduction_ratio);
+      });
+
       setLinks(allLinks);
     } catch {
-      toast.error("Failed to load data");
+      toast.error("Failed to load inventory links");
     } finally {
       setLoadingLinks(false);
     }
@@ -82,49 +119,97 @@ export default function InventoryLinksTab() {
     loadData();
   }, [token]);
 
-  // ---------------- Create Link ----------------
-  const closeLinkModal = () => {
+  const linkedMenuIdsSet = useMemo(() => {
+    const ids = new Set();
+    links.forEach((group) => {
+      group.menu_item_ids.forEach((id) => ids.add(id));
+    });
+    return ids;
+  }, [links]);
+
+  const linkOwnerByMenuItemId = useMemo(() => {
+    const ownerMap = new Map();
+    links.forEach((group) => {
+      group.menu_item_ids.forEach((menuId) => {
+        ownerMap.set(menuId, group.inventory_item_id);
+      });
+    });
+    return ownerMap;
+  }, [links]);
+
+  const filteredLinks = useMemo(() => {
+    return links.filter((group) => {
+      const matchesInventory =
+        inventoryFilter === "all" || String(group.inventory_item_id) === inventoryFilter;
+      if (!matchesInventory) return false;
+
+      const q = searchTerm.trim().toLowerCase();
+      if (!q) return true;
+
+      const menuText = group.menu_items.map((m) => m.menu_item_name).join(" ").toLowerCase();
+      return (
+        group.inventory_item_name.toLowerCase().includes(q) ||
+        menuText.includes(q) ||
+        String(group.deduction_ratio).includes(q)
+      );
+    });
+  }, [links, inventoryFilter, searchTerm]);
+
+  const availableCreateOptions = useMemo(() => {
+    return menuItems
+      .filter((m) => !linkedMenuIdsSet.has(m.id))
+      .map((m) => ({ value: m.id, label: m.name }));
+  }, [menuItems, linkedMenuIdsSet]);
+
+  const editOptions = useMemo(() => {
+    if (!editingGroup) return [];
+    return menuItems
+      .filter((m) => {
+        const owner = linkOwnerByMenuItemId.get(m.id);
+        return (
+          editingGroup.menu_item_ids.includes(m.id) ||
+          owner === undefined ||
+          owner === editingGroup.inventory_item_id
+        );
+      })
+      .map((m) => ({ value: m.id, label: m.name }));
+  }, [editingGroup, menuItems, linkOwnerByMenuItemId]);
+
+  const closeCreateModal = () => {
+    if (linkSubmitting) return;
     setLinkModalOpen(false);
-    setSelectedInventoryItem(null);
+    setSelectedInventoryItem("");
     setSelectedMenuItems([]);
-    setDeductionQuantity(1.0);
+    setDeductionQuantity(1);
   };
 
   const handleLinkSubmit = async () => {
-    if (!selectedInventoryItem || selectedMenuItems.length === 0) return;
+    if (!selectedInventoryItem) return toast.error("Select an inventory item");
+    if (selectedMenuItems.length === 0) return toast.error("Select at least one menu item");
+
+    const ratio = Number(deductionQuantity);
+    if (!Number.isFinite(ratio) || ratio <= 0) {
+      return toast.error("Deduction ratio must be greater than zero");
+    }
+
     setLinkSubmitting(true);
-
     try {
-      const payload = [
-        {
-          menu_item_ids: selectedMenuItems,
-          deduction_ratio: parseFloat(deductionQuantity) || 1.0,
-        },
-      ];
-
       const res = await createInventoryLinks(
-        selectedInventoryItem,
-        payload,
+        Number(selectedInventoryItem),
+        [{ menu_item_ids: selectedMenuItems, deduction_ratio: ratio }],
         token
       );
 
-      if (res.skipped && res.skipped.length > 0) {
+      if (res.created?.length) toast.success("Links created successfully");
+      if (res.skipped?.length) {
         const skippedNames = res.skipped
-          .map(
-            (s) =>
-              menuItems.find((m) => m.id === s.menu_item_id)?.name ||
-              s.menu_item_id
-          )
+          .map((s) => menuItems.find((m) => m.id === s.menu_item_id)?.name || s.menu_item_id)
           .join(", ");
-        toast.error(`Some items already linked: ${skippedNames}`);
+        toast.error(`Some items were skipped: ${skippedNames}`);
       }
 
-      if (res.created && res.created.length > 0) {
-        toast.success("Links created successfully");
-      }
-
-      loadData();
-      closeLinkModal();
+      await loadData();
+      closeCreateModal();
     } catch (err) {
       toast.error(err.message || "Failed to create links");
     } finally {
@@ -132,370 +217,323 @@ export default function InventoryLinksTab() {
     }
   };
 
-  // ---------------- Edit Link ----------------
-  const openEditLinkModal = (group) => {
-    // Store original deduction ratio to prevent the "needs 2 clicks" issue
+  const openEditModal = (group) => {
     setEditingGroup({
       ...group,
-      original_ratio: group.deduction_ratio,
       original_menu_ids: [...group.menu_item_ids],
+      deduction_ratio: Number(group.deduction_ratio),
     });
     setEditLinkModalOpen(true);
   };
 
-  const handleEditLinkSubmit = async () => {
-  if (!editingGroup) return;
+  const handleEditSubmit = async () => {
+    if (!editingGroup) return;
 
-  try {
-    const { deduction_ratio, menu_item_ids: newMenuIds, inventory_item_id , original_ratio } =
-      editingGroup;
+    const ratio = Number(editingGroup.deduction_ratio);
+    if (!Number.isFinite(ratio) || ratio <= 0) {
+      return toast.error("Deduction ratio must be greater than zero");
+    }
 
-    const ratio = parseFloat(deduction_ratio);
-    // Fetch all existing links for this inventory item
-    const currentGroups = await getInventoryLinks(inventory_item_id, token);
-    const flatLinks = currentGroups.flatMap((g) => g.menu_items);
+    const newMenuIds = editingGroup.menu_item_ids;
+    if (!newMenuIds.length) {
+      return toast.error("At least one menu item is required");
+    }
 
-    // Check if another group already exists with the same ratio (merge target)
-    const mergeTargetGroup = currentGroups.find(
-      (g) =>
-        g.deduction_ratio === ratio &&
-        g.deduction_ratio !== parseFloat(original_ratio)
+    const originalMenuIds = editingGroup.original_menu_ids;
+    const originalByMenuId = new Map(
+      editingGroup.menu_items.map((m) => [m.menu_item_id, m.id])
     );
 
-    if (mergeTargetGroup) {
-      // Merge logic
-      const mergedMenuIds = Array.from(
-        new Set([...mergeTargetGroup.menu_item_ids, ...newMenuIds])
-      );
+    const toKeep = originalMenuIds.filter((id) => newMenuIds.includes(id));
+    const toRemove = originalMenuIds.filter((id) => !newMenuIds.includes(id));
+    const toAdd = newMenuIds.filter((id) => !originalMenuIds.includes(id));
 
-      // Delete all old links for both groups
-      const toDelete = [
-        ...mergeTargetGroup.ids,
-        ...editingGroup.ids,
-      ];
-      for (const id of toDelete) {
-        await deleteInventoryLink(id, token);
-      }
-
-      // Recreate a single merged group
-      await createInventoryLinks(
-        inventory_item_id,
-        [
-          {
-            menu_item_ids: mergedMenuIds,
-            deduction_ratio: ratio,
-          },
-        ],
-        token
-      );
-
-      toast.success("Groups merged successfully!");
-    } else {
-      // Normal update path
-      const currentMenuIds = flatLinks.map((l) => l.menu_item_id);
-      const toAdd = newMenuIds.filter((id) => !currentMenuIds.includes(id));
-      const toRemove = currentMenuIds.filter((id) => !newMenuIds.includes(id));
-      const toUpdate = flatLinks.filter((l) => newMenuIds.includes(l.menu_item_id));
-
-      for (const link of toUpdate) {
+    setEditingSubmitting(true);
+    try {
+      for (const menuId of toKeep) {
+        const linkId = originalByMenuId.get(menuId);
+        if (!linkId) continue;
         await updateInventoryLink(
-          link.id,
+          linkId,
           {
             deduction_ratio: ratio,
-            menu_item_id: link.menu_item_id,
-            inventory_item_id,
+            menu_item_id: menuId,
+            inventory_item_id: Number(editingGroup.inventory_item_id),
           },
           token
         );
+      }
+
+      for (const menuId of toRemove) {
+        const linkId = originalByMenuId.get(menuId);
+        if (!linkId) continue;
+        await deleteInventoryLink(linkId, token);
       }
 
       if (toAdd.length > 0) {
         await createInventoryLinks(
-          inventory_item_id,
-          [
-            {
-              menu_item_ids: toAdd,
-              deduction_ratio: ratio,
-            },
-          ],
+          Number(editingGroup.inventory_item_id),
+          [{ menu_item_ids: toAdd, deduction_ratio: ratio }],
           token
         );
       }
 
-      if (toRemove.length > 0) {
-        const linksToDelete = flatLinks.filter((l) => toRemove.includes(l.menu_item_id));
-        for (const link of linksToDelete) {
-          await deleteInventoryLink(link.id, token);
-        }
-      }
-
-      toast.success("Links updated successfully!");
-    }
+      toast.success("Link group updated");
       setEditLinkModalOpen(false);
-      loadData();
+      setEditingGroup(null);
+      await loadData();
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to update links");
+      toast.error(err.message || "Failed to update links");
+    } finally {
+      setEditingSubmitting(false);
     }
   };
 
-  // ---------------- Delete Link ----------------
   const handleLinkDelete = async (group) => {
     try {
-      for (const id of group.ids) {
-        await deleteInventoryLink(id, token);
-      }
-      toast.success("Links deleted successfully");
-      loadData();
+      await Promise.all(group.ids.map((id) => deleteInventoryLink(id, token)));
+      toast.success("Link group deleted");
+      await loadData();
     } catch {
-      toast.error("Failed to delete links");
+      toast.error("Failed to delete link group");
     }
   };
-  // ---------------- Helpers ----------------
-  const allLinkedMenuIds = links.flatMap((l) => l.menu_item_ids);
 
-  // ---------------- Render ----------------
   return (
-    <div className="flex flex-col gap-4">
-      {/* Header Actions */}
-      <div className="flex justify-end">
-        <Dialog open={linkModalOpen} onOpenChange={setLinkModalOpen}>
-          <DialogTrigger asChild>
-            <Button className="font-semibold">+ Link Menu Items</Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Link Menu Items to Inventory</DialogTitle>
-              <DialogDescription>
-                Select an inventory item, menu items, and set deduction quantity.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3">
-              {/* Inventory Selection */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Select Inventory Item
-                </label>
-                <Select
-                  value={selectedInventoryItem}
-                  onValueChange={setSelectedInventoryItem}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select an inventory item" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {items.map((i) => (
-                      <SelectItem key={i.id} value={i.id}>
-                        {i.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+    <div className="space-y-4">
+      <Card className="p-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <div className="rounded border p-3">
+            <p className="text-xs text-muted-foreground">Inventory Items Linked</p>
+            <p className="text-xl font-semibold">{new Set(links.map((l) => l.inventory_item_id)).size}</p>
+          </div>
+          <div className="rounded border p-3">
+            <p className="text-xs text-muted-foreground">Link Groups</p>
+            <p className="text-xl font-semibold">{links.length}</p>
+          </div>
+          <div className="rounded border p-3">
+            <p className="text-xs text-muted-foreground">Linked Menu Items</p>
+            <p className="text-xl font-semibold">{linkedMenuIdsSet.size}</p>
+          </div>
+          <div className="rounded border p-3">
+            <p className="text-xs text-muted-foreground">Unlinked Menu Items</p>
+            <p className="text-xl font-semibold">{Math.max(menuItems.length - linkedMenuIdsSet.size, 0)}</p>
+          </div>
+        </div>
+      </Card>
 
-              {/* Menu Items Multi Select */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Menu Items
-                </label>
-                <ReactSelect
-                  isMulti
-                  options={menuItems
-                    .filter((m) => !allLinkedMenuIds.includes(m.id))
-                    .map((m) => ({ value: m.id, label: m.name }))}
-                  value={selectedMenuItems
-                    .map((id) => {
-                      const menuItem = menuItems.find((m) => m.id === id);
-                      return menuItem
-                        ? { value: menuItem.id, label: menuItem.name }
-                        : null;
-                    })
-                    .filter(Boolean)}
-                  onChange={(selected) =>
-                    setSelectedMenuItems(selected.map((s) => s.value))
-                  }
-                />
-              </div>
-
-              {/* Deduction Quantity */}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Deduction Quantity (applied to all selected)
-                </label>
-                <Input
-                  type="number"
-                  step="any"
-                  value={deductionQuantity}
-                  onChange={(e) => setDeductionQuantity(e.target.value)}
-                  className="w-32"
-                />
-              </div>
+      <Card className="p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:min-w-[560px]">
+            <div>
+              <label className="mb-1 block text-sm font-medium">Filter by Inventory Item</label>
+              <Select value={inventoryFilter} onValueChange={setInventoryFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All items" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All items</SelectItem>
+                  {items.map((item) => (
+                    <SelectItem key={item.id} value={String(item.id)}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <DialogFooter className="gap-2">
-              <Button
-                variant="outline"
-                onClick={closeLinkModal}
-                disabled={linkSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button onClick={handleLinkSubmit} disabled={linkSubmitting}>
-                {linkSubmitting ? "Linking..." : "Link Selected"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Search</label>
+              <Input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search inventory, menu item, or ratio"
+              />
+            </div>
+          </div>
 
-      {/* ---------------- Edit Modal ---------------- */}
+          <Dialog open={linkModalOpen} onOpenChange={setLinkModalOpen}>
+            <DialogTrigger asChild>
+              <Button className="font-semibold">+ New Link Group</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-xl">
+              <DialogHeader>
+                <DialogTitle>Create Link Group</DialogTitle>
+                <DialogDescription>
+                  Group menu items under one inventory item with a shared deduction ratio.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Inventory Item</label>
+                  <Select value={selectedInventoryItem} onValueChange={setSelectedInventoryItem}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select inventory item" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {items.map((item) => (
+                        <SelectItem key={item.id} value={String(item.id)}>
+                          {item.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Menu Items</label>
+                  <ReactSelect
+                    styles={selectStyles}
+                    isMulti
+                    options={availableCreateOptions}
+                    value={selectedMenuItems
+                      .map((id) => availableCreateOptions.find((o) => o.value === id))
+                      .filter(Boolean)}
+                    onChange={(selected) => setSelectedMenuItems((selected || []).map((s) => s.value))}
+                    placeholder="Select one or more menu items"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Only unlinked menu items are listed here.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Deduction Ratio</label>
+                  <Input
+                    type="number"
+                    step="0.001"
+                    min="0.001"
+                    value={deductionQuantity}
+                    onChange={(e) => setDeductionQuantity(e.target.value)}
+                    className="w-40"
+                  />
+                </div>
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={closeCreateModal} disabled={linkSubmitting}>
+                  Cancel
+                </Button>
+                <Button onClick={handleLinkSubmit} disabled={linkSubmitting}>
+                  {linkSubmitting ? "Saving..." : "Create Group"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </Card>
+
       <Dialog open={editLinkModalOpen} onOpenChange={setEditLinkModalOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Edit Link</DialogTitle>
+            <DialogTitle>Edit Link Group</DialogTitle>
             <DialogDescription>
-              Update menu items or deduction quantity for this inventory item.
+              Update grouped menu items and deduction ratio for this inventory item.
             </DialogDescription>
           </DialogHeader>
+
           {editingGroup && (
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Inventory Item
-                </label>
-                <Select value={editingGroup.inventory_item_id} disabled>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {items.map((i) => (
-                      <SelectItem key={i.id} value={i.id}>
-                        {i.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <label className="mb-1 block text-sm font-medium">Inventory Item</label>
+                <Input value={editingGroup.inventory_item_name} disabled />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Menu Items
-                </label>
+                <label className="mb-1 block text-sm font-medium">Menu Items</label>
                 <ReactSelect
+                  styles={selectStyles}
                   isMulti
-                  options={menuItems
-                    .filter(
-                      (m) =>
-                        editingGroup.menu_item_ids.includes(m.id) ||
-                        !allLinkedMenuIds.includes(m.id)
-                    )
-                    .map((m) => ({ value: m.id, label: m.name }))}
+                  options={editOptions}
                   value={editingGroup.menu_item_ids
-                    .map((id) => {
-                      const menuItem = menuItems.find((m) => m.id === id);
-                      return menuItem ? { value: menuItem.id, label: menuItem.name } : null;
-                    })
+                    .map((id) => editOptions.find((o) => o.value === id))
                     .filter(Boolean)}
                   onChange={(selected) =>
-                    setEditingGroup({
-                      ...editingGroup,
-                      menu_item_ids: selected.map((s) => s.value),
-                      menu_items: selected.map((s) => ({
-                        menu_item_id: s.value,
-                        menu_item_name: s.label,
-                      })),
-                    })
+                    setEditingGroup((prev) => ({
+                      ...prev,
+                      menu_item_ids: (selected || []).map((s) => s.value),
+                    }))
                   }
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Deduction Quantity
-                </label>
+                <label className="mb-1 block text-sm font-medium">Deduction Ratio</label>
                 <Input
                   type="number"
-                  step="any"
+                  step="0.001"
+                  min="0.001"
                   value={editingGroup.deduction_ratio}
                   onChange={(e) =>
-                    setEditingGroup({
-                      ...editingGroup,
+                    setEditingGroup((prev) => ({
+                      ...prev,
                       deduction_ratio: e.target.value,
-                    })
+                    }))
                   }
-                  className="w-32"
+                  className="w-40"
                 />
               </div>
             </div>
           )}
+
           <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setEditLinkModalOpen(false)}
-            >
+            <Button variant="outline" onClick={() => setEditLinkModalOpen(false)} disabled={editingSubmitting}>
               Cancel
             </Button>
-            <Button onClick={handleEditLinkSubmit}>Update</Button>
+            <Button onClick={handleEditSubmit} disabled={editingSubmitting}>
+              {editingSubmitting ? "Updating..." : "Update Group"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ---------------- Table ---------------- */}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b bg-muted text-muted-foreground">
-                <th className="px-4 py-2 text-left">Inventory Item</th>
-                <th className="px-4 py-2 text-left">Menu Items</th>
-                <th className="px-4 py-2 text-left">Deduction Ratio</th>
-                <th className="px-4 py-2 text-left">Actions</th>
+                <th className="px-4 py-3 text-left">Inventory Item</th>
+                <th className="px-4 py-3 text-left">Menu Items</th>
+                <th className="px-4 py-3 text-left">Deduction Ratio</th>
+                <th className="px-4 py-3 text-left">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loadingLinks ? (
                 <tr>
-                  <td
-                    colSpan="4"
-                    className="text-center py-4 text-muted-foreground"
-                  >
-                    Loading...
+                  <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
+                    Loading links...
                   </td>
                 </tr>
-              ) : links.length === 0 ? (
+              ) : filteredLinks.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan="4"
-                    className="text-center py-4 text-muted-foreground"
-                  >
-                    No links found
+                  <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
+                    No link groups match your filters.
                   </td>
                 </tr>
               ) : (
-                links.map((group) => (
+                filteredLinks.map((group) => (
                   <tr
-                    key={group.inventory_item_id + "-" + group.deduction_ratio}
-                    className="border-b hover:bg-muted/40 transition-colors"
+                    key={`${group.inventory_item_id}-${group.deduction_ratio}`}
+                    className="border-b hover:bg-muted/40"
                   >
-                    <td className="px-4 py-2">{group.inventory_item_name}</td>
-                    <td className="px-4 py-2">
-                      {group.menu_items
-                        .map((m) => m.menu_item_name)
-                        .join(", ")}
+                    <td className="px-4 py-3 font-medium">{group.inventory_item_name}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {group.menu_items.map((m) => (
+                          <span
+                            key={m.menu_item_id}
+                            className="rounded bg-muted px-2 py-0.5 text-xs"
+                          >
+                            {m.menu_item_name}
+                          </span>
+                        ))}
+                      </div>
                     </td>
-                    <td className="px-4 py-2">{group.deduction_ratio}</td>
-                    <td className="px-4 py-2 space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openEditLinkModal(group)}
-                      >
+                    <td className="px-4 py-3">{group.deduction_ratio}</td>
+                    <td className="px-4 py-3 space-x-2">
+                      <Button variant="outline" size="sm" onClick={() => openEditModal(group)}>
                         Edit
                       </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleLinkDelete(group)}
-                      >
+                      <Button variant="destructive" size="sm" onClick={() => handleLinkDelete(group)}>
                         Delete
                       </Button>
                     </td>

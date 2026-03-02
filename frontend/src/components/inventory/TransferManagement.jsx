@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,12 +36,36 @@ export default function TransferManagement() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
   const [editId, setEditId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     inventory_item_id: "",
     station_id: "",
     quantity: "",
   });
+
+  const selectedItem = useMemo(
+    () => items.find((i) => i.id === Number(form.inventory_item_id)),
+    [items, form.inventory_item_id]
+  );
+  const selectedStation = useMemo(
+    () => stations.find((s) => s.id === Number(form.station_id)),
+    [stations, form.station_id]
+  );
+  const currentStockQty = useMemo(() => {
+    const stock = stocks.find((s) => s.inventory_item_id === Number(form.inventory_item_id));
+    return stock ? stock.quantity : 0;
+  }, [stocks, form.inventory_item_id]);
+  const parsedQuantity = Number(form.quantity || 0);
+  const previousQty = editId ? transfers.find((t) => t.id === editId)?.quantity || 0 : 0;
+  const availableForEntry = currentStockQty + previousQty;
+  const canSubmit =
+    Boolean(form.inventory_item_id) &&
+    Boolean(form.station_id) &&
+    Number.isFinite(parsedQuantity) &&
+    parsedQuantity > 0 &&
+    parsedQuantity <= availableForEntry &&
+    !submitting;
 
   // --- Load data ---
   const loadItems = async () => {
@@ -120,6 +144,7 @@ export default function TransferManagement() {
     };
 
     try {
+      setSubmitting(true);
       if (editId) {
         await updateTransfer(editId, payload, token);
         toast.success("Transfer updated successfully.");
@@ -134,6 +159,8 @@ export default function TransferManagement() {
       await loadStocks(); // refresh stock after transfer
     } catch {
       toast.error("Failed to process transfer. Please check input and try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -207,6 +234,7 @@ export default function TransferManagement() {
             {/* Inventory */}
             <ReactSelect
               styles={selectStyles}
+              isClearable
               placeholder="Select Inventory Item"
               options={items.map((i) => ({
                 value: i.id,
@@ -223,13 +251,14 @@ export default function TransferManagement() {
                   : null
               }
               onChange={(opt) =>
-                setForm({ ...form, inventory_item_id: opt.value })
+                setForm({ ...form, inventory_item_id: opt?.value || "" })
               }
             />
 
             {/* Station */}
             <ReactSelect
               styles={selectStyles}
+              isClearable
               placeholder="Select Station"
               options={stations.map((s) => ({ value: s.id, label: s.name }))}
               value={
@@ -242,13 +271,14 @@ export default function TransferManagement() {
                     }
                   : null
               }
-              onChange={(opt) => setForm({ ...form, station_id: opt.value })}
+              onChange={(opt) => setForm({ ...form, station_id: opt?.value || "" })}
             />
 
             {/* Quantity */}
             <Input
               name="quantity"
               type="number"
+              step="0.001"
               placeholder="Quantity"
               value={form.quantity}
               onChange={(e) =>
@@ -258,11 +288,27 @@ export default function TransferManagement() {
             />
           </div>
 
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800">
+            <p className="text-sm font-medium">
+              {selectedItem ? selectedItem.name : "No item selected"}
+            </p>
+            <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+              Destination station: {selectedStation ? selectedStation.name : "Not selected"}
+            </p>
+            <p className="text-xs text-gray-600 dark:text-gray-300">
+              Available in store: {availableForEntry}
+            </p>
+            <p className="text-xs text-gray-600 dark:text-gray-300">
+              Remaining after transfer: {Number.isFinite(parsedQuantity) ? availableForEntry - parsedQuantity : availableForEntry}
+            </p>
+          </div>
+
           <Button
             onClick={handleSubmit}
+            disabled={!canSubmit}
             className="bg-blue-600 hover:bg-blue-700 text-white w-fit"
           >
-            {editId ? "Update Transfer" : "Create Transfer"}
+            {submitting ? "Saving..." : editId ? "Update Transfer" : "Create Transfer"}
           </Button>
 
           {/* Latest 3 Transfers */}
@@ -281,7 +327,7 @@ export default function TransferManagement() {
                       {t.inventory_item_name}
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-300">
-                      → {t.station_name}
+                      to {t.station_name}
                     </div>
                     <div className="mt-1 text-blue-600 dark:text-blue-400 font-semibold">
                       {t.quantity} units

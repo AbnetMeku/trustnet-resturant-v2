@@ -62,10 +62,13 @@ def adjust_inventory_for_order_item(station_name, menu_item_id, quantity, revers
             )
             db.session.add(snapshot)
 
-        if reverse:
-            snapshot.sold_quantity -= deduction_amount
-        else:
-            snapshot.sold_quantity += deduction_amount
+        # deduction_amount is positive for sales and negative for reversals.
+        # Keeping sold_quantity as a running net value prevents reversal events
+        # from inflating sold figures.
+        snapshot.sold_quantity = max(
+            0.0,
+            float(snapshot.sold_quantity or 0) + float(deduction_amount),
+        )
 
         snapshot.remaining_quantity = snapshot.start_of_day_quantity + (snapshot.added_quantity or 0) - (snapshot.sold_quantity or 0)
 

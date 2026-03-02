@@ -20,7 +20,7 @@ export default function StationStock() {
       try {
         const data = await getStations(token);
         const filteredStations = data.filter(
-          (s) => s.name !== "Kitch" && s.name !== "But"
+          (s) => s.name !== "Kitchen" && s.name !== "Butcher"
         );
         setStations(filteredStations);
 

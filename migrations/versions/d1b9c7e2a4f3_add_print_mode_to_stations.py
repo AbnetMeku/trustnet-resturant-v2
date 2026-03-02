@@ -17,10 +17,14 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column(
-        "stations",
-        sa.Column("print_mode", sa.String(length=20), nullable=False, server_default="grouped"),
-    )
+    inspector = sa.inspect(op.get_bind())
+    columns = {col["name"] for col in inspector.get_columns("stations")}
+
+    if "print_mode" not in columns:
+        op.add_column(
+            "stations",
+            sa.Column("print_mode", sa.String(length=20), nullable=False, server_default="grouped"),
+        )
 
     op.execute(
         "UPDATE stations SET print_mode = 'grouped' "
@@ -29,5 +33,7 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_column("stations", "print_mode")
-
+    inspector = sa.inspect(op.get_bind())
+    columns = {col["name"] for col in inspector.get_columns("stations")}
+    if "print_mode" in columns:
+        op.drop_column("stations", "print_mode")

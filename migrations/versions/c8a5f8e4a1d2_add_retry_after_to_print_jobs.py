@@ -17,9 +17,14 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column("print_jobs", sa.Column("retry_after", sa.DateTime(), nullable=True))
+    inspector = sa.inspect(op.get_bind())
+    columns = {col["name"] for col in inspector.get_columns("print_jobs")}
+    if "retry_after" not in columns:
+        op.add_column("print_jobs", sa.Column("retry_after", sa.DateTime(), nullable=True))
 
 
 def downgrade():
-    op.drop_column("print_jobs", "retry_after")
-
+    inspector = sa.inspect(op.get_bind())
+    columns = {col["name"] for col in inspector.get_columns("print_jobs")}
+    if "retry_after" in columns:
+        op.drop_column("print_jobs", "retry_after")

@@ -17,10 +17,13 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column(
-        "branding_settings",
-        sa.Column("print_preview_enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
-    )
+    inspector = sa.inspect(op.get_bind())
+    columns = {col["name"] for col in inspector.get_columns("branding_settings")}
+    if "print_preview_enabled" not in columns:
+        op.add_column(
+            "branding_settings",
+            sa.Column("print_preview_enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
+        )
 
     op.execute(
         "UPDATE branding_settings "
@@ -30,4 +33,7 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_column("branding_settings", "print_preview_enabled")
+    inspector = sa.inspect(op.get_bind())
+    columns = {col["name"] for col in inspector.get_columns("branding_settings")}
+    if "print_preview_enabled" in columns:
+        op.drop_column("branding_settings", "print_preview_enabled")

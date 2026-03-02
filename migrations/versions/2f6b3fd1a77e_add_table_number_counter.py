@@ -17,14 +17,26 @@ depends_on = None
 
 
 def upgrade():
-    op.create_table(
-        "table_number_counter",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("last_number", sa.Integer(), nullable=False, server_default="0"),
-        sa.PrimaryKeyConstraint("id"),
+    inspector = sa.inspect(op.get_bind())
+    tables = set(inspector.get_table_names())
+
+    if "table_number_counter" not in tables:
+        op.create_table(
+            "table_number_counter",
+            sa.Column("id", sa.Integer(), nullable=False),
+            sa.Column("last_number", sa.Integer(), nullable=False, server_default="0"),
+            sa.PrimaryKeyConstraint("id"),
+        )
+
+    op.execute(
+        "INSERT INTO table_number_counter (id, last_number) "
+        "SELECT 1, 0 "
+        "WHERE NOT EXISTS (SELECT 1 FROM table_number_counter WHERE id = 1)"
     )
-    op.execute("INSERT INTO table_number_counter (id, last_number) VALUES (1, 0)")
 
 
 def downgrade():
-    op.drop_table("table_number_counter")
+    inspector = sa.inspect(op.get_bind())
+    tables = set(inspector.get_table_names())
+    if "table_number_counter" in tables:
+        op.drop_table("table_number_counter")
