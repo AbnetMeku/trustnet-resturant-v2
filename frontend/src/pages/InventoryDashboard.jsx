@@ -23,13 +23,6 @@ export default function InventoryDashboard() {
     navigate("/admin");
   };
 
-  const menuItems = [
-    { id: "inventory-register", label: "Register" },
-    { id: "inventory-add", label: "Purchase" },
-    { id: "inventory-transfer", label: "Transfer" },
-    { id: "inventory-view", label: "View Stock" },
-  ];
-
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <header className="flex items-center justify-between bg-white dark:bg-gray-800 shadow px-4 py-3">
@@ -53,7 +46,12 @@ export default function InventoryDashboard() {
 
       <main className="p-4">
         <div className="flex flex-wrap gap-2 mb-4">
-          {menuItems.map((item) => (
+          {[
+            { id: "inventory-register", label: "Register" },
+            { id: "inventory-add", label: "Purchase" },
+            { id: "inventory-transfer", label: "Transfer" },
+            { id: "inventory-view", label: "View Stock" },
+          ].map((item) => (
             <Button
               key={item.id}
               variant={active === item.id ? "default" : "outline"}

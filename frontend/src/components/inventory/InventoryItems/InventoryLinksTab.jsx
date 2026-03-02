@@ -73,6 +73,11 @@ export default function InventoryLinksTab() {
   const [inventoryFilter, setInventoryFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
 
+  const selectedInventoryConfig = useMemo(
+    () => items.find((item) => String(item.id) === String(selectedInventoryItem)),
+    [items, selectedInventoryItem]
+  );
+
   const loadData = async () => {
     try {
       setLoadingLinks(true);
@@ -118,6 +123,14 @@ export default function InventoryLinksTab() {
   useEffect(() => {
     loadData();
   }, [token]);
+
+  useEffect(() => {
+    if (!selectedInventoryConfig) return;
+    const ratio = Number(selectedInventoryConfig.default_deduction_ratio || 1);
+    if (Number.isFinite(ratio) && ratio > 0) {
+      setDeductionQuantity(ratio);
+    }
+  }, [selectedInventoryConfig?.id]);
 
   const linkedMenuIdsSet = useMemo(() => {
     const ids = new Set();
@@ -406,6 +419,25 @@ export default function InventoryLinksTab() {
                     onChange={(e) => setDeductionQuantity(e.target.value)}
                     className="w-40"
                   />
+                  {selectedInventoryConfig && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span>
+                        Default from item: 1 {selectedInventoryConfig.unit} = {selectedInventoryConfig.servings_per_unit} {selectedInventoryConfig.serving_unit}
+                        {" "}({Number(selectedInventoryConfig.default_deduction_ratio || 1).toFixed(4)} per sale)
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2"
+                        onClick={() =>
+                          setDeductionQuantity(Number(selectedInventoryConfig.default_deduction_ratio || 1))
+                        }
+                      >
+                        Use Default
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
               <DialogFooter className="gap-2">

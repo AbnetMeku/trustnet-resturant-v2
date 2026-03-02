@@ -2,10 +2,32 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from app.extensions import db
 from app.models import InventoryItem, InventoryMenuLink, MenuItem
-from datetime import datetime
 from sqlalchemy.exc import IntegrityError
 
 inventory_items_bp = Blueprint("inventory_items_bp", __name__, url_prefix="/inventory/items")
+
+
+def _safe_ratio(servings_per_unit):
+    try:
+        servings = float(servings_per_unit or 1.0)
+        if servings <= 0:
+            return 1.0
+        return 1.0 / servings
+    except (TypeError, ValueError):
+        return 1.0
+
+
+def _serialize_inventory_item(item):
+    return {
+        "id": item.id,
+        "name": item.name,
+        "unit": item.unit,
+        "serving_unit": item.serving_unit,
+        "servings_per_unit": item.servings_per_unit,
+        "default_deduction_ratio": _safe_ratio(item.servings_per_unit),
+        "is_active": item.is_active,
+        "created_at": item.created_at,
+    }
 
 # --------------------- HELPER: CHECK EXISTING LINKS --------------------- #
 def check_existing_links(menu_item_ids):
@@ -30,14 +52,27 @@ def create_inventory_item():
     data = request.get_json()
     name = data.get("name")
     unit = data.get("unit", "Bottle")
+    serving_unit = data.get("serving_unit", "unit")
+    servings_per_unit = data.get("servings_per_unit", 1.0)
 
     if not name:
         return jsonify({"msg": "Name is required"}), 400
+    try:
+        servings_per_unit = float(servings_per_unit)
+    except (TypeError, ValueError):
+        return jsonify({"msg": "servings_per_unit must be a number"}), 400
+    if servings_per_unit <= 0:
+        return jsonify({"msg": "servings_per_unit must be greater than zero"}), 400
 
     if InventoryItem.query.filter_by(name=name).first():
         return jsonify({"msg": "Inventory item already exists"}), 400
 
-    item = InventoryItem(name=name, unit=unit)
+    item = InventoryItem(
+        name=name,
+        unit=unit,
+        serving_unit=serving_unit or "unit",
+        servings_per_unit=servings_per_unit,
+    )
     db.session.add(item)
     db.session.commit()
 
@@ -49,16 +84,7 @@ def create_inventory_item():
 @jwt_required()
 def get_all_inventory_items():
     items = InventoryItem.query.all()
-    result = []
-    for i in items:
-        result.append({
-            "id": i.id,
-            "name": i.name,
-            "unit": i.unit,
-            "is_active": i.is_active,
-            "created_at": i.created_at,
-        })
-    return jsonify(result), 200
+    return jsonify([_serialize_inventory_item(i) for i in items]), 200
 
 
 # --------------------- GET SINGLE INVENTORY ITEM --------------------- #
@@ -69,21 +95,17 @@ def get_inventory_item(item_id):
     if not item:
         return jsonify({"msg": "Inventory item not found"}), 404
 
-    return jsonify({
-        "id": item.id,
-        "name": item.name,
-        "unit": item.unit,
-        "is_active": item.is_active,
-        "created_at": item.created_at,
-        "menu_links": [
-            {
-                "id": link.id,
-                "menu_item_id": link.menu_item_id,
-                "menu_item_name": link.menu_item.name if link.menu_item else None,
-                "deduction_ratio": link.deduction_ratio
-            } for link in item.menu_links
-        ]
-    }), 200
+    payload = _serialize_inventory_item(item)
+    payload["menu_links"] = [
+        {
+            "id": link.id,
+            "menu_item_id": link.menu_item_id,
+            "menu_item_name": link.menu_item.name if link.menu_item else None,
+            "deduction_ratio": link.deduction_ratio,
+        }
+        for link in item.menu_links
+    ]
+    return jsonify(payload), 200
 
 
 # --------------------- UPDATE INVENTORY ITEM --------------------- #
@@ -95,8 +117,18 @@ def update_inventory_item(item_id):
         return jsonify({"msg": "Inventory item not found"}), 404
 
     data = request.get_json()
+    if "servings_per_unit" in data:
+        try:
+            parsed = float(data["servings_per_unit"])
+        except (TypeError, ValueError):
+            return jsonify({"msg": "servings_per_unit must be a number"}), 400
+        if parsed <= 0:
+            return jsonify({"msg": "servings_per_unit must be greater than zero"}), 400
+        item.servings_per_unit = parsed
+
     item.name = data.get("name", item.name)
     item.unit = data.get("unit", item.unit)
+    item.serving_unit = data.get("serving_unit", item.serving_unit)
     item.is_active = data.get("is_active", item.is_active)
 
     db.session.commit()
@@ -132,7 +164,16 @@ def create_inventory_links(inventory_item_id):
 
     for group in links:
         menu_item_ids = group.get("menu_item_ids", [])
-        deduction_ratio = group.get("deduction_ratio", 1.0)
+        raw_ratio = group.get("deduction_ratio")
+        if raw_ratio in (None, ""):
+            deduction_ratio = _safe_ratio(inventory_item.servings_per_unit)
+        else:
+            try:
+                deduction_ratio = float(raw_ratio)
+            except (TypeError, ValueError):
+                return jsonify({"msg": "Invalid deduction ratio"}), 400
+            if deduction_ratio <= 0:
+                return jsonify({"msg": "Deduction ratio must be greater than zero"}), 400
 
         # ----------------- Check conflicts first ----------------- #
         conflicts = check_existing_links(menu_item_ids)

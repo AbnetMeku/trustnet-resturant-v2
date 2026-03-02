@@ -11,6 +11,8 @@ class InventoryItem(db.Model):
     # Inventory name (e.g., Gold Label)
     name = db.Column(db.String(120), nullable=False, unique=True)
     unit = db.Column(db.String(50), default="Bottle")  # Bottle, Shot, Liter, Kg, etc.
+    serving_unit = db.Column(db.String(50), default="unit")
+    servings_per_unit = db.Column(db.Float, nullable=False, default=1.0)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=eat_now_naive)
 

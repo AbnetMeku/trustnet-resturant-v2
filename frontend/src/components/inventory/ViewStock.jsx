@@ -6,23 +6,33 @@ import StationStock from "./stock/StationStock";
 import OverallStock from "./stock/OverallStock";
 import StationStockHistory from "./stock/StationStockHistory"
 import ExcelStockSheet from "./stock/ExcelStockSheet";
-export default function StockManagement() {
-  const [activeTab, setActiveTab] = useState("sheet");
+import { useEffect } from "react";
+
+export default function StockManagement({ showSheetTab = true }) {
+  const [activeTab, setActiveTab] = useState(showSheetTab ? "sheet" : "station-history");
+
+  useEffect(() => {
+    if (!showSheetTab && activeTab === "sheet") {
+      setActiveTab("station-history");
+    }
+  }, [showSheetTab, activeTab]);
 
   return (
     <Card className="p-6 w-full space-y-4">
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val)}>
         <TabsList>
-          <TabsTrigger value="sheet">Sheet</TabsTrigger>
+          {showSheetTab && <TabsTrigger value="sheet">Sheet</TabsTrigger>}
           {/* <TabsTrigger value="station">Stations (Latest)</TabsTrigger> */}
           <TabsTrigger value="station-history">Stations</TabsTrigger>
           <TabsTrigger value="store">Store</TabsTrigger>
           <TabsTrigger value="overall">Total</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="sheet">
-          <ExcelStockSheet />
-        </TabsContent>
+        {showSheetTab && (
+          <TabsContent value="sheet">
+            <ExcelStockSheet />
+          </TabsContent>
+        )}
 
         {/* <TabsContent value="station">
           <StationStock />
