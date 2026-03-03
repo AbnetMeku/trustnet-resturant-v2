@@ -6,6 +6,8 @@ from app.extensions import db
 from app.models.models import User
 from app.pos_app import create_pos_app
 
+ALLOWED_DEFAULT_ADMIN_ROLES = {"admin", "manager", "cashier", "waiter"}
+
 
 def _as_bool(value: str, default: bool = True) -> bool:
     if value is None:
@@ -21,11 +23,14 @@ def ensure_default_admin() -> None:
 
     username = os.getenv("DEFAULT_ADMIN_USERNAME", "admin").strip() or "admin"
     password = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin")
-    role = os.getenv("DEFAULT_ADMIN_ROLE", "admin").strip() or "admin"
+    role = (os.getenv("DEFAULT_ADMIN_ROLE", "admin").strip() or "admin").lower()
     reset_password = _as_bool(os.getenv("DEFAULT_ADMIN_RESET_PASSWORD"), default=True)
 
     if not password:
         raise RuntimeError("DEFAULT_ADMIN_PASSWORD cannot be empty when admin bootstrap is enabled.")
+    if role not in ALLOWED_DEFAULT_ADMIN_ROLES:
+        allowed = ", ".join(sorted(ALLOWED_DEFAULT_ADMIN_ROLES))
+        raise RuntimeError(f"DEFAULT_ADMIN_ROLE must be one of: {allowed}")
 
     user = User.query.filter_by(username=username).first()
     if user is None:

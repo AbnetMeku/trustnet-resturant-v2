@@ -81,7 +81,7 @@ export default function CashierDashboard() {
 
   return (
     <div className={darkMode ? "dark" : ""}>
-      <div className="admin-shell admin-shell-grid flex h-screen w-screen overflow-hidden">
+      <div className="admin-shell admin-shell-grid flex min-h-dvh w-full overflow-hidden">
         <aside
           className={`admin-sidebar
             fixed md:relative z-30 top-0 left-0 h-full md:h-auto
@@ -142,7 +142,7 @@ export default function CashierDashboard() {
           <div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={toggleSidebar} />
         )}
 
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="min-w-0 flex-1 flex flex-col overflow-hidden">
           <header className="admin-header px-4 py-3 md:px-6">
             <div className="admin-header-inner">
               <div className="flex items-center gap-3">
