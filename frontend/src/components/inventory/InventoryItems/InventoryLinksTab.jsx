@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import ReactSelect from "react-select";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 const selectStyles = {
   control: (base, state) => ({
@@ -113,8 +114,8 @@ export default function InventoryLinksTab() {
       });
 
       setLinks(allLinks);
-    } catch {
-      toast.error("Failed to load inventory links");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to load inventory links."));
     } finally {
       setLoadingLinks(false);
     }
@@ -224,7 +225,7 @@ export default function InventoryLinksTab() {
       await loadData();
       closeCreateModal();
     } catch (err) {
-      toast.error(err.message || "Failed to create links");
+      toast.error(getApiErrorMessage(err, "Failed to create inventory links."));
     } finally {
       setLinkSubmitting(false);
     }
@@ -296,7 +297,7 @@ export default function InventoryLinksTab() {
       setEditingGroup(null);
       await loadData();
     } catch (err) {
-      toast.error(err.message || "Failed to update links");
+      toast.error(getApiErrorMessage(err, "Failed to update inventory links."));
     } finally {
       setEditingSubmitting(false);
     }
@@ -307,8 +308,8 @@ export default function InventoryLinksTab() {
       await Promise.all(group.ids.map((id) => deleteInventoryLink(id, token)));
       toast.success("Link group deleted");
       await loadData();
-    } catch {
-      toast.error("Failed to delete link group");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to delete link group."));
     }
   };
 

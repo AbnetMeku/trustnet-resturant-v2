@@ -11,6 +11,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { eatBusinessDateISO, formatEatTime } from "@/lib/timezone";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function HistoryPage({ onDayCloseChange }) {
   const { authToken, user } = useAuth();
@@ -47,7 +48,7 @@ export default function HistoryPage({ onDayCloseChange }) {
         setDayCloseStatus(dayCloseData || null);
         onDayCloseChange?.(dayCloseData || null);
       } catch (err) {
-        toast.error(err.message || "Failed to load orders");
+        toast.error(getApiErrorMessage(err, "Failed to load order history."));
       } finally {
         setLoading(false);
       }
@@ -63,7 +64,7 @@ export default function HistoryPage({ onDayCloseChange }) {
       setDayCloseStatus(status || null);
       onDayCloseChange?.(status || null);
     } catch (err) {
-      toast.error(err.message || "Failed to load day-close status");
+      toast.error(getApiErrorMessage(err, "Failed to load day-close status."));
     }
   };
 
@@ -74,7 +75,7 @@ export default function HistoryPage({ onDayCloseChange }) {
       const result = await closeWaiterDay(authToken);
       toast.success(result?.message || "Shift closed for today");
     } catch (err) {
-      toast.error(err.message || "Failed to close for the day");
+      toast.error(getApiErrorMessage(err, "Failed to close shift for today."));
     } finally {
       await refreshDayCloseStatus();
       setClosingDay(false);

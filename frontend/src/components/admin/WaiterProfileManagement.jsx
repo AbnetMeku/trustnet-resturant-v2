@@ -21,6 +21,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 const defaultForm = {
   name: "",
@@ -55,11 +56,7 @@ export default function WaiterProfileManagement({ onProfilesChanged = null }) {
       setProfiles(profilesResult.value);
     } else {
       const err = profilesResult.reason;
-      toast.error(
-        err?.response?.data?.error ||
-          err.message ||
-          "Failed to load waiter profiles. Check backend migrations."
-      );
+      toast.error(getApiErrorMessage(err, "Failed to load waiter profiles."));
       setProfiles([]);
     }
 
@@ -67,7 +64,7 @@ export default function WaiterProfileManagement({ onProfilesChanged = null }) {
       setStations(stationsResult.value);
     } else {
       const err = stationsResult.reason;
-      toast.error(err?.response?.data?.error || err.message || "Failed to load stations");
+      toast.error(getApiErrorMessage(err, "Failed to load stations."));
       setStations([]);
     }
 
@@ -152,7 +149,7 @@ export default function WaiterProfileManagement({ onProfilesChanged = null }) {
         await onProfilesChanged();
       }
     } catch (err) {
-      toast.error(err?.response?.data?.error || err.message || "Failed to save profile");
+      toast.error(getApiErrorMessage(err, "Failed to save waiter profile."));
     } finally {
       setSubmitting(false);
     }
@@ -170,7 +167,7 @@ export default function WaiterProfileManagement({ onProfilesChanged = null }) {
         await onProfilesChanged();
       }
     } catch (err) {
-      toast.error(err?.response?.data?.error || err.message || "Failed to delete profile");
+      toast.error(getApiErrorMessage(err, "Failed to delete waiter profile."));
     }
   };
 

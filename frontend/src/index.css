@@ -78,6 +78,9 @@
   * {
     @apply border-border;
   }
+  html {
+    scroll-behavior: smooth;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: "Space Grotesk", "Segoe UI", sans-serif;
@@ -104,6 +107,8 @@
 
   .admin-sidebar {
     @apply bg-white/70 dark:bg-slate-900/70 shadow-2xl backdrop-blur-xl;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
 
   .admin-sidebar-header {
@@ -168,6 +173,9 @@
 
   .admin-main {
     @apply flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
   }
 
   .admin-card {

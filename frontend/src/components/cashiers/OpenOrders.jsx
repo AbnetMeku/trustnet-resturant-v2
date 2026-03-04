@@ -5,6 +5,8 @@ import { getUsers } from "@/api/users";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { eatBusinessDateISO, formatEatTime } from "@/lib/timezone";
+import toast from "react-hot-toast";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function OpenOrders() {
   const { authToken } = useAuth();
@@ -39,6 +41,7 @@ export default function OpenOrders() {
         setOrders(data);
       } catch (err) {
         console.error("Failed to load open orders:", err);
+        toast.error(getApiErrorMessage(err, "Failed to load open orders."));
       } finally {
         setLoading(false);
       }

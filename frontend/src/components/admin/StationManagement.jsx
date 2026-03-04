@@ -25,6 +25,16 @@ export default function StationManagement() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [error, setError] = useState("");
 
+  const extractApiMessage = (err, fallback) => {
+    return (
+      err?.response?.data?.error ||
+      err?.response?.data?.message ||
+      err?.response?.data?.msg ||
+      err?.message ||
+      fallback
+    );
+  };
+
   const fetchStations = async () => {
     setLoading(true);
     try {
@@ -32,7 +42,7 @@ export default function StationManagement() {
       setStations(data);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to load stations");
+      toast.error(extractApiMessage(err, "Failed to load stations."));
     } finally {
       setLoading(false);
     }
@@ -52,16 +62,27 @@ export default function StationManagement() {
   );
 
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]:
-        type === "checkbox"
-          ? checked
-          : name === "password"
-            ? value.replace(/\D/g, "").slice(0, 4)
-            : value,
-    }));
+    const { name, value, checked } = e.target;
+    if (name === "cashier_printer") {
+      setFormData((prev) => ({
+        ...prev,
+        cashier_printer: checked,
+        print_mode: checked ? "grouped" : prev.print_mode || "grouped",
+      }));
+      return;
+    }
+
+    setFormData((prev) => {
+      const next = {
+        ...prev,
+        [name]: name === "password" ? value.replace(/\D/g, "").slice(0, 4) : value,
+      };
+      if (name === "printer_identifier" && !value.trim()) {
+        next.cashier_printer = false;
+        next.print_mode = "grouped";
+      }
+      return next;
+    });
   };
 
   const closeModal = () => {
@@ -79,39 +100,62 @@ export default function StationManagement() {
 
   const handleSubmit = async () => {
     setError("");
+    const stationName = formData.name.trim();
+    const printerIdentifier = formData.printer_identifier.trim();
+    const hasPrinterIdentifier = !!printerIdentifier;
 
-    if (!formData.name.trim()) {
-      setError("Station name is required");
+    if (!stationName) {
+      setError("Station name is required.");
       return;
     }
 
     if (!currentStation || formData.password) {
       if (!/^\d{4}$/.test(formData.password)) {
-      setError("PIN must be 4 digits");
+        setError("PIN must be exactly 4 digits (numbers only).");
+        return;
+      }
+    }
+
+    if (formData.cashier_printer && !hasPrinterIdentifier) {
+      setError("Cashier printer requires a printer identifier.");
       return;
     }
-    if (formData.cashier_printer && !formData.printer_identifier.trim()) {
-      setError("Cashier printer requires printer identifier (IP)");
+    if (hasPrinterIdentifier && !formData.cashier_printer && !["grouped", "separate"].includes(formData.print_mode)) {
+      setError("Choose kitchen print mode: grouped or separate.");
       return;
-    }
     }
 
     try {
-      const payload = { ...formData, name: formData.name.trim() };
-      if (currentStation && !formData.password) delete payload.password;
+      const payload = {
+        name: stationName,
+        printer_identifier: printerIdentifier || null,
+        cashier_printer: hasPrinterIdentifier ? Boolean(formData.cashier_printer) : false,
+      };
+
+      if (hasPrinterIdentifier && !formData.cashier_printer) {
+        payload.print_mode = formData.print_mode;
+      } else {
+        payload.print_mode = "grouped";
+      }
+
+      if (!currentStation || formData.password) {
+        payload.password = formData.password;
+      }
 
       if (currentStation) {
         await updateStation(currentStation.id, payload);
-        toast.success("Station updated");
+        toast.success(`Station "${stationName}" updated successfully.`);
       } else {
         await createStation(payload);
-        toast.success("Station created");
+        toast.success(`Station "${stationName}" created successfully.`);
       }
 
       closeModal();
       fetchStations();
     } catch (err) {
-      setError(err.response?.data?.message || "Error occurred");
+      const msg = extractApiMessage(err, "Unable to save station. Please try again.");
+      setError(msg);
+      toast.error(msg);
     }
   };
 
@@ -128,14 +172,15 @@ export default function StationManagement() {
   };
 
   const handleDelete = async (stationId) => {
+    const station = stations.find((s) => s.id === stationId);
     try {
       await deleteStation(stationId);
       setDeleteConfirm(null);
       fetchStations();
-      toast.success("Station deleted");
+      toast.success(`Station "${station?.name || stationId}" deleted successfully.`);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to delete station");
+      toast.error(extractApiMessage(err, "Failed to delete station."));
     }
   };
 
@@ -216,9 +261,15 @@ export default function StationManagement() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="rounded-md bg-slate-100 px-2 py-1 text-xs dark:bg-slate-800">
-                        {station.print_mode === "separate" ? "Separate Tickets" : "Grouped Ticket"}
-                      </span>
+                      {station.cashier_printer ? (
+                        <span className="rounded-md bg-indigo-100 px-2 py-1 text-xs text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300">
+                          Cashier receipts (separate)
+                        </span>
+                      ) : (
+                        <span className="rounded-md bg-slate-100 px-2 py-1 text-xs dark:bg-slate-800">
+                          {station.print_mode === "separate" ? "Separate tickets" : "Grouped ticket"}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">****</td>
                     <td className="px-4 py-3">
@@ -282,36 +333,46 @@ export default function StationManagement() {
                 <Input
                   id="station-printer"
                   name="printer_identifier"
-                  placeholder="Printer Identifier"
+                  placeholder="Printer identifier (IP or name)"
                   value={formData.printer_identifier}
                   onChange={handleChange}
                   className={inputClass}
                 />
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Add printer identifier to enable kitchen print mode or cashier routing.
+                </p>
               </div>
-              <div>
-                <Label htmlFor="station-print-mode">Kitchen Print Mode</Label>
-                <select
-                  id="station-print-mode"
-                  name="print_mode"
-                  value={formData.print_mode}
-                  onChange={handleChange}
-                  className={inputClass}
-                >
-                  <option value="grouped">Grouped (one job per station)</option>
-                  <option value="separate">Separate (one job per item)</option>
-                </select>
-              </div>
-              <label className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 dark:border-slate-700">
-                <input
-                  type="checkbox"
-                  name="cashier_printer"
-                  checked={formData.cashier_printer}
-                  onChange={handleChange}
-                />
-                <span className="text-sm text-slate-700 dark:text-slate-200">
-                  Use this station printer for cashier receipts
-                </span>
-              </label>
+              {!!formData.printer_identifier.trim() && (
+                <>
+                  <label className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 dark:border-slate-700">
+                    <input
+                      type="checkbox"
+                      name="cashier_printer"
+                      checked={formData.cashier_printer}
+                      onChange={handleChange}
+                    />
+                    <span className="text-sm text-slate-700 dark:text-slate-200">
+                      Use this station printer for cashier receipts
+                    </span>
+                  </label>
+
+                  {!formData.cashier_printer && (
+                    <div>
+                      <Label htmlFor="station-print-mode">Kitchen Print Mode</Label>
+                      <select
+                        id="station-print-mode"
+                        name="print_mode"
+                        value={formData.print_mode}
+                        onChange={handleChange}
+                        className={inputClass}
+                      >
+                        <option value="grouped">Grouped (one ticket for the station)</option>
+                        <option value="separate">Separate (one ticket per item)</option>
+                      </select>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/30">

@@ -8,6 +8,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { FaEye, FaPrint } from "react-icons/fa";
 import { eatBusinessDateISO, formatEatTime } from "@/lib/timezone";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function PaidOrders() {
   const { authToken } = useAuth();
@@ -42,7 +43,7 @@ export default function PaidOrders() {
         const data = await fetchOrders(authToken, { status: "paid" });
         setOrders(data);
       } catch (err) {
-        toast.error(err.message || "Failed to load paid orders");
+        toast.error(getApiErrorMessage(err, "Failed to load paid orders."));
       } finally {
         setLoading(false);
       }
@@ -60,7 +61,7 @@ export default function PaidOrders() {
       );
       toast.success("Receipt print job created.");
     } catch (err) {
-      toast.error(err.response?.data?.error || err.message || "Failed to print receipt");
+      toast.error(getApiErrorMessage(err, "Failed to create receipt print job."));
     }
   };
 

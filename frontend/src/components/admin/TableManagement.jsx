@@ -7,6 +7,7 @@ import { getTables, createTable, updateTable, deleteTable } from "@/api/tables";
 import { getUsers } from "@/api/users";
 import { FaEdit, FaPlus, FaTimes, FaTrash } from "react-icons/fa";
 import { toast } from "react-hot-toast";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 const inputClass =
   "h-10 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-900 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100";
@@ -43,7 +44,7 @@ export default function TableManagement() {
       const data = await getTables();
       setTables(data);
     } catch (err) {
-      toast.error("Failed to fetch tables");
+      toast.error(getApiErrorMessage(err, "Failed to fetch tables."));
       console.error(err);
     } finally {
       setLoading(false);
@@ -108,7 +109,7 @@ export default function TableManagement() {
       await fetchTables();
       closeModal();
     } catch (err) {
-      toast.error(err?.response?.data?.error || "Failed to save table");
+      toast.error(getApiErrorMessage(err, "Failed to save table. Check table number and assignments."));
       console.error(err);
     }
   };
@@ -119,8 +120,8 @@ export default function TableManagement() {
       toast.success("Table deleted");
       await fetchTables();
       setDeleteConfirmId(null);
-    } catch {
-      toast.error("Failed to delete table");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to delete table."));
     }
   };
 

@@ -12,6 +12,7 @@ import {
   updateBrandingSettings,
   uploadBrandingAsset,
 } from "@/api/branding";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function BrandingManagement() {
   const [loading, setLoading] = useState(false);
@@ -39,7 +40,7 @@ export default function BrandingManagement() {
         });
         setPreview(data);
       } catch (error) {
-        toast.error(error.response?.data?.error || "Failed to load branding settings");
+        toast.error(getApiErrorMessage(error, "Failed to load branding settings. Please refresh and try again."));
       } finally {
         setLoading(false);
       }
@@ -66,7 +67,7 @@ export default function BrandingManagement() {
       setPreview(data);
       toast.success("Branding updated successfully");
     } catch (error) {
-      toast.error(error.response?.data?.error || "Failed to update branding settings");
+      toast.error(getApiErrorMessage(error, "Failed to update branding settings."));
     } finally {
       setSaving(false);
     }
@@ -90,7 +91,7 @@ export default function BrandingManagement() {
       setPreview(data);
       toast.success("Branding reset to defaults");
     } catch (error) {
-      toast.error(error.response?.data?.error || "Failed to reset branding settings");
+      toast.error(getApiErrorMessage(error, "Failed to reset branding settings."));
     } finally {
       setSaving(false);
     }
@@ -98,6 +99,16 @@ export default function BrandingManagement() {
 
   const handleUpload = async (assetType, file) => {
     if (!file) return;
+    const maxSizeBytes = 5 * 1024 * 1024;
+    const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+    if (file.size > maxSizeBytes) {
+      toast.error(`Selected file is too large (${(file.size / (1024 * 1024)).toFixed(2)} MB). Max allowed is 5 MB.`);
+      return;
+    }
+    if (!allowedTypes.includes(file.type.toLowerCase())) {
+      toast.error(`Unsupported file type '${file.type || "unknown"}'. Use PNG, JPG, JPEG, or WEBP.`);
+      return;
+    }
 
     const setLoadingState = assetType === "logo" ? setUploadingLogo : setUploadingBackground;
     setLoadingState(true);
@@ -112,7 +123,7 @@ export default function BrandingManagement() {
       setPreview(data);
       toast.success(`${assetType === "logo" ? "Logo" : "Background"} uploaded`);
     } catch (error) {
-      toast.error(error.response?.data?.error || "Upload failed");
+      toast.error(getApiErrorMessage(error, `Failed to upload ${assetType}. Check file type/size and try again.`));
     } finally {
       setLoadingState(false);
     }

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import Select from "react-select";
 import toast from "react-hot-toast";
 import { eatBusinessDateISO, formatEatTime } from "@/lib/timezone";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function AdminOrders() {
   const { authToken } = useAuth();
@@ -163,7 +164,7 @@ export default function AdminOrders() {
           );
         }
       } catch (err) {
-        toast.error(err.message || "Failed to load orders");
+        toast.error(getApiErrorMessage(err, "Failed to load orders."));
       } finally {
         setLoading(false);
       }
@@ -228,7 +229,7 @@ export default function AdminOrders() {
       toast.success("Order updated successfully");
       setEditMode(false);
     } catch (err) {
-      toast.error(err.message || "Failed to update order");
+      toast.error(getApiErrorMessage(err, "Failed to update order."));
     }
   };
 
@@ -251,7 +252,7 @@ export default function AdminOrders() {
       toast.success("Item voided");
       setItemToVoid(null);
     } catch (err) {
-      toast.error(err.message || "Failed to void item");
+      toast.error(getApiErrorMessage(err, "Failed to void item."));
     }
   };
 
@@ -273,7 +274,7 @@ export default function AdminOrders() {
 
       toast.success("Item unvoided successfully");
     } catch (err) {
-      toast.error(err.message || "Failed to unvoid item");
+      toast.error(getApiErrorMessage(err, "Failed to unvoid item."));
     }
   };
 
@@ -285,7 +286,7 @@ export default function AdminOrders() {
       toast.success("Order deleted");
       setOrderToDelete(null);
     } catch (err) {
-      toast.error(err.message || "Failed to delete order");
+      toast.error(getApiErrorMessage(err, "Failed to delete order."));
     }
   };
 

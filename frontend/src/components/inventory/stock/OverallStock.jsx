@@ -3,6 +3,7 @@ import { getOverallStock } from "@/api/inventory/stock";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function TotalStock() {
   const [stockItems, setStockItems] = useState([]);
@@ -20,7 +21,7 @@ export default function TotalStock() {
         setFilteredItems(data);
         setLoading(false);
       } catch (err) {
-        setError(err.message);
+        setError(getApiErrorMessage(err, "Failed to load overall stock."));
         setLoading(false);
       }
     }

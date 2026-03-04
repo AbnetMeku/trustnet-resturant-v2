@@ -17,7 +17,7 @@ DEFAULT_BACKGROUND_URL = "/Background.png"
 MAX_URL_LENGTH = 2000
 LOCAL_ASSET_PREFIX = "/api/branding/assets/"
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
-ALLOWED_CONTENT_TYPES = {"image/png", "image/jpeg", "image/webp"}
+ALLOWED_CONTENT_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
 DEFAULT_BUSINESS_DAY_START = "06:00"
 TIME_PATTERN = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 
@@ -105,10 +105,13 @@ def _validate_image_file(file_storage):
 
     extension = filename.rsplit(".", 1)[1].lower()
     if extension not in ALLOWED_EXTENSIONS:
-        raise ValueError("Unsupported image extension")
+        allowed = ", ".join(sorted(ALLOWED_EXTENSIONS))
+        raise ValueError(f"Unsupported image extension '{extension}'. Allowed: {allowed}.")
 
-    if file_storage.mimetype not in ALLOWED_CONTENT_TYPES:
-        raise ValueError("Unsupported image content type")
+    mimetype = (file_storage.mimetype or "").lower()
+    if mimetype and mimetype not in ALLOWED_CONTENT_TYPES and mimetype not in {"application/octet-stream", "binary/octet-stream"}:
+        allowed = ", ".join(sorted(ALLOWED_CONTENT_TYPES))
+        raise ValueError(f"Unsupported image content type '{mimetype}'. Allowed: {allowed}.")
 
     file_storage.stream.seek(0, os.SEEK_END)
     size = file_storage.stream.tell()
@@ -116,7 +119,7 @@ def _validate_image_file(file_storage):
 
     max_size = int(current_app.config.get("BRANDING_MAX_UPLOAD_BYTES", 5 * 1024 * 1024))
     if size > max_size:
-        raise ValueError("Image exceeds max upload size")
+        raise ValueError(f"Image exceeds max upload size ({max_size // (1024 * 1024)} MB).")
 
     return extension
 

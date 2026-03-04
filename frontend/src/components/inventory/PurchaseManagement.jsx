@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import ReactSelect from "react-select";
 import { toast } from "react-hot-toast";
 import { formatEatDateTime } from "@/lib/timezone";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 const PAGE_SIZE = 10;
 
@@ -50,8 +51,8 @@ export default function PurchaseManagement() {
     try {
       const data = await getInventoryItems(token);
       setItems(data);
-    } catch {
-      toast.error("Failed to load inventory items. Please try again.");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to load inventory items."));
     }
   };
 
@@ -59,8 +60,8 @@ export default function PurchaseManagement() {
     try {
       const data = await getAllStoreStock(token);
       setStocks(data);
-    } catch {
-      toast.error("Failed to load store stock data.");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to load store stock data."));
     }
   };
 
@@ -68,8 +69,8 @@ export default function PurchaseManagement() {
     try {
       const data = await getPurchases(token);
       setPurchases(data.filter(p => p.status !== "Deleted").sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
-    } catch {
-      toast.error("Failed to load purchases. Please try again.");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to load purchases."));
     }
   };
 
@@ -113,8 +114,8 @@ const handleSubmit = async () => {
     setEditId(null);
     await loadPurchases();
     await loadStocks();
-  } catch {
-    toast.error("Failed to process purchase. Please check input and try again.");
+  } catch (err) {
+    toast.error(getApiErrorMessage(err, "Failed to save purchase. Please check inputs and try again."));
   } finally {
     setSubmitting(false);
   }
@@ -129,8 +130,8 @@ const handleSubmit = async () => {
       setDeleteId(null);
       await loadPurchases();
       await loadStocks();
-    } catch {
-      toast.error("Failed to delete purchase. Please try again.");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to delete purchase."));
     }
   };
 

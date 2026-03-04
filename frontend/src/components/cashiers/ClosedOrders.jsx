@@ -8,6 +8,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { FaEye, FaPrint, FaCheckCircle } from "react-icons/fa";
 import { eatBusinessDateISO, formatEatTime } from "@/lib/timezone";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function ClosedOrders() {
   const { authToken } = useAuth();
@@ -42,7 +43,7 @@ export default function ClosedOrders() {
         const data = await fetchOrders(authToken, { status: "closed" });
         setOrders(data);
       } catch (err) {
-        toast.error(err.message || "Failed to load closed orders");
+        toast.error(getApiErrorMessage(err, "Failed to load closed orders."));
       } finally {
         setLoading(false);
       }
@@ -56,7 +57,7 @@ export default function ClosedOrders() {
       toast.success("Order marked as paid.");
       setOrders((prev) => prev.filter((o) => o.id !== orderId));
     } catch (err) {
-      toast.error(err.message || "Failed to update order status");
+      toast.error(getApiErrorMessage(err, "Failed to update order status."));
     }
   };
 
@@ -69,7 +70,7 @@ export default function ClosedOrders() {
       );
       toast.success("Receipt print job created.");
     } catch (err) {
-      toast.error(err.response?.data?.error || err.message || "Failed to print receipt");
+      toast.error(getApiErrorMessage(err, "Failed to create receipt print job."));
     }
   };
 

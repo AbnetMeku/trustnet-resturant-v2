@@ -16,14 +16,14 @@ export const createStation = async (stationData, token = null) => {
   const res = await axios.post(`${BASE_URL}/stations/`, stationData, {
     headers: getAuthHeader(token),
   });
-  return res.data;
+  return res.data?.station || res.data;
 };
 
 export const updateStation = async (id, data, token = null) => {
   const res = await axios.put(`${BASE_URL}/stations/${id}`, data, {
     headers: getAuthHeader(token),
   });
-  return res.data;
+  return res.data?.station || res.data;
 };
 
 export const deleteStation = async (id, token = null) => {

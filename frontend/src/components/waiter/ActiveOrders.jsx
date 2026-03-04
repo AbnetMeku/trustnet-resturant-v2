@@ -5,6 +5,7 @@ import { fetchOrders, addOrderItems, updateOrderStatus } from "@/api/orders";
 import ActiveMenuSelection from "./ActiveMenuSelection";
 import ActiveOrderSummary from "./ActiveOrderSummary";
 import { Button } from "@/components/ui/button";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function ActiveOrders({ goBack }) {
   const { authToken, user } = useAuth();
@@ -25,7 +26,7 @@ export default function ActiveOrders({ goBack }) {
         const orders = await fetchOrders(authToken, { status: "open" });
         setOpenOrders(orders);
       } catch (err) {
-        toast.error(err.message || "Failed to load orders");
+        toast.error(getApiErrorMessage(err, "Failed to load open orders."));
       } finally {
         setLoading(false);
       }
@@ -112,7 +113,7 @@ export default function ActiveOrders({ goBack }) {
         setStep("list");
       }
     } catch (err) {
-      toast.error(err.message || "Failed to close order");
+      toast.error(getApiErrorMessage(err, "Failed to close order."));
     } finally {
       setConfirmCloseId(null);
     }

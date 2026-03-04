@@ -83,68 +83,62 @@ export default function WaiterDashboard() {
 
   return (
     <div className={darkMode ? "dark" : ""}>
-      <div className="flex flex-col h-screen w-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-        <header className="flex items-center justify-between bg-white dark:bg-gray-800 shadow px-3 sm:px-4 py-2 sm:py-3">
-          <div className="flex items-center space-x-3 sm:space-x-4">
-            <img src={branding.logo_url} alt="Logo" className="w-7 h-7 sm:w-8 sm:h-8 object-contain" />
-            <span className="font-semibold text-sm sm:text-base">Waiter</span>
-          </div>
+      <div className="admin-shell flex flex-col min-h-dvh w-full overflow-hidden">
+        <header className="admin-header px-4 py-3 md:px-6">
+          <div className="admin-header-inner">
+            <div className="flex items-center gap-3">
+              <div className="admin-logo-wrap">
+                <img src={branding.logo_url} alt="Logo" className="w-9 h-9 object-contain rounded" />
+              </div>
+              <span className="font-semibold text-sm sm:text-base">Waiter</span>
+            </div>
 
-          <div className="flex items-center space-x-2 sm:space-x-3">
-            <span className="hidden sm:inline text-sm md:text-base">
-              Hello, <strong>{user?.username || "Waiter"}</strong>
-            </span>
-            <FaUserCircle className="text-xl sm:text-2xl" />
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs sm:text-sm"
-              onClick={toggleDarkMode}
-            >
-              {darkMode ? "Light" : "Dark"}
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              className="text-xs sm:text-sm"
-              onClick={handleLogout}
-            >
-              Logout
-            </Button>
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              <span className="hidden sm:inline text-sm md:text-base">
+                Hello, <strong>{user?.username || "Waiter"}</strong>
+              </span>
+              <FaUserCircle className="text-xl sm:text-2xl" />
+              <Button variant="outline" size="sm" className="text-xs sm:text-sm" onClick={toggleDarkMode}>
+                {darkMode ? "Light" : "Dark"}
+              </Button>
+              <Button variant="destructive" size="sm" className="text-xs sm:text-sm" onClick={handleLogout}>
+                Logout
+              </Button>
+            </div>
           </div>
         </header>
 
-        <nav className="flex items-center gap-2 overflow-x-auto p-2 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-          {menuSections.map((section) => (
-            <button
-              key={section.id}
-              onClick={() => handleSelect(section.id)}
-              disabled={section.id === "orders" && isShiftClosedToday}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition ${
-                active === section.id
-                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
-              } ${
-                section.id === "orders" && isShiftClosedToday
-                  ? "opacity-50 cursor-not-allowed"
-                  : ""
-              }`}
-            >
-              {React.createElement(section.icon, { className: "text-sm" })}
-              <span>{section.label}</span>
-            </button>
-          ))}
+        <nav className="px-3 py-3 md:px-6 border-b border-slate-200/60 dark:border-slate-800/60 bg-white/60 dark:bg-slate-900/55 backdrop-blur-xl">
+          <div className="w-full overflow-x-auto no-scrollbar">
+            <div className="mx-auto flex w-max items-center justify-center gap-2">
+              {menuSections.map((section) => (
+                <button
+                  key={section.id}
+                  onClick={() => handleSelect(section.id)}
+                  disabled={section.id === "orders" && isShiftClosedToday}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition ${
+                    active === section.id
+                      ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+                  } ${
+                    section.id === "orders" && isShiftClosedToday ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  {React.createElement(section.icon, { className: "text-sm" })}
+                  <span>{section.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </nav>
 
-        <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 text-sm sm:text-base">
-          {active === "orders" && (
-            <OrdersHub isShiftClosedToday={isShiftClosedToday} />
-          )}
-          {active === "history" && (
-            <HistoryPage onDayCloseChange={handleShiftStatusChange} />
-          )}
-          {active === "tables" && <MyTables />}
-          {active === "prints" && <PrintFailures />}
+        <main className="admin-main text-sm sm:text-base">
+          <div className="admin-card p-4 md:p-5">
+            {active === "orders" && <OrdersHub isShiftClosedToday={isShiftClosedToday} />}
+            {active === "history" && <HistoryPage onDayCloseChange={handleShiftStatusChange} />}
+            {active === "tables" && <MyTables />}
+            {active === "prints" && <PrintFailures />}
+          </div>
         </main>
       </div>
     </div>

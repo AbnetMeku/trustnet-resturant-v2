@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { getAllStoreStock } from "@/api/inventory/stock";
 import { formatEatDateTime } from "@/lib/timezone";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function StoreStock() {
   const [stockItems, setStockItems] = useState([]);
@@ -19,7 +20,7 @@ export default function StoreStock() {
         setFilteredItems(data);
         setLoading(false);
       } catch (err) {
-        setError(err.message);
+        setError(getApiErrorMessage(err, "Failed to load store stock."));
         setLoading(false);
       }
     }

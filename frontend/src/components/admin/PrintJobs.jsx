@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { getJobs, markJobPrinted, retryJob, deleteJob } from "@/api/print_jobs";
 import { formatEatDateTime } from "@/lib/timezone";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 const STATUS_OPTIONS = ["all", "pending", "printed", "failed"];
 
@@ -50,7 +51,7 @@ export default function PrintJobs() {
       setAllLoaded(sorted.length <= limit);
       setJobs(sorted.slice(0, limit));
     } catch (err) {
-      toast.error(err?.response?.data?.message || err.message || "Failed to load print jobs");
+      toast.error(getApiErrorMessage(err, "Failed to load print jobs."));
       setJobs([]);
     } finally {
       setLoading(false);
@@ -75,7 +76,7 @@ export default function PrintJobs() {
       toast.success("Job set to pending for retry");
       refreshJobs();
     } catch (err) {
-      toast.error(err?.response?.data?.error || err.message || "Failed to retry job");
+      toast.error(getApiErrorMessage(err, "Failed to retry this print job."));
     }
   };
 
@@ -85,7 +86,7 @@ export default function PrintJobs() {
       toast.success("Job marked as printed");
       refreshJobs();
     } catch (err) {
-      toast.error(err?.response?.data?.error || err.message || "Failed to mark as printed");
+      toast.error(getApiErrorMessage(err, "Failed to mark print job as printed."));
     }
   };
 
@@ -107,7 +108,7 @@ export default function PrintJobs() {
                   toast.success("Print job deleted");
                   refreshJobs();
                 } catch (err) {
-                  toast.error(err?.response?.data?.error || err.message || "Failed to delete job");
+                  toast.error(getApiErrorMessage(err, "Failed to delete print job."));
                 } finally {
                   toast.dismiss(t.id);
                 }

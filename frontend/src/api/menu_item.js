@@ -28,23 +28,41 @@ export const getMenuItemById = async (id, token = null) => {
 
 // ------------------ CREATE ------------------
 export const createMenuItem = async (menuItemData, token = null) => {
-  const res = await axios.post(`${BASE_URL}/menu-items`, menuItemData, {
-    headers: {
-      ...getAuthHeader(token),
-      "Content-Type": "application/json",
-    },
-  });
+  const hasImageFile = menuItemData?.image_file instanceof File;
+  let payload = menuItemData;
+  let headers = { ...getAuthHeader(token), "Content-Type": "application/json" };
+
+  if (hasImageFile) {
+    payload = new FormData();
+    Object.entries(menuItemData).forEach(([key, value]) => {
+      if (value === undefined || key === "image_file") return;
+      payload.append(key, value === null ? "" : value);
+    });
+    payload.append("image_file", menuItemData.image_file);
+    headers = getAuthHeader(token);
+  }
+
+  const res = await axios.post(`${BASE_URL}/menu-items`, payload, { headers });
   return res.data;
 };
 
 // ------------------ UPDATE ------------------
 export const updateMenuItem = async (id, menuItemData, token = null) => {
-  const res = await axios.put(`${BASE_URL}/menu-items/${id}`, menuItemData, {
-    headers: {
-      ...getAuthHeader(token),
-      "Content-Type": "application/json",
-    },
-  });
+  const hasImageFile = menuItemData?.image_file instanceof File;
+  let payload = menuItemData;
+  let headers = { ...getAuthHeader(token), "Content-Type": "application/json" };
+
+  if (hasImageFile) {
+    payload = new FormData();
+    Object.entries(menuItemData).forEach(([key, value]) => {
+      if (value === undefined || key === "image_file") return;
+      payload.append(key, value === null ? "" : value);
+    });
+    payload.append("image_file", menuItemData.image_file);
+    headers = getAuthHeader(token);
+  }
+
+  const res = await axios.put(`${BASE_URL}/menu-items/${id}`, payload, { headers });
   return res.data;
 };
 

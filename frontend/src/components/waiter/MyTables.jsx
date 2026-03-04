@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/context/AuthContext";
 import { getTables } from "@/api/tables";
 import { toast } from "react-hot-toast";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function MyTables() {
   const { user, authToken } = useAuth();
@@ -19,7 +20,7 @@ export default function MyTables() {
         setAssignedTables(myTables);
       } catch (err) {
         console.error("Failed to load assigned tables:", err);
-        toast.error("Failed to load your tables");
+        toast.error(getApiErrorMessage(err, "Failed to load your assigned tables."));
       } finally {
         setLoading(false);
       }

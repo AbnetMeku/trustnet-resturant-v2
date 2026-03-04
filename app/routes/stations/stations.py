@@ -9,6 +9,10 @@ from app.utils.decorators import roles_required
 stations_bp = Blueprint("stations_bp", __name__, url_prefix="/stations")
 
 
+def _bad_request(message: str):
+    return jsonify({"error": message}), 400
+
+
 def station_to_dict(station: Station):
     return {
         "id": station.id,
@@ -37,30 +41,32 @@ def get_stations():
 @roles_required("admin", "manager")
 def create_station():
     data = request.get_json() or {}
-    name = data.get("name")
+    name = (data.get("name") or "").strip()
     password = data.get("password")  # the 4-digit PIN
-    printer_identifier = data.get("printer_identifier")
+    printer_identifier = (data.get("printer_identifier") or "").strip() or None
     print_mode = (data.get("print_mode") or "grouped").strip().lower()
     cashier_printer = bool(data.get("cashier_printer", False))
 
-    if not name or not password:
-        abort(400, "Name and PIN are required")
+    if not name:
+        return _bad_request("Station name is required.")
+    if not password:
+        return _bad_request("Station PIN is required and must be 4 digits.")
 
     if len(password) != 4 or not password.isdigit():
-        abort(400, "PIN must be exactly 4 digits")
+        return _bad_request("PIN must be exactly 4 digits (numbers only).")
     if print_mode not in {"grouped", "separate"}:
-        abort(400, "print_mode must be 'grouped' or 'separate'")
+        return _bad_request("Kitchen print mode must be either 'grouped' or 'separate'.")
     if cashier_printer and not printer_identifier:
-        abort(400, "cashier_printer requires printer_identifier")
+        return _bad_request("Cashier printer requires a printer identifier.")
 
     if Station.query.filter_by(name=name).first():
-        abort(400, "Station with this name already exists")
+        return _bad_request(f"Station '{name}' already exists. Use a different station name.")
 
     # Check unique PIN
     existing_stations = Station.query.all()
     for s in existing_stations:
         if check_password_hash(s.password_hash, password):
-            abort(400, "This PIN is already taken by another station")
+            return _bad_request("PIN is already used by another station. Choose a different 4-digit PIN.")
 
     station = Station(
         name=name,
@@ -75,7 +81,9 @@ def create_station():
         Station.query.filter(Station.id != station.id).update({"cashier_printer": False})
     db.session.commit()
 
-    return jsonify(station_to_dict(station)), 201
+    response = station_to_dict(station)
+    response["message"] = f"Station '{station.name}' created successfully."
+    return jsonify(response), 201
 
 
 # ---- GET SINGLE STATION ----
@@ -99,33 +107,45 @@ def update_station(station_id):
         abort(404, "Station not found")
 
     data = request.get_json() or {}
-    station.name = data.get("name", station.name)
+    if "name" in data:
+        next_name = (data.get("name") or "").strip()
+        if not next_name:
+            return _bad_request("Station name cannot be empty.")
+        duplicate = Station.query.filter(Station.id != station.id, Station.name == next_name).first()
+        if duplicate:
+            return _bad_request(f"Station name '{next_name}' is already in use.")
+        station.name = next_name
+
+    if "printer_identifier" in data:
+        station.printer_identifier = (data.get("printer_identifier") or "").strip() or None
+
     if "print_mode" in data:
         next_mode = (data.get("print_mode") or "").strip().lower()
         if next_mode not in {"grouped", "separate"}:
-            abort(400, "print_mode must be 'grouped' or 'separate'")
+            return _bad_request("Kitchen print mode must be either 'grouped' or 'separate'.")
         station.print_mode = next_mode
     if "password" in data:
         password = data["password"]
         if len(password) != 4 or not password.isdigit():
-            abort(400, "PIN must be exactly 4 digits")
+            return _bad_request("PIN must be exactly 4 digits (numbers only).")
         # Ensure unique PIN
         existing_stations = Station.query.filter(Station.id != station.id).all()
         for s in existing_stations:
             if check_password_hash(s.password_hash, password):
-                abort(400, "This PIN is already taken by another station")
+                return _bad_request("PIN is already used by another station. Choose a different 4-digit PIN.")
         station.password_hash = generate_password_hash(password)
-
-    station.printer_identifier = data.get("printer_identifier", station.printer_identifier)
     if "cashier_printer" in data:
         next_cashier = bool(data.get("cashier_printer"))
         if next_cashier and not station.printer_identifier:
-            abort(400, "cashier_printer requires printer_identifier")
+            return _bad_request("Cashier printer requires a printer identifier.")
         station.cashier_printer = next_cashier
         if next_cashier:
             Station.query.filter(Station.id != station.id).update({"cashier_printer": False})
+
     db.session.commit()
-    return jsonify(station_to_dict(station)), 200
+    response = station_to_dict(station)
+    response["message"] = f"Station '{station.name}' updated successfully."
+    return jsonify(response), 200
 
 
 # ---- DELETE STATION ----
@@ -137,6 +157,10 @@ def delete_station(station_id):
     if not station:
         abort(404, "Station not found")
 
+    station_name = station.name
     db.session.delete(station)
     db.session.commit()
-    return jsonify({"message": "Station deleted"}), 200
+    return jsonify({
+        "message": "Station deleted",
+        "detail": f"Station '{station_name}' deleted successfully.",
+    }), 200

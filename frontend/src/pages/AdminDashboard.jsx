@@ -182,7 +182,15 @@ export default function AdminDashboard() {
             fixed md:relative z-30 top-0 left-0 h-full md:h-auto
             border-r border-slate-200/70 dark:border-slate-800/80
             flex flex-col
-            ${isMobile ? (sidebarOpen ? "w-72" : "w-0") : sidebarOpen ? "w-72" : "w-20"}
+            ${
+              isMobile
+                ? `w-72 transform transition-transform duration-300 ease-out ${
+                    sidebarOpen ? "translate-x-0" : "-translate-x-full pointer-events-none"
+                  }`
+                : sidebarOpen
+                  ? "w-72"
+                  : "w-20"
+            }
           `}
         >
           <div className="admin-sidebar-header flex items-center justify-between p-4">

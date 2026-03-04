@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getJobs, retryJob } from "@/api/print_jobs";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function PrintFailures() {
   const { authToken, user } = useAuth();
@@ -25,7 +26,7 @@ export default function PrintFailures() {
           : list;
       setJobs(ownFailedJobs);
     } catch (error) {
-      toast.error(error?.response?.data?.error || error.message || "Failed to load failed prints");
+      toast.error(getApiErrorMessage(error, "Failed to load failed print jobs."));
     } finally {
       setLoading(false);
     }
@@ -43,7 +44,7 @@ export default function PrintFailures() {
       toast.success("Print retry requested");
       setJobs((prev) => prev.filter((j) => j.id !== jobId));
     } catch (error) {
-      toast.error(error?.response?.data?.error || error.message || "Retry failed");
+      toast.error(getApiErrorMessage(error, "Failed to retry print job."));
     } finally {
       setRetryingId(null);
     }

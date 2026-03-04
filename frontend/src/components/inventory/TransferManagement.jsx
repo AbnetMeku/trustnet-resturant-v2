@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import ReactSelect from "react-select";
 import { toast } from "react-hot-toast";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 const PAGE_SIZE = 10;
 
@@ -72,8 +73,8 @@ export default function TransferManagement() {
     try {
       const data = await getInventoryItems(token);
       setItems(data);
-    } catch {
-      toast.error("Failed to load inventory items. Please try again.");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to load inventory items."));
     }
   };
 
@@ -81,8 +82,8 @@ export default function TransferManagement() {
     try {
       const data = await getAllStoreStock(token);
       setStocks(data);
-    } catch {
-      toast.error("Failed to load store stock data.");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to load store stock data."));
     }
   };
 
@@ -90,8 +91,8 @@ export default function TransferManagement() {
     try {
       const data = await getStations(token);
       setStations(data);
-    } catch {
-      toast.error("Failed to load stations. Please try again.");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to load stations."));
     }
   };
 
@@ -101,8 +102,8 @@ export default function TransferManagement() {
       setTransfers(
         data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       );
-    } catch {
-      toast.error("Failed to load transfers. Please try again.");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to load transfers."));
     }
   };
 
@@ -157,8 +158,8 @@ export default function TransferManagement() {
       setEditId(null);
       await loadTransfers();
       await loadStocks(); // refresh stock after transfer
-    } catch {
-      toast.error("Failed to process transfer. Please check input and try again.");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to save transfer. Please check input and try again."));
     } finally {
       setSubmitting(false);
     }
@@ -173,8 +174,8 @@ export default function TransferManagement() {
       setDeleteId(null);
       await loadTransfers();
       await loadStocks();
-    } catch {
-      toast.error("Failed to delete transfer. Please try again.");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to delete transfer."));
     }
   };
 

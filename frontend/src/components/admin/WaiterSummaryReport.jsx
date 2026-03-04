@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
 import { eatBusinessDateISO } from "@/lib/timezone";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function WaiterSummaryReport() {
   const today = eatBusinessDateISO();
@@ -31,8 +32,8 @@ export default function WaiterSummaryReport() {
       const data = await getWaiterSummary(startDate, endDate);
       setReport(data.report || []);
       setGrandTotal(data.grand_total || 0);
-    } catch {
-      toast.error("Failed to fetch waiter report");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to fetch waiter summary report."));
     } finally {
       setLoading(false);
     }
@@ -51,8 +52,8 @@ export default function WaiterSummaryReport() {
     try {
       const data = await getWaiterDetails(waiter.waiter_id, startDate, endDate);
       setModalItems(data.details || []);
-    } catch {
-      toast.error("Failed to fetch waiter details");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to fetch waiter sales details."));
     } finally {
       setModalLoading(false);
     }
@@ -64,7 +65,7 @@ export default function WaiterSummaryReport() {
       toast.success(data?.message || "Shift reopened");
       await fetchReport();
     } catch (err) {
-      toast.error(err?.response?.data?.error || err.message || "Failed to reopen shift");
+      toast.error(getApiErrorMessage(err, "Failed to reopen waiter shift."));
     }
   };
 

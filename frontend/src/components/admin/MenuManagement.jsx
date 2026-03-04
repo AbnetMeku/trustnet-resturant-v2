@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FaPlus, FaEdit, FaTrash } from "react-icons/fa";
@@ -22,6 +23,7 @@ import {
   deleteMenuItem,
 } from "@/api/menu_item";
 import { getStations } from "@/api/stations";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 const fieldClass =
   "h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-slate-600";
@@ -30,8 +32,8 @@ const filterFieldClass =
 
 function ConfirmDialog({ open, message, onConfirm, onCancel }) {
   if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm">
+  return createPortal(
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
         <p className="mb-4 text-sm text-slate-700 dark:text-slate-200">{message}</p>
         <div className="flex justify-end gap-4">
@@ -43,7 +45,8 @@ function ConfirmDialog({ open, message, onConfirm, onCancel }) {
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -78,7 +81,6 @@ export default function MenuManagement() {
   const [menuForm, setMenuForm] = useState({
     id: null,
     name: "",
-    description: "",
     price: "",
     vip_price: "",
     quantity_step: "",
@@ -94,6 +96,7 @@ export default function MenuManagement() {
 
   // Filters (Menu tab)
   const [filters, setFilters] = useState({
+    stationId: "",
     categoryId: "",
     subcategoryId: "",
     availability: "",
@@ -128,7 +131,7 @@ export default function MenuManagement() {
       setMenuItems(normalizedItems);
     } catch (e) {
       console.error("Failed to fetch data:", e);
-      toast.error("Failed to load data", {
+      toast.error(getApiErrorMessage(e, "Failed to load menu, category, and station data."), {
         style: { background: "#ffeded", color: "#d32f2f" },
       });
     }
@@ -139,52 +142,20 @@ export default function MenuManagement() {
     if (type === "checkbox") {
       setForm({ ...form, [name]: checked });
     } else if (type === "file" && files[0]) {
-      // Validate file size (5MB limit) and type
-      if (files[0].size > 5 * 1024 * 1024) {
-        toast.error("Image size must be less than 5MB", {
+      if (files[0].size > 3 * 1024 * 1024) {
+        toast.error("Image size must be less than 3MB", {
           style: { background: "#ffeded", color: "#d32f2f" },
         });
         return;
       }
-      if (!["image/jpeg", "image/png"].includes(files[0].type)) {
-        toast.error("Only JPG and PNG images are allowed", {
+      if (!["image/jpeg", "image/png", "image/webp"].includes(files[0].type)) {
+        toast.error("Only JPG, PNG, and WEBP images are allowed", {
           style: { background: "#ffeded", color: "#d32f2f" },
         });
         return;
       }
-      // Resize image and convert to base64
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target.result;
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          const MAX_WIDTH = 200;
-          const MAX_HEIGHT = 200;
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(img, 0, 0, width, height);
-          const base64 = canvas.toDataURL(files[0].type, 0.85);
-          setForm({ ...form, image_file: files[0], image_url: base64 });
-        };
-      };
-      reader.readAsDataURL(files[0]);
+      const previewUrl = URL.createObjectURL(files[0]);
+      setForm({ ...form, image_file: files[0], image_url: previewUrl });
     } else {
       setForm({ ...form, [name]: value });
     }
@@ -207,7 +178,7 @@ export default function MenuManagement() {
       fetchAll();
     } catch (err) {
       toast.error(
-        err?.response?.data?.error || "Failed to save category",
+        getApiErrorMessage(err, "Failed to save category."),
         { style: { background: "#ffeded", color: "#d32f2f" } }
       );
       console.error("Category submit error:", err);
@@ -232,7 +203,7 @@ export default function MenuManagement() {
       fetchAll();
     } catch (err) {
       toast.error(
-        err?.response?.data?.error || "Failed to save subcategory",
+        getApiErrorMessage(err, "Failed to save subcategory."),
         { style: { background: "#ffeded", color: "#d32f2f" } }
       );
       console.error("Subcategory submit error:", err);
@@ -241,15 +212,25 @@ export default function MenuManagement() {
 
   const handleSubmitMenuItem = async () => {
     try {
+      const normalPrice =
+        menuForm.price !== "" && !isNaN(parseFloat(menuForm.price))
+          ? parseFloat(menuForm.price)
+          : null;
+      const vipPrice =
+        menuForm.vip_price !== "" && !isNaN(parseFloat(menuForm.vip_price))
+          ? parseFloat(menuForm.vip_price)
+          : null;
+      if (normalPrice == null && vipPrice == null) {
+        toast.error("Provide at least one price: Normal Price and/or VIP Price.", {
+          style: { background: "#ffeded", color: "#d32f2f" },
+        });
+        return;
+      }
+
       const payload = {
         name: menuForm.name,
-        description: menuForm.description,
-        price: menuForm.price !== "" && !isNaN(parseFloat(menuForm.price))
-          ? parseFloat(menuForm.price)
-          : null,
-        vip_price: menuForm.vip_price !== "" && !isNaN(parseFloat(menuForm.vip_price))
-          ? parseFloat(menuForm.vip_price)
-          : null,
+        price: normalPrice,
+        vip_price: vipPrice,
         quantity_step:
           menuForm.quantity_step === ""
             ? null
@@ -257,7 +238,8 @@ export default function MenuManagement() {
         station_id: parseInt(menuForm.station_id),
         subcategory_id: parseInt(menuForm.subcategory_id),
         is_available: menuForm.is_available,
-        image_url: menuForm.image_url || "",
+        image_url: menuForm.image_file ? "" : menuForm.image_url || "",
+        image_file: menuForm.image_file || undefined,
       };
 
       if (menuForm.id) await updateMenuItem(menuForm.id, payload);
@@ -270,7 +252,6 @@ export default function MenuManagement() {
       setMenuForm({
         id: null,
         name: "",
-        description: "",
         price: "",
         vip_price: "",
         quantity_step: "",
@@ -285,7 +266,7 @@ export default function MenuManagement() {
       fetchAll();
     } catch (err) {
       toast.error(
-        err?.response?.data?.error || err.message || "Failed to save menu item",
+        getApiErrorMessage(err, "Failed to save menu item."),
         { style: { background: "#ffeded", color: "#d32f2f" } }
       );
       console.error("Menu item submit error:", err);
@@ -305,7 +286,6 @@ export default function MenuManagement() {
       setForm({
         id: item.id,
         name: item.name,
-        description: item.description,
         price: item.price != null ? item.price : "",
         vip_price: item.vip_price != null ? item.vip_price : "",
         quantity_step:
@@ -337,9 +317,7 @@ export default function MenuManagement() {
       fetchAll();
     } catch (err) {
       const message =
-        err?.response?.data?.error ||
-        err?.response?.data?.message ||
-        `Failed to delete ${deleteTarget.type.toLowerCase()}`;
+        getApiErrorMessage(err, `Failed to delete ${deleteTarget.type.toLowerCase()}.`);
       toast.error(message, { style: { background: "#ffeded", color: "#d32f2f" } });
       console.error("Delete error:", err);
     }
@@ -355,6 +333,8 @@ export default function MenuManagement() {
       (sc) => sc.id === item.subcategory_id
     )?.category_id;
 
+    if (filters.stationId && item.station_id !== parseInt(filters.stationId, 10))
+      return false;
     if (filters.categoryId && itemCategoryId !== parseInt(filters.categoryId))
       return false;
     if (
@@ -383,7 +363,6 @@ export default function MenuManagement() {
       setMenuForm({
         id: null,
         name: "",
-        description: "",
         price: "",
         vip_price: "",
         quantity_step: "",
@@ -447,7 +426,7 @@ export default function MenuManagement() {
           ))}
         </div>
         <Button onClick={openAddModal}>
-          <FaPlus className="mr-2" /> Add {tab.slice(0, -1)}
+          <FaPlus className="mr-2" /> Add {tab === "categories" ? "Category" : tab === "subcategories" ? "Subcategory" : "Menu Item"}
         </Button>
         </div>
       </Card>
@@ -459,6 +438,24 @@ export default function MenuManagement() {
           <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Filters</h4>
         </div>
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+          <select
+            value={filters.stationId}
+            onChange={(e) =>
+              setFilters({
+                ...filters,
+                stationId: e.target.value,
+              })
+            }
+            className={`${filterFieldClass} w-full lg:w-52`}
+          >
+            <option value="">All Stations</option>
+            {stations.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+
           <select
             value={filters.categoryId}
             onChange={(e) =>
@@ -516,6 +513,7 @@ export default function MenuManagement() {
             className="w-full lg:w-auto border-slate-300 dark:border-slate-700"
             onClick={() =>
               setFilters({
+                stationId: "",
                 categoryId: "",
                 subcategoryId: "",
                 availability: "",
@@ -670,7 +668,7 @@ export default function MenuManagement() {
               />
 
               {/* Image / placeholder */}
-              {item.image_url && item.image_url.startsWith("data:image/") ? (
+              {item.image_url ? (
                 <img
                   src={item.image_url}
                   alt={item.name}
@@ -701,9 +699,6 @@ export default function MenuManagement() {
                 <CardTitle className="text-lg font-bold truncate">
                   {item.name}
                 </CardTitle>
-                <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                  {item.description}
-                </p>
 
                 {/* Hover actions */}
                 <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
@@ -729,11 +724,12 @@ export default function MenuManagement() {
       )}
 
       {/* Modal */}
-      {modalOpen && (
+      {modalOpen &&
+        createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[90vh]">
+          <div className="w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
             <h2 className="text-xl font-bold mb-4">
-              {currentItem ? "Edit" : "Add"} {tab.slice(0, -1)}
+              {currentItem ? "Edit" : "Add"} {tab === "categories" ? "Category" : tab === "subcategories" ? "Subcategory" : "Menu Item"}
             </h2>
 
             <form
@@ -805,13 +801,6 @@ export default function MenuManagement() {
                     className={fieldClass}
                     required
                   />
-                  <textarea
-                    name="description"
-                    value={menuForm.description || ""}
-                    onChange={handleChange(menuForm, setMenuForm)}
-                    placeholder="Description"
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-slate-600"
-                  />
                   <div className="grid grid-cols-2 gap-3">
                     <input
                       type="number"
@@ -819,7 +808,7 @@ export default function MenuManagement() {
                       name="price"
                       value={menuForm.price || ""}
                       onChange={handleChange(menuForm, setMenuForm)}
-                      placeholder="Price (optional)"
+                      placeholder="Normal Price"
                       className={fieldClass}
                     />
                     <input
@@ -828,10 +817,13 @@ export default function MenuManagement() {
                       name="vip_price"
                       value={menuForm.vip_price || ""}
                       onChange={handleChange(menuForm, setMenuForm)}
-                      placeholder="VIP Price (optional)"
+                      placeholder="VIP Price"
                       className={fieldClass}
                     />
                   </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Set at least one price. You can set both Normal and VIP.
+                  </p>
 
                   <select
                     name="quantity_step"
@@ -877,11 +869,11 @@ export default function MenuManagement() {
                   <input
                     type="file"
                     name="image_file"
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/webp"
                     onChange={handleChange(menuForm, setMenuForm)}
                     className={fieldClass}
                   />
-                  {menuForm.image_url && menuForm.image_url.startsWith("data:image/") && (
+                  {menuForm.image_url && (
                     <img
                       src={menuForm.image_url}
                       alt="Preview"
@@ -930,7 +922,8 @@ export default function MenuManagement() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Confirmation Dialog */}

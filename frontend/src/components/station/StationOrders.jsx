@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchKDSOrders, updateOrderItemStatus } from "@/api/kds";
 import { formatEatTime } from "@/lib/timezone";
+import { toast } from "react-hot-toast";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function StationOrders() {
   const { stationToken } = useAuth();
@@ -22,6 +24,7 @@ export default function StationOrders() {
       setOrders(res);
     } catch (err) {
       console.error("Failed to fetch KDS orders:", err);
+      toast.error(getApiErrorMessage(err, "Failed to load KDS orders."));
     }
   };
 
@@ -40,6 +43,7 @@ export default function StationOrders() {
       );
     } catch (err) {
       console.error(`Failed to mark item ${itemId} as ${status}:`, err);
+      toast.error(getApiErrorMessage(err, `Failed to update item status to '${status}'.`));
     }
   };
 
@@ -65,7 +69,7 @@ export default function StationOrders() {
     );
 
   return (
-    <div className="overflow-y-auto h-screen p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+    <div className="h-full p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
       {pendingOrders.map((order) => (
         <div
           key={order.order_id}

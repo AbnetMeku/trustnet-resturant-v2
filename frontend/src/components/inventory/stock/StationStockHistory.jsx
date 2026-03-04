@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { eatBusinessDateISO } from "@/lib/timezone";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function StationStockHistory() {
   const { token } = useAuth();
@@ -38,7 +39,7 @@ export default function StationStockHistory() {
           setSelectedStation(allowedStations[0].id);
         }
       } catch (err) {
-        toast.error("Failed to fetch stations");
+        toast.error(getApiErrorMessage(err, "Failed to fetch stations."));
       }
     };
     fetchStations();
@@ -64,7 +65,7 @@ export default function StationStockHistory() {
 
         setSnapshots(sorted);
       } catch (err) {
-        toast.error("Failed to load snapshots");
+        toast.error(getApiErrorMessage(err, "Failed to load station snapshots."));
       } finally {
         setLoading(false);
       }

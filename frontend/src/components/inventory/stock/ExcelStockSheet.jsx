@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 function num(v) {
   const n = Number(v);
@@ -49,8 +50,8 @@ export default function ExcelStockSheet() {
         const map = new Map();
         (itemData || []).forEach((i) => map.set(i.id, i.name));
         setItemsMap(map);
-      } catch {
-        toast.error("Failed to load inventory sheet setup");
+      } catch (err) {
+        toast.error(getApiErrorMessage(err, "Failed to load inventory sheet setup."));
       }
     };
 
@@ -156,8 +157,8 @@ export default function ExcelStockSheet() {
         } else {
           await loadStationRows();
         }
-      } catch {
-        toast.error("Failed to load sheet data");
+      } catch (err) {
+        toast.error(getApiErrorMessage(err, "Failed to load stock sheet data."));
       } finally {
         setLoading(false);
       }
@@ -203,8 +204,8 @@ export default function ExcelStockSheet() {
         );
       }
       toast.success("Row saved");
-    } catch {
-      toast.error("Failed to save row");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to save stock row."));
     } finally {
       setSavingRowId(null);
     }

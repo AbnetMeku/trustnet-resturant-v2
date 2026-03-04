@@ -33,6 +33,10 @@ def create_pos_app(config_name="development"):
         "BRANDING_UPLOAD_DIR",
         os.path.join(app.root_path, "static", "branding"),
     )
+    app.config.setdefault(
+        "MENU_IMAGE_UPLOAD_DIR",
+        os.path.join(app.root_path, "static", "menu_images"),
+    )
 
     db.init_app(app)
     migrate.init_app(app, db)

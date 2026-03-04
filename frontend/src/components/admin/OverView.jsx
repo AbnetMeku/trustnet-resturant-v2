@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recha
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { eatBusinessDateISO } from "@/lib/timezone";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function OverView() {
   const [metrics, setMetrics] = useState(null);
@@ -53,8 +54,13 @@ export default function OverView() {
         );
 
         if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData.message || "Failed to fetch summary");
+          let errData = {};
+          try {
+            errData = await res.json();
+          } catch {
+            errData = {};
+          }
+          throw new Error(errData.error || errData.message || `Failed to fetch summary (HTTP ${res.status})`);
         }
 
         const summary = await res.json();
@@ -100,7 +106,7 @@ export default function OverView() {
         });
       } catch (e) {
         console.error(e);
-        setError(e.message || "Could not load dashboard data");
+        setError(getApiErrorMessage(e, "Could not load dashboard data."));
       } finally {
         setLoading(false);
       }

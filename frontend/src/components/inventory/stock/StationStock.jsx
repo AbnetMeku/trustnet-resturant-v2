@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Card } from "@/components/ui/card";
 import { toast } from "react-hot-toast";
 import { formatEatDateTime } from "@/lib/timezone";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function StationStock() {
   const { token } = useAuth();
@@ -29,7 +30,7 @@ export default function StationStock() {
           setSelectedStation(filteredStations[0].id);
         }
       } catch (err) {
-        toast.error(err.message || "Failed to load stations");
+        toast.error(getApiErrorMessage(err, "Failed to load stations."));
       }
     };
 
@@ -45,7 +46,7 @@ export default function StationStock() {
         const data = await getAllStationStock(selectedStation, token);
         setStationStock(data);
       } catch (err) {
-        toast.error(err.message || "Failed to load station stock");
+        toast.error(getApiErrorMessage(err, "Failed to load station stock."));
       } finally {
         setLoading(false);
       }

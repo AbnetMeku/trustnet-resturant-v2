@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchReadyOrdersHistory } from "@/api/kds";
 import { eatBusinessDateISO, formatEatDateTime } from "@/lib/timezone";
+import { toast } from "react-hot-toast";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function StationHistory() {
   const { stationToken } = useAuth();
@@ -37,6 +39,7 @@ export default function StationHistory() {
       setOrders(res);
     } catch (err) {
       console.error("Failed to fetch ready orders:", err);
+      toast.error(getApiErrorMessage(err, "Failed to load KDS history."));
     }
   };
 
@@ -99,7 +102,7 @@ export default function StationHistory() {
   const aggregatedItemsArray = Object.values(aggregatedItems);
 
   return (
-    <div className="overflow-y-auto h-screen p-4">
+    <div className="h-full p-4">
       {/* Filters */}
       <div className="flex gap-4 mb-6 flex-wrap">
         <select

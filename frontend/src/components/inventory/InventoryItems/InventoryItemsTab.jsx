@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "react-hot-toast";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 function ConfirmDialog({ open, title, description, onConfirm, onCancel, loading }) {
   return (
@@ -64,8 +65,8 @@ export default function InventoryItemsTab() {
     try {
       const data = await getInventoryItems(token);
       setItems(data);
-    } catch {
-      toast.error("Failed to load items");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to load inventory items."));
     } finally {
       setLoadingItems(false);
     }
@@ -143,8 +144,8 @@ export default function InventoryItemsTab() {
       }
       closeItemModal();
       loadItems();
-    } catch {
-      toast.error("Operation failed");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to save inventory item."));
     } finally {
       setSubmitting(false);
     }
@@ -160,8 +161,8 @@ export default function InventoryItemsTab() {
       await deleteInventoryItem(deleteId, token);
       toast.success("Item deleted successfully");
       setItems((prev) => prev.filter((i) => i.id !== deleteId));
-    } catch {
-      toast.error("Failed to delete item");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to delete inventory item."));
     } finally {
       setDeleting(false);
       setDeleteId(null);

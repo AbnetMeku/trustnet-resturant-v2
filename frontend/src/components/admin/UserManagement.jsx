@@ -5,6 +5,7 @@ import { getWaiterProfiles } from "@/api/waiter_profiles";
 import WaiterProfileManagement from "@/components/admin/WaiterProfileManagement";
 import { useAuth } from "../../context/AuthContext";
 import { toast } from "react-hot-toast";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 // shadcn/ui
 import { Button } from "@/components/ui/button";
@@ -98,7 +99,7 @@ export default function UserManagement() {
       const data = await getUsers("", authToken);
       setUsers(data);
     } catch (err) {
-      toast.error(err?.response?.data || err.message || "Failed to load users");
+      toast.error(getApiErrorMessage(err, "Failed to load users."));
     } finally {
       setLoading(false);
     }
@@ -109,7 +110,7 @@ export default function UserManagement() {
       const data = await getWaiterProfiles(authToken);
       setWaiterProfiles(data);
     } catch (err) {
-      toast.error(err?.response?.data?.error || err.message || "Failed to load waiter profiles");
+      toast.error(getApiErrorMessage(err, "Failed to load waiter profiles."));
     }
   };
 
@@ -286,7 +287,7 @@ export default function UserManagement() {
       closeModal();
       loadUsers();
     } catch (err) {
-      const msg = err?.response?.data?.error || err?.response?.data?.msg || err.message || "Operation failed";
+      const msg = getApiErrorMessage(err, "Operation failed.");
       toast.error(msg);
       if (typeof msg === "string" && msg.toLowerCase().includes("username")) {
         setErrors((prev) => ({ ...prev, username: msg }));
@@ -314,7 +315,7 @@ export default function UserManagement() {
       toast.success("User deleted");
       setUsers((prev) => prev.filter((u) => u.id !== deleteId));
     } catch (err) {
-      toast.error(err?.response?.data?.error || err.message || "Failed to delete user");
+      toast.error(getApiErrorMessage(err, "Failed to delete user."));
     } finally {
       setDeleting(false);
       setDeleteId(null);

@@ -21,8 +21,8 @@ export default function OrdersHub({ isShiftClosedToday = false }) {
   }
 
   return (
-    <main className="flex items-center justify-center h-full px-6 bg-gray-50 dark:bg-gray-900">
-      <div className="w-full max-w-5xl">
+    <main className="flex min-h-[70vh] items-center justify-center px-4 sm:px-6">
+      <div className="w-full max-w-4xl">
         {error && <div className="text-red-500 mb-4">{error}</div>}
 
         {isShiftClosedToday && (
@@ -31,10 +31,10 @@ export default function OrdersHub({ isShiftClosedToday = false }) {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+        <div className="mx-auto grid w-full max-w-3xl grid-cols-1 place-items-center gap-6 sm:grid-cols-2 sm:gap-8">
           <Card
             onClick={() => !isShiftClosedToday && setView("new")}
-            className={`h-48 sm:h-64 flex items-center justify-center text-3xl font-extrabold text-gray-800 bg-slate-200 rounded-2xl shadow-xl transition-transform transform focus:outline-none focus:ring-4 focus:ring-slate-300 ${
+            className={`h-48 w-full max-w-[20rem] sm:h-64 flex items-center justify-center text-3xl font-extrabold text-gray-800 bg-slate-200 rounded-2xl shadow-xl transition-transform transform focus:outline-none focus:ring-4 focus:ring-slate-300 ${
               isShiftClosedToday
                 ? "cursor-not-allowed opacity-50"
                 : "cursor-pointer hover:scale-105 hover:bg-slate-300 hover:shadow-2xl"
@@ -52,7 +52,7 @@ export default function OrdersHub({ isShiftClosedToday = false }) {
 
           <Card
             onClick={() => !isShiftClosedToday && setView("active")}
-            className={`h-48 sm:h-64 flex items-center justify-center text-3xl font-extrabold text-gray-800 bg-slate-200 rounded-2xl shadow-xl transition-transform transform focus:outline-none focus:ring-4 focus:ring-slate-300 ${
+            className={`h-48 w-full max-w-[20rem] sm:h-64 flex items-center justify-center text-3xl font-extrabold text-gray-800 bg-slate-200 rounded-2xl shadow-xl transition-transform transform focus:outline-none focus:ring-4 focus:ring-slate-300 ${
               isShiftClosedToday
                 ? "cursor-not-allowed opacity-50"
                 : "cursor-pointer hover:scale-105 hover:bg-slate-300 hover:shadow-2xl"

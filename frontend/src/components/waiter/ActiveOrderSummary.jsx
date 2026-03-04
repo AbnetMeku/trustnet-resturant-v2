@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function ActiveOrderSummary({
   selectedOrder,
@@ -39,7 +40,7 @@ export default function ActiveOrderSummary({
       await onSave();
       toast.success("Additional items sent", { duration: 1800 });
     } catch (err) {
-      toast.error(err?.message || "Failed to save order changes.");
+      toast.error(getApiErrorMessage(err, "Failed to save order changes."));
     } finally {
       setSaving(false);
     }
