@@ -9,6 +9,7 @@ export const DEFAULT_BRANDING = {
   custom_background_url: null,
   business_day_start_time: "06:00",
   print_preview_enabled: false,
+  kds_mark_unavailable_enabled: false,
 };
 
 const getAuthHeader = (token) => ({

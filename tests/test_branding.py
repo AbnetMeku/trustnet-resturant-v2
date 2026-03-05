@@ -35,6 +35,7 @@ def test_get_branding_defaults(client):
     assert data["logo_url"] == "/logo.png"
     assert data["background_url"] == "/Background.png"
     assert data["print_preview_enabled"] is False
+    assert data["kds_mark_unavailable_enabled"] is False
 
 
 def test_admin_can_update_branding(client, app):
@@ -50,6 +51,7 @@ def test_admin_can_update_branding(client, app):
             "logo_url": "https://example.com/logo.png",
             "background_url": "https://example.com/bg.jpg",
             "print_preview_enabled": True,
+            "kds_mark_unavailable_enabled": True,
         },
         headers=auth_headers(token),
     )
@@ -58,12 +60,14 @@ def test_admin_can_update_branding(client, app):
     assert data["logo_url"] == "https://example.com/logo.png"
     assert data["background_url"] == "https://example.com/bg.jpg"
     assert data["print_preview_enabled"] is True
+    assert data["kds_mark_unavailable_enabled"] is True
 
     with app.app_context():
         saved = db.session.get(BrandingSettings, 1)
         assert saved is not None
         assert saved.logo_url == "https://example.com/logo.png"
         assert saved.print_preview_enabled is True
+        assert saved.kds_mark_unavailable_enabled is True
 
 
 def test_update_branding_rejects_non_boolean_print_preview(client, app):
@@ -81,6 +85,23 @@ def test_update_branding_rejects_non_boolean_print_preview(client, app):
     assert response.status_code == 400
     data = response.get_json()
     assert "print_preview_enabled must be a boolean" in data["error"]
+
+
+def test_update_branding_rejects_non_boolean_kds_mark_unavailable(client, app):
+    with app.app_context():
+        admin = User(username="admin_brand_kds_bool", password_hash="hash", role="admin")
+        db.session.add(admin)
+        db.session.commit()
+        token = create_access_token(identity=str(admin.id), additional_claims={"role": "admin"})
+
+    response = client.put(
+        "/api/branding",
+        json={"kds_mark_unavailable_enabled": "yes"},
+        headers=auth_headers(token),
+    )
+    assert response.status_code == 400
+    data = response.get_json()
+    assert "kds_mark_unavailable_enabled must be a boolean" in data["error"]
 
 
 def test_waiter_cannot_update_branding(client, app):

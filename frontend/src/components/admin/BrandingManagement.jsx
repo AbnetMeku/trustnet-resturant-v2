@@ -24,6 +24,7 @@ export default function BrandingManagement() {
     background_url: "",
     business_day_start_time: "06:00",
     print_preview_enabled: false,
+    kds_mark_unavailable_enabled: false,
   });
   const [preview, setPreview] = useState(DEFAULT_BRANDING);
 
@@ -37,10 +38,11 @@ export default function BrandingManagement() {
           background_url: data.custom_background_url || "",
           business_day_start_time: data.business_day_start_time || "06:00",
           print_preview_enabled: Boolean(data.print_preview_enabled),
+          kds_mark_unavailable_enabled: Boolean(data.kds_mark_unavailable_enabled),
         });
         setPreview(data);
       } catch (error) {
-        toast.error(getApiErrorMessage(error, "Failed to load branding settings. Please refresh and try again."));
+        toast.error(getApiErrorMessage(error, "Failed to load settings. Please refresh and try again."));
       } finally {
         setLoading(false);
       }
@@ -57,17 +59,19 @@ export default function BrandingManagement() {
         background_url: form.background_url,
         business_day_start_time: form.business_day_start_time,
         print_preview_enabled: Boolean(form.print_preview_enabled),
+        kds_mark_unavailable_enabled: Boolean(form.kds_mark_unavailable_enabled),
       });
       setForm({
         logo_url: data.custom_logo_url || "",
         background_url: data.custom_background_url || "",
         business_day_start_time: data.business_day_start_time || "06:00",
         print_preview_enabled: Boolean(data.print_preview_enabled),
+        kds_mark_unavailable_enabled: Boolean(data.kds_mark_unavailable_enabled),
       });
       setPreview(data);
-      toast.success("Branding updated successfully");
+      toast.success("Settings updated successfully");
     } catch (error) {
-      toast.error(getApiErrorMessage(error, "Failed to update branding settings."));
+      toast.error(getApiErrorMessage(error, "Failed to update settings."));
     } finally {
       setSaving(false);
     }
@@ -81,17 +85,19 @@ export default function BrandingManagement() {
         background_url: "",
         business_day_start_time: "06:00",
         print_preview_enabled: false,
+        kds_mark_unavailable_enabled: false,
       });
       setForm({
         logo_url: data.custom_logo_url || "",
         background_url: data.custom_background_url || "",
         business_day_start_time: data.business_day_start_time || "06:00",
         print_preview_enabled: Boolean(data.print_preview_enabled),
+        kds_mark_unavailable_enabled: Boolean(data.kds_mark_unavailable_enabled),
       });
       setPreview(data);
-      toast.success("Branding reset to defaults");
+      toast.success("Settings reset to defaults");
     } catch (error) {
-      toast.error(getApiErrorMessage(error, "Failed to reset branding settings."));
+      toast.error(getApiErrorMessage(error, "Failed to reset settings."));
     } finally {
       setSaving(false);
     }
@@ -119,6 +125,7 @@ export default function BrandingManagement() {
         background_url: data.custom_background_url || "",
         business_day_start_time: data.business_day_start_time || "06:00",
         print_preview_enabled: Boolean(data.print_preview_enabled),
+        kds_mark_unavailable_enabled: Boolean(data.kds_mark_unavailable_enabled),
       });
       setPreview(data);
       toast.success(`${assetType === "logo" ? "Logo" : "Background"} uploaded`);
@@ -130,7 +137,7 @@ export default function BrandingManagement() {
   };
 
   if (loading) {
-    return <div className="text-sm text-slate-500 dark:text-slate-300">Loading branding settings...</div>;
+    return <div className="text-sm text-slate-500 dark:text-slate-300">Loading settings...</div>;
   }
 
   return (
@@ -138,7 +145,7 @@ export default function BrandingManagement() {
       <Card className="admin-card overflow-hidden">
         <div className="admin-hero px-4 py-5 md:px-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <h3 className="text-xl font-semibold">Branding</h3>
+            <h3 className="text-xl font-semibold">Settings</h3>
             <div className="grid grid-cols-2 gap-2">
               <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Logo</p>
@@ -223,6 +230,25 @@ export default function BrandingManagement() {
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="branding-kds-mark-unavailable">KDS Mark Unavailable</Label>
+            <div className="flex items-center gap-2 rounded-md border border-slate-200 p-3 dark:border-slate-700">
+              <Checkbox
+                id="branding-kds-mark-unavailable"
+                checked={form.kds_mark_unavailable_enabled}
+                onCheckedChange={(value) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    kds_mark_unavailable_enabled: Boolean(value),
+                  }))
+                }
+              />
+              <span className="text-sm text-slate-700 dark:text-slate-200">
+                Allow stations to mark pending items as not available (void)
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="branding-background-upload">Background Upload</Label>
             <Input
               id="branding-background-upload"
@@ -240,7 +266,7 @@ export default function BrandingManagement() {
 
           <div className="pt-1">
             <Button onClick={handleSave} disabled={saving || uploadingLogo || uploadingBackground}>
-              {saving ? "Saving..." : "Save Branding"}
+              {saving ? "Saving..." : "Save Settings"}
             </Button>
           </div>
         </Card>
@@ -248,7 +274,7 @@ export default function BrandingManagement() {
         <Card className="admin-card p-4 space-y-3 backdrop-blur-sm">
           <div className="flex items-center justify-between">
             <h4 className="font-medium">Live Preview</h4>
-            <span className="text-xs text-slate-500 dark:text-slate-400">Current branding</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Current settings</span>
           </div>
 
           <div
@@ -279,6 +305,10 @@ export default function BrandingManagement() {
             <div className="rounded-md border border-slate-200 dark:border-slate-700 p-2 text-slate-700 dark:text-slate-200 col-span-2">
               <span className="font-medium">Print worker preview:</span>{" "}
               {preview.print_preview_enabled ? "Enabled" : "Disabled"}
+            </div>
+            <div className="rounded-md border border-slate-200 dark:border-slate-700 p-2 text-slate-700 dark:text-slate-200 col-span-2">
+              <span className="font-medium">KDS mark unavailable:</span>{" "}
+              {preview.kds_mark_unavailable_enabled ? "Enabled" : "Disabled"}
             </div>
           </div>
         </Card>

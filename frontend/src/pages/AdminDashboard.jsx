@@ -80,7 +80,7 @@ export default function AdminDashboard() {
 
   const isManager = user?.role === "manager";
   const restrictedIds = isManager
-    ? new Set(["reports", "waiter-summary", "stations", "branding"])
+    ? new Set(["reports", "waiter-summary", "stations", "settings"])
     : new Set();
 
   const menuSections = [
@@ -138,9 +138,9 @@ export default function AdminDashboard() {
           label: "Stations",
         },
         {
-          id: "branding",
+          id: "settings",
           icon: FaPalette,
-          label: "Branding",
+          label: "Settings",
         },
       ],
     },
@@ -340,7 +340,7 @@ export default function AdminDashboard() {
               </Card>
             )}
 
-            {active === "branding" && (
+            {active === "settings" && (
               <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]">
                 <BrandingManagement />
               </Card>

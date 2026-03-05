@@ -1,12 +1,12 @@
 from flask import Blueprint, jsonify, abort, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app.models.models import OrderItem, Station, Order
 from app.extensions import db
 from sqlalchemy import asc, desc
 from datetime import datetime
 from app.routes.orders.order import recalc_order_total
 from app.services.inventory_integration import send_inventory_adjustment_or_queue
-from app.utils.timezone import eat_now_naive
+from app.utils.timezone import eat_now_naive, get_business_day_bounds
 stations_kds_bp = Blueprint("stations_kds_bp", __name__, url_prefix="/stations/kds")
 
 def parse_station_identity(identity):
@@ -28,10 +28,18 @@ def parse_station_identity(identity):
         return None
     return None
 
+
+def ensure_station_claims():
+    claims = get_jwt() or {}
+    role = claims.get("role")
+    if role != "station":
+        abort(403, "Station token required")
+
 # ---- GET PENDING ORDERS FOR STATION ----
 @stations_kds_bp.route("/orders", methods=["GET"])
 @jwt_required()
 def get_pending_orders():
+    ensure_station_claims()
     identity = get_jwt_identity()
     station_id = parse_station_identity(identity)
     if station_id is None:
@@ -96,6 +104,7 @@ def get_pending_orders():
 @stations_kds_bp.route("/orders/<int:order_item_id>/status", methods=["PUT"])
 @jwt_required()
 def update_order_item_status(order_item_id):
+    ensure_station_claims()
     identity = get_jwt_identity()
     station_id = parse_station_identity(identity)
     if station_id is None:
@@ -161,6 +170,7 @@ def update_order_item_status(order_item_id):
 @stations_kds_bp.route("/orders/history", methods=["GET"])
 @jwt_required()
 def get_ready_orders_history():
+    ensure_station_claims()
     identity = get_jwt_identity()
     station_id = parse_station_identity(identity)
     if station_id is None:
@@ -190,10 +200,9 @@ def get_ready_orders_history():
     # Apply date filter if provided
     if date_filter:
         try:
-            selected_date = datetime.strptime(date_filter, "%Y-%m-%d")
-            date_start = selected_date.replace(hour=0, minute=0, second=0, microsecond=0)
-            date_end = selected_date.replace(hour=23, minute=59, second=59, microsecond=999999)
-            query = query.filter(OrderItem.created_at >= date_start, OrderItem.created_at <= date_end)
+            selected_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
+            date_start, date_end = get_business_day_bounds(selected_date)
+            query = query.filter(OrderItem.created_at >= date_start, OrderItem.created_at < date_end)
         except ValueError:
             abort(400, "Invalid date format. Use YYYY-MM-DD")
 
