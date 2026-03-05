@@ -175,7 +175,7 @@ export default function NewOrder({ goBack, setError }) {
           You must be logged in to create an order.
         </p>
         <Button variant="outline" onClick={goBack}>
-          Back to Hub
+          ወደ መነሻ ተመለስ
         </Button>
       </div>
     );

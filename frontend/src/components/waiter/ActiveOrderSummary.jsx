@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { getApiErrorMessage } from "@/lib/apiError";
@@ -47,13 +47,18 @@ export default function ActiveOrderSummary({
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-full bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden p-4">
-      <section className="flex-1 overflow-auto mr-4">
-        <h3 className="text-xl font-semibold mb-3 dark:text-white">
-          Previously Ordered
-        </h3>
+    <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr_240px] gap-4 h-full bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-slate-200/70 dark:border-slate-700 p-4 md:p-5">
+      <div className="xl:col-span-3 flex items-start justify-between gap-3">
+        <h2 className="text-xl font-semibold dark:text-white">የትዕዛዝ ማጠቃለያ</h2>
+        <Button variant="outline" size="sm" onClick={onBack} disabled={saving}>
+          {"\u2190"} ተመለስ
+        </Button>
+      </div>
+
+      <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+        <h3 className="text-xl font-semibold mb-3 dark:text-white">ቀድሞ የታዘዙ</h3>
         {originalItems.length + voidedItems.length === 0 ? (
-          <p className="text-gray-500 dark:text-gray-400">No previous items.</p>
+          <p className="text-gray-500 dark:text-gray-400">ቀድሞ የታዘዘ የለም።</p>
         ) : (
           <ul className="space-y-2">
             {[...originalItems, ...voidedItems].map((item) => {
@@ -76,13 +81,13 @@ export default function ActiveOrderSummary({
             })}
           </ul>
         )}
-        <p className="mt-4 font-semibold dark:text-white">Original Total: ${originalSubtotal}</p>
+        <p className="mt-4 font-semibold dark:text-white">የቀድሞ ድምር: ${originalSubtotal}</p>
       </section>
 
-      <section className="flex-1 overflow-auto ml-4">
-        <h3 className="text-xl font-semibold mb-3 dark:text-white">New Items</h3>
+      <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+        <h3 className="text-xl font-semibold mb-3 dark:text-white">አዲስ የተጨመሩ</h3>
         {newItems.length === 0 ? (
-          <p className="text-gray-500 dark:text-gray-400">No new items added.</p>
+          <p className="text-gray-500 dark:text-gray-400">አዲስ የተጨመረ የለም።</p>
         ) : (
           <ul className="space-y-2">
             {newItems.map((item) => (
@@ -101,19 +106,14 @@ export default function ActiveOrderSummary({
             ))}
           </ul>
         )}
-        <p className="mt-4 font-semibold dark:text-white">Added Total: ${newItemsSubtotal}</p>
+        <p className="mt-4 font-semibold dark:text-white">የተጨመረ ድምር: ${newItemsSubtotal}</p>
       </section>
 
-      <section className="w-full md:w-60 flex flex-col justify-between mt-4 md:mt-0 ml-4">
-        <p className="text-2xl font-bold dark:text-white mb-4">Total: ${combinedTotal}</p>
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={onBack} disabled={saving}>
-            Back
-          </Button>
-          <Button className="flex-1" disabled={newItems.length === 0 || saving} onClick={handleSave}>
-            {saving ? "Saving..." : "Save"}
-          </Button>
-        </div>
+      <section className="w-full xl:w-60 rounded-lg border border-slate-200 dark:border-slate-700 p-3 flex flex-col justify-between">
+        <p className="text-2xl font-bold dark:text-white mb-4">አጠቃላይ: ${combinedTotal}</p>
+        <Button className="w-full" disabled={newItems.length === 0 || saving} onClick={handleSave}>
+          {saving ? "በማስቀመጥ ላይ..." : "አስቀምጥ"}
+        </Button>
       </section>
     </div>
   );

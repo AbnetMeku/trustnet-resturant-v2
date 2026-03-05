@@ -54,8 +54,7 @@ export default function ActiveOrders({ goBack }) {
     });
   };
 
-  const removeItem = (itemId) =>
-    setOrderItems((prev) => prev.filter((i) => i.menu_item_id !== itemId));
+  const removeItem = (itemId) => setOrderItems((prev) => prev.filter((i) => i.menu_item_id !== itemId));
 
   const updateQuantity = (itemId, delta) => {
     setOrderItems((prev) =>
@@ -84,8 +83,7 @@ export default function ActiveOrders({ goBack }) {
   };
 
   const handleSave = async () => {
-    if (!authToken || !selectedOrder) return;
-    if (orderItems.length === 0) return;
+    if (!authToken || !selectedOrder || orderItems.length === 0) return;
 
     const itemsToSend = orderItems.map((i) => ({
       menu_item_id: i.menu_item_id,
@@ -119,7 +117,7 @@ export default function ActiveOrders({ goBack }) {
     }
   };
 
-  if (step === "menu" && selectedOrder)
+  if (step === "menu" && selectedOrder) {
     return (
       <ActiveMenuSelection
         selectedOrder={selectedOrder}
@@ -131,8 +129,9 @@ export default function ActiveOrders({ goBack }) {
         onBack={prevStep}
       />
     );
+  }
 
-  if (step === "summary" && selectedOrder)
+  if (step === "summary" && selectedOrder) {
     return (
       <ActiveOrderSummary
         selectedOrder={selectedOrder}
@@ -143,47 +142,88 @@ export default function ActiveOrders({ goBack }) {
         onSave={handleSave}
       />
     );
+  }
 
   return (
-    <div className="p-4">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">የተከፈተ ትዕዛዝ</h2>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold">የተከፈተ ትዕዛዝ</h2>
+          {!loading && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{openOrders.length} ትዕዛዝ</p>}
+        </div>
         <Button variant="outline" onClick={goBack}>
-          ← Back
+          {"\u2190"} ተመለስ
         </Button>
       </div>
 
       {loading ? (
-        <p>Loading orders...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((k) => (
+            <div key={k} className="h-44 rounded-2xl border bg-white/60 dark:bg-gray-800/60 animate-pulse" />
+          ))}
+        </div>
       ) : openOrders.length === 0 ? (
-        <p className="text-gray-500">ምንም የተከፈተ ትዕዛዝ የለም</p>
+        <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-10 text-center">
+          <p className="text-gray-500">ምንም የተከፈተ ትዕዛዝ የለም</p>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {openOrders.map((order) => (
             <div
               key={order.id}
-              className="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border rounded-2xl p-5 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all flex flex-col justify-between"
+              role="button"
+              tabIndex={0}
+              onClick={() => selectOrder(order)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  selectOrder(order);
+                }
+              }}
+              className="relative cursor-pointer bg-white/85 dark:bg-gray-800/85 backdrop-blur-md border border-slate-200/70 dark:border-slate-700 rounded-2xl p-5 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all flex flex-col justify-between"
             >
-              <div onClick={() => selectOrder(order)} className="cursor-pointer">
-                <h3 className="font-bold text-xl mb-2 text-gray-900 dark:text-white">Table {order.table.number}</h3>
-                <span className="inline-block px-3 py-1 text-sm font-semibold bg-blue-100 text-blue-700 rounded-full dark:bg-blue-900 dark:text-blue-200">
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-bold text-xl text-gray-900 dark:text-white">Table {order.table.number}</h3>
+                  <span className="inline-block px-2.5 py-1 text-[11px] font-semibold bg-slate-100 text-slate-700 rounded-full dark:bg-slate-700 dark:text-slate-100">
+                    #{order.id}
+                  </span>
+                </div>
+                <span className="inline-block mt-3 px-3 py-1 text-sm font-semibold bg-blue-100 text-blue-700 rounded-full dark:bg-blue-900 dark:text-blue-200">
                   ጠቅላላ ዋጋ: ${order.total_amount.toFixed(2)}
                 </span>
               </div>
-              <Button className="mt-4" variant="outline" onClick={() => setDetailsOrder(order)}>
-                ዝርዝር ይመልከቱ
-              </Button>
-              <Button className="mt-3" variant="destructive" onClick={() => setConfirmCloseId(order.id)}>
-                ትዕዛዝ ዝጋ
-              </Button>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDetailsOrder(order);
+                  }}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  ዝርዝር ይመልከቱ
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmCloseId(order.id);
+                  }}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  ትዕዛዝ ዝጋ
+                </Button>
+              </div>
             </div>
           ))}
         </div>
       )}
 
       {confirmCloseId && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-11/12 max-w-md">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-[2px] z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-full max-w-md border border-slate-200 dark:border-slate-700">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">እርግጠኛ ነዎት ይህ ትዕዛዝ ይዘጋ?</h3>
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setConfirmCloseId(null)}>
@@ -198,17 +238,19 @@ export default function ActiveOrders({ goBack }) {
       )}
 
       {detailsOrder && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-11/12 max-w-lg">
-            <h3 className="text-xl font-bold mb-4">Table {detailsOrder.table.number} - Order #{detailsOrder.id}</h3>
-            <div className="max-h-80 overflow-y-auto">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-[2px] z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-5 md:p-6 w-full max-w-2xl border border-slate-200 dark:border-slate-700">
+            <h3 className="text-xl font-bold mb-4">
+              Table {detailsOrder.table.number} - Order #{detailsOrder.id}
+            </h3>
+            <div className="max-h-[55vh] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
               <table className="w-full text-left border-collapse">
-                <thead>
+                <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900/90">
                   <tr className="border-b dark:border-gray-600">
-                    <th className="pb-2">ትዛዝ</th>
-                    <th className="pb-2">ብዛት</th>
-                    <th className="pb-2">ዋጋ</th>
-                    <th className="pb-2">አጠቃላይ ዋጋ</th>
+                    <th className="px-3 py-2">ትዕዛዝ</th>
+                    <th className="px-3 py-2">ብዛት</th>
+                    <th className="px-3 py-2">ዋጋ</th>
+                    <th className="px-3 py-2">አጠቃላይ ዋጋ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -221,17 +263,17 @@ export default function ActiveOrders({ goBack }) {
                           isVoided ? "bg-red-100 dark:bg-red-800/50 line-through text-gray-500 dark:text-gray-300" : ""
                         }`}
                       >
-                        <td>{item.name}</td>
-                        <td>{item.quantity}</td>
-                        <td>${item.price.toFixed(2)}</td>
-                        <td>${(item.price * item.quantity).toFixed(2)}</td>
+                        <td className="px-3 py-2">{item.name}</td>
+                        <td className="px-3 py-2">{item.quantity}</td>
+                        <td className="px-3 py-2">${item.price.toFixed(2)}</td>
+                        <td className="px-3 py-2">${(item.price * item.quantity).toFixed(2)}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-            <p className="mt-4 font-bold text-right">አጠቃላይ: ${detailsOrder.total_amount.toFixed(2)}</p>
+            <p className="mt-4 font-bold text-right text-lg">አጠቃላይ: ${detailsOrder.total_amount.toFixed(2)}</p>
             <div className="flex justify-end mt-4">
               <Button onClick={() => setDetailsOrder(null)}>Close</Button>
             </div>

@@ -214,40 +214,47 @@ export default function HistoryPage({ onDayCloseChange }) {
       </div>
 
       {showSummarySidebar && summary && (
-        <div className="w-64 ml-6 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg shadow-lg max-h-screen overflow-y-auto">
-          <h2 className="text-xl font-bold mb-4">አጠቃላይ ዛሬ የተሸጡ</h2>
-          {summary.dailyItemsSummary?.length === 0 ? (
-            <p className="text-sm">ዛሬ የተሸጠ የለም</p>
-          ) : (
-            <ul className="space-y-2">
-              {summary.dailyItemsSummary?.map((item) => (
-                <li
-                  key={item.name}
-                  className="flex justify-between bg-white dark:bg-gray-700 px-3 py-2 rounded shadow"
-                >
-                  <span>{item.name}</span>
-                  <span className="font-semibold">{item.quantity}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px]">
+          <div className="absolute right-0 top-0 h-full w-full max-w-md bg-white dark:bg-gray-800 border-l border-slate-200 dark:border-slate-700 shadow-2xl p-5 overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">አጠቃላይ ዛሬ የተሸጡ</h2>
+              <Button variant="outline" size="sm" onClick={() => setShowSummarySidebar(false)}>
+                Close
+              </Button>
+            </div>
+            {summary.dailyItemsSummary?.length === 0 ? (
+              <p className="text-sm">ዛሬ የተሸጠ የለም</p>
+            ) : (
+              <ul className="space-y-2">
+                {summary.dailyItemsSummary?.map((item) => (
+                  <li
+                    key={item.name}
+                    className="flex justify-between bg-slate-100 dark:bg-gray-700 px-3 py-2 rounded-lg border border-slate-200/80 dark:border-slate-600"
+                  >
+                    <span>{item.name}</span>
+                    <span className="font-semibold">{item.quantity}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
 
       {selectedOrder && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-11/12 max-w-lg">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-[2px] z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-full max-w-2xl border border-slate-200 dark:border-slate-700">
             <h3 className="text-xl font-bold mb-4">
               Table {selectedOrder.table?.number || "N/A"} - ትዕዛዝ #{selectedOrder.id}
             </h3>
-            <div className="max-h-80 overflow-y-auto">
+            <div className="max-h-[55vh] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
               <table className="w-full text-left border-collapse">
-                <thead>
+                <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900/90">
                   <tr className="border-b dark:border-gray-600">
-                    <th className="pb-2">ትዕዛዝ</th>
-                    <th className="pb-2">ብዛት</th>
-                    <th className="pb-2">ዋጋ</th>
-                    <th className="pb-2">አጠቃላይ ዋጋ</th>
+                    <th className="px-3 py-2">ትዕዛዝ</th>
+                    <th className="px-3 py-2">ብዛት</th>
+                    <th className="px-3 py-2">ዋጋ</th>
+                    <th className="px-3 py-2">አጠቃላይ ዋጋ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -260,10 +267,10 @@ export default function HistoryPage({ onDayCloseChange }) {
                           isVoided ? "bg-red-100 dark:bg-red-800/50 line-through text-gray-500 dark:text-gray-300" : ""
                         }`}
                       >
-                        <td>{item.name}</td>
-                        <td>{item.quantity}</td>
-                        <td>${item.price.toFixed(2)}</td>
-                        <td>${(item.price * item.quantity).toFixed(2)}</td>
+                        <td className="px-3 py-2">{item.name}</td>
+                        <td className="px-3 py-2">{item.quantity}</td>
+                        <td className="px-3 py-2">${item.price.toFixed(2)}</td>
+                        <td className="px-3 py-2">${(item.price * item.quantity).toFixed(2)}</td>
                       </tr>
                     );
                   })}

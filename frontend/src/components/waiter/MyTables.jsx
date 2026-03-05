@@ -34,7 +34,7 @@ export default function MyTables() {
       <h1 className="text-3xl font-bold mb-6 text-center">ጠረጴዛዎች</h1>
 
       {loading ? (
-        <div className="text-center text-lg">Loading your assigned tables...</div>
+        <div className="text-center text-lg">የተመደቡ ጠረጴዛዎች በመጫን ላይ...</div>
       ) : assignedTables.length === 0 ? (
         <p className="text-center text-gray-500 dark:text-gray-400">ምንም ጠረጴዛ አልተመደበም</p>
       ) : (
