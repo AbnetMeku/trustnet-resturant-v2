@@ -88,8 +88,8 @@ export default function InventoryDashboard() {
                     sidebarOpen ? "translate-x-0" : "-translate-x-full pointer-events-none"
                   }`
                 : sidebarOpen
-                ? "w-72"
-                : "w-20"
+                  ? "w-72"
+                  : "w-20"
             }
           `}
         >
@@ -204,6 +204,7 @@ export default function InventoryDashboard() {
 
             {active === "inventory-view" && (
               <Card className="admin-card p-5 md:p-6 w-full">
+                <h2 className="admin-page-title mb-4">View Stock</h2>
                 <StoreStationView />
               </Card>
             )}

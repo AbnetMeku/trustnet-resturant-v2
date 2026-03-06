@@ -33,5 +33,8 @@ for attempt in range(1, 61):
         time.sleep(2)
 PY
 
+echo "Running database migrations..."
+flask --app run.py db upgrade
+
 echo "Starting Inventory API..."
 gunicorn --bind 0.0.0.0:5001 --workers "${GUNICORN_WORKERS:-2}" --threads "${GUNICORN_THREADS:-4}" --timeout 120 wsgi_inventory:application

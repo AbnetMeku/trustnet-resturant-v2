@@ -1,8 +1,6 @@
 import React, { useState } from "react";
-import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import StoreStock from "./stock/StoreStock";
-import StationStock from "./stock/StationStock";
 import OverallStock from "./stock/OverallStock";
 import StationStockHistory from "./stock/StationStockHistory"
 import ExcelStockSheet from "./stock/ExcelStockSheet";
@@ -18,38 +16,33 @@ export default function StockManagement({ showSheetTab = true }) {
   }, [showSheetTab, activeTab]);
 
   return (
-    <Card className="p-6 w-full space-y-4">
+    <div className="w-full space-y-4">
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val)}>
-        <TabsList>
+        <TabsList className="h-auto flex-wrap justify-start gap-2 rounded-md bg-transparent p-0">
           {showSheetTab && <TabsTrigger value="sheet">Sheet</TabsTrigger>}
-          {/* <TabsTrigger value="station">Stations (Latest)</TabsTrigger> */}
           <TabsTrigger value="station-history">Stations</TabsTrigger>
           <TabsTrigger value="store">Store</TabsTrigger>
           <TabsTrigger value="overall">Total</TabsTrigger>
         </TabsList>
 
         {showSheetTab && (
-          <TabsContent value="sheet">
+          <TabsContent value="sheet" className="mt-4">
             <ExcelStockSheet />
           </TabsContent>
         )}
 
-        {/* <TabsContent value="station">
-          <StationStock />
-        </TabsContent> */}
-
-        <TabsContent value="station-history">
+        <TabsContent value="station-history" className="mt-4">
           <StationStockHistory />
         </TabsContent>
 
-        <TabsContent value="store">
+        <TabsContent value="store" className="mt-4">
           <StoreStock />
         </TabsContent>
 
-        <TabsContent value="overall">
+        <TabsContent value="overall" className="mt-4">
           <OverallStock />
         </TabsContent>
       </Tabs>
-    </Card>
+    </div>
   );
 }
