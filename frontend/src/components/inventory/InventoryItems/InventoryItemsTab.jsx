@@ -51,8 +51,8 @@ export default function InventoryItemsTab() {
   const [form, setForm] = useState({
     name: "",
     unit: "Bottle",
-    serving_unit: "Shot",
-    servings_per_unit: 1,
+    container_size_ml: 750,
+    default_shot_ml: 50,
     is_active: true,
   });
   const [errors, setErrors] = useState({});
@@ -83,8 +83,8 @@ export default function InventoryItemsTab() {
       setForm({
         name: item.name,
         unit: item.unit,
-        serving_unit: item.serving_unit || "Shot",
-        servings_per_unit: item.servings_per_unit || 1,
+        container_size_ml: item.container_size_ml || 750,
+        default_shot_ml: item.default_shot_ml || 50,
         is_active: item.is_active,
       });
     } else {
@@ -92,8 +92,8 @@ export default function InventoryItemsTab() {
       setForm({
         name: "",
         unit: "Bottle",
-        serving_unit: "Shot",
-        servings_per_unit: 1,
+        container_size_ml: 750,
+        default_shot_ml: 50,
         is_active: true,
       });
     }
@@ -107,8 +107,8 @@ export default function InventoryItemsTab() {
     setForm({
       name: "",
       unit: "Bottle",
-      serving_unit: "Shot",
-      servings_per_unit: 1,
+      container_size_ml: 750,
+      default_shot_ml: 50,
       is_active: true,
     });
     setErrors({});
@@ -118,8 +118,11 @@ export default function InventoryItemsTab() {
     const e = {};
     if (!form.name.trim()) e.name = "Item name is required";
     if (!form.unit.trim()) e.unit = "Stock unit is required";
-    if (!form.serving_unit?.trim()) e.serving_unit = "Serving unit is required";
-    if (Number(form.servings_per_unit) <= 0) e.servings_per_unit = "Must be greater than zero";
+    if (Number(form.container_size_ml) <= 0) e.container_size_ml = "Must be greater than zero";
+    if (Number(form.default_shot_ml) <= 0) e.default_shot_ml = "Must be greater than zero";
+    if (Number(form.default_shot_ml) > Number(form.container_size_ml)) {
+      e.default_shot_ml = "Cannot be greater than bottle size";
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -130,7 +133,8 @@ export default function InventoryItemsTab() {
 
     const payload = {
       ...form,
-      servings_per_unit: Number(form.servings_per_unit),
+      container_size_ml: Number(form.container_size_ml),
+      default_shot_ml: Number(form.default_shot_ml),
     };
 
     setSubmitting(true);
@@ -206,35 +210,38 @@ export default function InventoryItemsTab() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Serving Unit</label>
+                  <label className="block text-sm font-medium mb-1">Bottle Size (ml)</label>
                   <Input
-                    value={form.serving_unit}
-                    onChange={(e) => setForm((f) => ({ ...f, serving_unit: e.target.value }))}
-                    className={errors.serving_unit ? "ring-2 ring-destructive" : ""}
+                    type="number"
+                    min="0.001"
+                    step="0.001"
+                    value={form.container_size_ml}
+                    onChange={(e) => setForm((f) => ({ ...f, container_size_ml: e.target.value }))}
+                    className={errors.container_size_ml ? "ring-2 ring-destructive" : ""}
                     disabled={submitting}
                   />
-                  {errors.serving_unit && (
-                    <p className="mt-1 text-xs text-destructive">{errors.serving_unit}</p>
+                  {errors.container_size_ml && (
+                    <p className="mt-1 text-xs text-destructive">{errors.container_size_ml}</p>
                   )}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Servings per Stock Unit</label>
+                <label className="block text-sm font-medium mb-1">Default Shot Size (ml)</label>
                 <Input
                   type="number"
                   min="0.001"
                   step="0.001"
-                  value={form.servings_per_unit}
-                  onChange={(e) => setForm((f) => ({ ...f, servings_per_unit: e.target.value }))}
-                  className={errors.servings_per_unit ? "ring-2 ring-destructive" : ""}
+                  value={form.default_shot_ml}
+                  onChange={(e) => setForm((f) => ({ ...f, default_shot_ml: e.target.value }))}
+                  className={errors.default_shot_ml ? "ring-2 ring-destructive" : ""}
                   disabled={submitting}
                 />
-                {errors.servings_per_unit && (
-                  <p className="mt-1 text-xs text-destructive">{errors.servings_per_unit}</p>
+                {errors.default_shot_ml && (
+                  <p className="mt-1 text-xs text-destructive">{errors.default_shot_ml}</p>
                 )}
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Example: Red Label Bottle with 40 shots means default deduction ratio will be 0.025.
+                  Example: 750ml bottle with 50ml shots gives 15 default shots per bottle.
                 </p>
               </div>
 
@@ -273,9 +280,9 @@ export default function InventoryItemsTab() {
                 <th className="px-4 py-3 font-medium">No.</th>
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">Stock Unit</th>
-                <th className="px-4 py-3 font-medium">Serving Unit</th>
-                <th className="px-4 py-3 font-medium">Servings/Unit</th>
-                <th className="px-4 py-3 font-medium">Default Ratio</th>
+                <th className="px-4 py-3 font-medium">Bottle ml</th>
+                <th className="px-4 py-3 font-medium">Shot ml</th>
+                <th className="px-4 py-3 font-medium">Shots/Bottle</th>
                 <th className="px-4 py-3 font-medium">Active</th>
                 <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
@@ -299,9 +306,13 @@ export default function InventoryItemsTab() {
                     <td className="px-4 py-3">{idx + 1}</td>
                     <td className="px-4 py-3">{i.name}</td>
                     <td className="px-4 py-3">{i.unit}</td>
-                    <td className="px-4 py-3">{i.serving_unit || "-"}</td>
-                    <td className="px-4 py-3">{i.servings_per_unit ?? "-"}</td>
-                    <td className="px-4 py-3">{Number(i.default_deduction_ratio || 1).toFixed(4)}</td>
+                    <td className="px-4 py-3">{i.container_size_ml ?? "-"}</td>
+                    <td className="px-4 py-3">{i.default_shot_ml ?? "-"}</td>
+                    <td className="px-4 py-3">
+                      {i.container_size_ml && i.default_shot_ml
+                        ? (Number(i.container_size_ml) / Number(i.default_shot_ml)).toFixed(2)
+                        : "-"}
+                    </td>
                     <td className="px-4 py-3">{i.is_active ? "Yes" : "No"}</td>
                     <td className="px-4 py-3 text-right flex justify-end gap-2">
                       <Button size="sm" variant="outline" onClick={() => openItemModal(i)}>

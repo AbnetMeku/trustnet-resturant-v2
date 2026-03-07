@@ -24,7 +24,7 @@ def ensure_default_admin() -> None:
     username = os.getenv("DEFAULT_ADMIN_USERNAME", "admin").strip() or "admin"
     password = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin")
     role = (os.getenv("DEFAULT_ADMIN_ROLE", "admin").strip() or "admin").lower()
-    reset_password = _as_bool(os.getenv("DEFAULT_ADMIN_RESET_PASSWORD"), default=True)
+    reset_password = _as_bool(os.getenv("DEFAULT_ADMIN_RESET_PASSWORD"), default=False)
 
     if not password:
         raise RuntimeError("DEFAULT_ADMIN_PASSWORD cannot be empty when admin bootstrap is enabled.")

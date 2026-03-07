@@ -13,6 +13,8 @@ class InventoryItem(db.Model):
     unit = db.Column(db.String(50), default="Bottle")  # Bottle, Shot, Liter, Kg, etc.
     serving_unit = db.Column(db.String(50), default="unit")
     servings_per_unit = db.Column(db.Float, nullable=False, default=1.0)
+    container_size_ml = db.Column(db.Float, nullable=False, default=1.0)
+    default_shot_ml = db.Column(db.Float, nullable=False, default=1.0)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=eat_now_naive)
 
@@ -35,6 +37,8 @@ class InventoryMenuLink(db.Model):
     
     # Deduction ratio: amount to deduct from inventory per sale of menu item
     deduction_ratio = db.Column(db.Float, nullable=False, default=1.0)
+    serving_type = db.Column(db.String(20), nullable=False, default="custom_ml")
+    serving_value = db.Column(db.Float, nullable=False, default=1.0)
 
     created_at = db.Column(db.DateTime, default=eat_now_naive)
 

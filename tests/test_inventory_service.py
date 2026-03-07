@@ -32,14 +32,22 @@ def test_adjust_inventory_reverse_reduces_sold_quantity(app):
             subcategory=subcategory,
             is_available=True,
         )
-        inventory_item = InventoryItem(name="Beer Keg", unit="Bottle", is_active=True)
+        inventory_item = InventoryItem(
+            name="Beer Keg",
+            unit="Bottle",
+            container_size_ml=750.0,
+            default_shot_ml=50.0,
+            is_active=True,
+        )
         db.session.add_all([station, category, subcategory, menu_item, inventory_item])
         db.session.flush()
 
         link = InventoryMenuLink(
             inventory_item_id=inventory_item.id,
             menu_item_id=menu_item.id,
-            deduction_ratio=1.0,
+            deduction_ratio=50.0 / 750.0,
+            serving_type="shot",
+            serving_value=1.0,
         )
         station_stock = StationStock(
             station_id=station.id,
@@ -64,8 +72,8 @@ def test_adjust_inventory_reverse_reduces_sold_quantity(app):
             inventory_item_id=inventory_item.id,
             snapshot_date=get_eat_today(),
         ).one()
-        assert after_sale.sold_quantity == 2.0
-        assert after_sale.remaining_quantity == 8.0
+        assert after_sale.sold_quantity == pytest.approx(2.0 / 15.0)
+        assert after_sale.remaining_quantity == pytest.approx(10.0 - (2.0 / 15.0))
 
         adjust_inventory_for_order_item(station.name, menu_item.id, 2.0, reverse=True)
         after_reverse = StationStockSnapshot.query.filter_by(

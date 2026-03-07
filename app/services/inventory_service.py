@@ -3,6 +3,26 @@ from app.models import InventoryMenuLink, Station, StationStock, StationStockSna
 from app.extensions import db
 from app.utils.timezone import get_eat_today
 
+
+def resolve_link_deduction_amount(link, quantity):
+    inventory_item = link.inventory_item
+    container_size_ml = float(getattr(inventory_item, "container_size_ml", 0) or 0)
+    default_shot_ml = float(getattr(inventory_item, "default_shot_ml", 0) or 0)
+    serving_type = str(getattr(link, "serving_type", "") or "").strip().lower()
+    serving_value = float(getattr(link, "serving_value", 0) or 0)
+
+    if serving_type == "shot" and container_size_ml > 0 and default_shot_ml > 0:
+        return (default_shot_ml * max(serving_value, 0)) / container_size_ml * float(quantity)
+
+    if serving_type == "bottle":
+        return max(serving_value, 0) * float(quantity)
+
+    if serving_type == "custom_ml" and container_size_ml > 0:
+        return max(serving_value, 0) / container_size_ml * float(quantity)
+
+    return float(link.deduction_ratio or 0) * float(quantity)
+
+
 def adjust_inventory_for_order_item(station_name, menu_item_id, quantity, reverse=False):
     """
     Deduct or revert inventory for a menu item sold at a specific station.
@@ -23,7 +43,7 @@ def adjust_inventory_for_order_item(station_name, menu_item_id, quantity, revers
 
     for link in links:
         inventory_item = link.inventory_item
-        deduction_amount = float(link.deduction_ratio) * float(quantity)
+        deduction_amount = resolve_link_deduction_amount(link, quantity)
         if reverse:
             deduction_amount = -deduction_amount
 

@@ -76,7 +76,8 @@ export const createInventoryLinks = async (inventoryItemId, links, token = null)
   try {
     const payload = {
       links: links.map((group) => ({
-        deduction_ratio: parseFloat(group.deduction_ratio),
+        serving_type: group.serving_type,
+        serving_value: parseFloat(group.serving_value),
         menu_item_ids: group.menu_item_ids,
       })),
     };
@@ -120,10 +121,10 @@ export const getInventoryLinks = async (inventoryItemId, token = null) => {
       }
     );
 
-    // Group by deduction_ratio, do not round decimals
+    // Group by serving rule for simpler editing.
     const grouped = {};
     res.data.forEach((link) => {
-      const key = link.deduction_ratio.toString();
+      const key = `${link.serving_type}:${link.serving_value}`;
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push({
         id: link.id,
@@ -133,7 +134,11 @@ export const getInventoryLinks = async (inventoryItemId, token = null) => {
     });
 
     return Object.keys(grouped).map((key) => ({
-      deduction_ratio: parseFloat(key),
+      serving_type: key.split(":")[0],
+      serving_value: parseFloat(key.split(":")[1]),
+      deduction_ratio: res.data.find(
+        (link) => `${link.serving_type}:${link.serving_value}` === key
+      )?.deduction_ratio,
       menu_items: grouped[key],
       menu_item_ids: grouped[key].map((l) => l.menu_item_id),
       ids: grouped[key].map((l) => l.id),
@@ -152,7 +157,8 @@ export const updateInventoryLink = async (linkId, data, token = null) => {
     const res = await axios.put(
       `${BASE_URL}/inventory/items/links/${linkId}`,
       {
-        deduction_ratio: data.deduction_ratio,
+        serving_type: data.serving_type,
+        serving_value: data.serving_value,
         menu_item_id: data.menu_item_id,
         inventory_item_id: data.inventory_item_id,
       },

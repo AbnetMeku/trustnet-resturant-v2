@@ -11,7 +11,7 @@ export default function InventoryItemManagement() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="inventory">Inventory Items</TabsTrigger>
-          <TabsTrigger value="links">Link Menu Items</TabsTrigger>
+          <TabsTrigger value="links">Serving Rules</TabsTrigger>
         </TabsList>
 
         <TabsContent value="inventory">

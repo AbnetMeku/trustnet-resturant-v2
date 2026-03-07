@@ -7,6 +7,10 @@ from sqlalchemy import and_
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
+
+def _normalized_role(role: str) -> str:
+    return (role or "").strip().lower()
+
 # ----------------- Username/Password Login ----------------- #
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -21,22 +25,23 @@ def login():
     if not user or not user.password_hash or not check_password_hash(user.password_hash, password):
         return jsonify({"msg": "Invalid username or password"}), 401
 
+    role = _normalized_role(user.role)
     role_expiry_map = {
         "admin": timedelta(hours=24),
         "manager": timedelta(hours=24),
         "cashier": timedelta(hours=12),
         "waiter": timedelta(hours=1),
     }
-    expires = role_expiry_map.get(user.role, timedelta(hours=1))
+    expires = role_expiry_map.get(role, timedelta(hours=1))
 
     access_token = create_access_token(
         identity=str(user.id),
-        additional_claims={"role": user.role, "username": user.username},
+        additional_claims={"role": role, "username": user.username},
         expires_delta=expires
     )
     return jsonify(
         access_token=access_token,
-        user={"id": user.id, "username": user.username, "role": user.role}
+        user={"id": user.id, "username": user.username, "role": role}
     ), 200
 
 
@@ -58,12 +63,12 @@ def login_waiter_pin():
 
     access_token = create_access_token(
         identity=str(user.id),
-        additional_claims={"role": user.role, "username": user.username},
+        additional_claims={"role": _normalized_role(user.role), "username": user.username},
         expires_delta=timedelta(hours=1)
     )
     return jsonify(
         access_token=access_token,
-        user={"id": user.id, "username": user.username, "role": user.role}
+        user={"id": user.id, "username": user.username, "role": _normalized_role(user.role)}
     ), 200
 # ----------------- Station PIN Login ----------------- #
 @auth_bp.route('/pin/station', methods=['POST'])

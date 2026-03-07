@@ -18,6 +18,14 @@ Required existing DB/env vars:
 - `DB_PORT`
 - `DB_NAME`
 
+Optional default admin bootstrap vars (used by backend startup):
+
+- `DEFAULT_ADMIN_ENSURE` (default: `true`)
+- `DEFAULT_ADMIN_USERNAME` (default: `admin`)
+- `DEFAULT_ADMIN_PASSWORD` (default: `admin`)
+- `DEFAULT_ADMIN_ROLE` (default: `admin`)
+- `DEFAULT_ADMIN_RESET_PASSWORD` (default: `false`)
+
 Standardized runtime database:
 
 - `DB_NAME=trustnet_pos`
@@ -105,4 +113,5 @@ App URLs:
 Notes:
 
 - Backend automatically runs `flask db upgrade` on startup.
+- Backend automatically runs default admin bootstrap on startup; set `DEFAULT_ADMIN_*` in `.env` for production.
 - Frontend proxies `/api/inventory/*` to inventory container and other `/api/*` routes to backend.
