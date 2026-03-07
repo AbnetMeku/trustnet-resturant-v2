@@ -2,10 +2,27 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from app.extensions import db
 from app.models import InventoryItem, StoreStock, StationStock, StockTransfer, Station
-from app.services.inventory_service import adjust_inventory_for_addition, get_or_create_today_snapshot
+from app.services.inventory_service import (
+    adjust_inventory_for_addition,
+    get_or_create_today_snapshot,
+    update_store_snapshot_transfer,
+)
 from app.utils.timezone import eat_now_naive
 
 inventory_transfer_bp = Blueprint("inventory_transfer_bp", __name__, url_prefix="/inventory/transfers")
+
+
+def _serialize_transfer(transfer):
+    return {
+        "id": transfer.id,
+        "inventory_item_id": transfer.inventory_item_id,
+        "inventory_item_name": transfer.inventory_item.name if transfer.inventory_item else None,
+        "station_id": transfer.station_id,
+        "station_name": transfer.station.name if transfer.station else None,
+        "quantity": transfer.quantity,
+        "status": transfer.status,
+        "created_at": transfer.created_at,
+    }
 
 # --------------------- CREATE TRANSFER --------------------- #
 @inventory_transfer_bp.route("/", methods=["POST"])
@@ -19,11 +36,11 @@ def create_transfer():
     if not inventory_item_id or not station_id or quantity <= 0:
         return jsonify({"msg": "inventory_item_id, station_id and valid quantity are required"}), 400
 
-    item = InventoryItem.query.get(inventory_item_id)
+    item = db.session.get(InventoryItem, inventory_item_id)
     if not item:
         return jsonify({"msg": "Inventory item not found"}), 404
 
-    station = Station.query.get(station_id)
+    station = db.session.get(Station, station_id)
     if not station:
         return jsonify({"msg": "Station not found"}), 404
 
@@ -34,6 +51,7 @@ def create_transfer():
 
     # Ensure today's snapshot exists BEFORE modifying station stock
     get_or_create_today_snapshot(station.name, inventory_item_id)
+    store_opening_quantity = float(store_stock.quantity or 0)
 
     # Deduct from store
     store_stock.quantity -= quantity
@@ -55,6 +73,7 @@ def create_transfer():
         db.session.add(station_stock)
 
     # Update snapshot's added_quantity
+    update_store_snapshot_transfer(inventory_item_id, quantity, opening_quantity=store_opening_quantity)
     adjust_inventory_for_addition(station.name, inventory_item_id, quantity)
 
     # Record transfer
@@ -79,19 +98,7 @@ def get_all_transfers():
         query = query.filter_by(station_id=station_id)
 
     transfers = query.order_by(StockTransfer.created_at.desc()).all()
-    result = [
-        {
-            "id": t.id,
-            "inventory_item_id": t.inventory_item_id,
-            "inventory_item_name": t.inventory_item.name if t.inventory_item else None,
-            "station_id": t.station_id,
-            "station_name": t.station.name if t.station else None,
-            "quantity": t.quantity,
-            "status": t.status,
-            "created_at": t.created_at,
-        }
-        for t in transfers
-    ]
+    result = [_serialize_transfer(t) for t in transfers]
     return jsonify(result), 200
 
 
@@ -99,33 +106,29 @@ def get_all_transfers():
 @inventory_transfer_bp.route("/<int:transfer_id>", methods=["GET"])
 @jwt_required()
 def get_single_transfer(transfer_id):
-    transfer = StockTransfer.query.get(transfer_id)
+    transfer = db.session.get(StockTransfer, transfer_id)
     if not transfer:
         return jsonify({"msg": "Transfer not found"}), 404
 
-    result = {
-        "id": transfer.id,
-        "inventory_item_id": transfer.inventory_item_id,
-        "inventory_item_name": transfer.inventory_item.name if transfer.inventory_item else None,
-        "station_id": transfer.station_id,
-        "station_name": transfer.station.name if transfer.station else None,
-        "quantity": transfer.quantity,
-        "status": transfer.status,
-        "created_at": transfer.created_at,
-    }
-    return jsonify(result), 200
+    return jsonify(_serialize_transfer(transfer)), 200
 
 
 # --------------------- UPDATE TRANSFER --------------------- #
 @inventory_transfer_bp.route("/<int:transfer_id>", methods=["PUT"])
 @jwt_required()
 def update_transfer(transfer_id):
-    transfer = StockTransfer.query.get(transfer_id)
+    transfer = db.session.get(StockTransfer, transfer_id)
     if not transfer:
         return jsonify({"msg": "Transfer not found"}), 404
+    if transfer.status == "Deleted":
+        return jsonify({"msg": "Deleted transfers cannot be edited"}), 400
 
-    data = request.get_json()
+    data = request.get_json() or {}
     new_quantity = data.get("quantity", transfer.quantity)
+    try:
+        new_quantity = float(new_quantity)
+    except (TypeError, ValueError):
+        return jsonify({"msg": "Quantity must be a number"}), 400
     if new_quantity <= 0:
         return jsonify({"msg": "Quantity must be greater than zero"}), 400
 
@@ -142,7 +145,9 @@ def update_transfer(transfer_id):
         db.session.flush()
 
     # Undo previous transfer
-    store_stock.quantity += transfer.quantity
+    original_quantity = float(transfer.quantity or 0)
+    store_opening_quantity = float(store_stock.quantity or 0)
+    store_stock.quantity += original_quantity
 
     # Check if store has enough for the new transfer
     if store_stock.quantity < new_quantity:
@@ -164,10 +169,23 @@ def update_transfer(transfer_id):
         )
         db.session.add(station_stock)
     else:
-        station_stock.quantity += (new_quantity - transfer.quantity)
+        updated_station_quantity = float(station_stock.quantity or 0) + (new_quantity - original_quantity)
+        if updated_station_quantity < 0:
+            return jsonify({"msg": "Cannot reduce transfer below remaining station stock"}), 400
+        station_stock.quantity = updated_station_quantity
 
     # Update snapshot added_quantity
-    adjust_inventory_for_addition(station.name, transfer.inventory_item_id, new_quantity - transfer.quantity)
+    quantity_diff = new_quantity - original_quantity
+    update_store_snapshot_transfer(
+        transfer.inventory_item_id,
+        quantity_diff,
+        opening_quantity=store_opening_quantity,
+    )
+    adjust_inventory_for_addition(
+        station.name,
+        transfer.inventory_item_id,
+        quantity_diff,
+    )
 
     transfer.quantity = new_quantity
     transfer.status = "Updated"
@@ -179,9 +197,11 @@ def update_transfer(transfer_id):
 @inventory_transfer_bp.route("/<int:transfer_id>", methods=["DELETE"])
 @jwt_required()
 def delete_transfer(transfer_id):
-    transfer = StockTransfer.query.get(transfer_id)
+    transfer = db.session.get(StockTransfer, transfer_id)
     if not transfer:
         return jsonify({"msg": "Transfer not found"}), 404
+    if transfer.status == "Deleted":
+        return jsonify({"msg": "Transfer already deleted"}), 400
 
     station = transfer.station
     # Ensure snapshot exists BEFORE reversing stock
@@ -189,6 +209,7 @@ def delete_transfer(transfer_id):
 
     # Reverse store stock
     store_stock = StoreStock.query.filter_by(inventory_item_id=transfer.inventory_item_id).first()
+    store_opening_quantity = float(store_stock.quantity or 0) if store_stock else 0.0
     if store_stock:
         store_stock.quantity += transfer.quantity
 
@@ -197,13 +218,18 @@ def delete_transfer(transfer_id):
         inventory_item_id=transfer.inventory_item_id,
         station_id=transfer.station_id
     ).first()
-    if station_stock:
-        station_stock.quantity -= transfer.quantity
+    if not station_stock or float(station_stock.quantity or 0) < float(transfer.quantity or 0):
+        return jsonify({"msg": "Cannot delete transfer because stock has already been used at the station"}), 400
+    station_stock.quantity = float(station_stock.quantity or 0) - float(transfer.quantity or 0)
 
     # Reverse snapshot added_quantity
-    adjust_inventory_for_addition(station.name, transfer.inventory_item_id, -transfer.quantity)
+    update_store_snapshot_transfer(
+        transfer.inventory_item_id,
+        -float(transfer.quantity or 0),
+        opening_quantity=store_opening_quantity,
+    )
+    adjust_inventory_for_addition(station.name, transfer.inventory_item_id, -float(transfer.quantity or 0))
 
     transfer.status = "Deleted"
-    db.session.delete(transfer)
     db.session.commit()
     return jsonify({"msg": "Transfer deleted and stock quantities adjusted"}), 200

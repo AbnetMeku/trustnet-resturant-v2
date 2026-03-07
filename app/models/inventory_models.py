@@ -24,6 +24,7 @@ class InventoryItem(db.Model):
     station_stocks = db.relationship("StationStock", back_populates="inventory_item")
     purchases = db.relationship("StockPurchase", back_populates="inventory_item", cascade="all, delete-orphan")
     transfers = db.relationship("StockTransfer", back_populates="inventory_item", cascade="all, delete-orphan")
+    store_snapshots = db.relationship("StoreStockSnapshot", back_populates="inventory_item", cascade="all, delete-orphan")
     snapshots = db.relationship("StationStockSnapshot", back_populates="inventory_item", cascade="all, delete-orphan")
 
 # ============================================================
@@ -121,6 +122,7 @@ class StationStockSnapshot(db.Model):
     start_of_day_quantity = db.Column(db.Float, nullable=False)
     added_quantity = db.Column(db.Float, nullable=True, default=0.0)   # transfers/purchases
     sold_quantity = db.Column(db.Float, nullable=False, default=0.0)    # updated per order
+    void_quantity = db.Column(db.Float, nullable=False, default=0.0)
     remaining_quantity = db.Column(db.Float, nullable=False, default=0.0)
 
     created_at = db.Column(db.DateTime, default=eat_now_naive)
@@ -130,4 +132,24 @@ class StationStockSnapshot(db.Model):
 
     __table_args__ = (
         db.UniqueConstraint("station_id", "inventory_item_id", "snapshot_date", name="uq_station_item_date"),
+    )
+
+
+class StoreStockSnapshot(db.Model):
+    __tablename__ = "store_stock_snapshots"
+    id = db.Column(db.Integer, primary_key=True)
+    inventory_item_id = db.Column(db.Integer, db.ForeignKey("inventory_items.id"), nullable=False)
+    snapshot_date = db.Column(db.Date, nullable=False)
+
+    opening_quantity = db.Column(db.Float, nullable=False, default=0.0)
+    purchased_quantity = db.Column(db.Float, nullable=False, default=0.0)
+    transferred_out_quantity = db.Column(db.Float, nullable=False, default=0.0)
+    closing_quantity = db.Column(db.Float, nullable=False, default=0.0)
+
+    created_at = db.Column(db.DateTime, default=eat_now_naive)
+
+    inventory_item = db.relationship("InventoryItem", back_populates="store_snapshots")
+
+    __table_args__ = (
+        db.UniqueConstraint("inventory_item_id", "snapshot_date", name="uq_store_item_date"),
     )

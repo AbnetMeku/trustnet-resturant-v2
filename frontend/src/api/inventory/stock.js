@@ -125,3 +125,30 @@ export const getOverallStock = async (token = null) => {
     throw new Error(error.response?.data?.msg || "Failed to fetch overall stock");
   }
 };
+
+export const getStockOverview = async (token = null) => {
+  try {
+    const res = await axios.get(`${BASE_URL}/overview`, {
+      headers: getAuthHeader(token),
+    });
+    return res.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.msg || "Failed to fetch stock overview");
+  }
+};
+
+export const getDailyStockHistory = async (params = {}, token = null) => {
+  try {
+    const query = new URLSearchParams();
+    if (params.date) query.set("date", params.date);
+    if (params.scope) query.set("scope", params.scope);
+    if (params.station_id) query.set("station_id", params.station_id);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    const res = await axios.get(`${BASE_URL}/daily-history${suffix}`, {
+      headers: getAuthHeader(token),
+    });
+    return res.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.msg || "Failed to fetch daily stock history");
+  }
+};

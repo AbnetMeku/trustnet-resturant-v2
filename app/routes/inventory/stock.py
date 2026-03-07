@@ -1,83 +1,109 @@
-from flask import Blueprint, request, jsonify
+from datetime import datetime, timedelta
+
+from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
-from app.extensions import db
-from app.models import InventoryItem, StoreStock, StationStock, Station
-from datetime import datetime
 from sqlalchemy import func
+
+from app.extensions import db
+from app.models import (
+    InventoryItem,
+    Station,
+    StationStock,
+    StationStockSnapshot,
+    StockPurchase,
+    StockTransfer,
+    StoreStock,
+    StoreStockSnapshot,
+)
+from app.utils.timezone import get_business_day_bounds, get_eat_today
 
 inventory_stock_bp = Blueprint("inventory_stock_bp", __name__, url_prefix="/inventory/stock")
 
-# ============================================================
-# 🏬 STORE STOCK MANAGEMENT
-# ============================================================
 
-# --------------------- CREATE STORE STOCK --------------------- #
+def _as_float(value):
+    return float(value or 0)
+
+
+def _parse_business_date():
+    date_str = request.args.get("date")
+    try:
+        return datetime.fromisoformat(date_str).date() if date_str else get_eat_today()
+    except ValueError:
+        return None
+
+
+def _serialize_store_stock(stock):
+    return {
+        "id": stock.id,
+        "inventory_item_id": stock.inventory_item_id,
+        "inventory_item_name": stock.inventory_item.name if stock.inventory_item else None,
+        "quantity": stock.quantity,
+        "updated_at": stock.updated_at,
+    }
+
+
+def _serialize_station_stock(stock):
+    return {
+        "id": stock.id,
+        "station_id": stock.station_id,
+        "station_name": stock.station.name if stock.station else None,
+        "inventory_item_id": stock.inventory_item_id,
+        "inventory_item_name": stock.inventory_item.name if stock.inventory_item else None,
+        "quantity": stock.quantity,
+        "updated_at": stock.updated_at,
+    }
+
+
 @inventory_stock_bp.route("/store", methods=["POST"])
 @jwt_required()
 def create_store_stock():
-    data = request.get_json()
+    data = request.get_json() or {}
     inventory_item_id = data.get("inventory_item_id")
-    quantity = data.get("quantity", 0)
+    quantity = float(data.get("quantity", 0) or 0)
 
     if not inventory_item_id:
         return jsonify({"msg": "inventory_item_id is required"}), 400
 
-    item = InventoryItem.query.get(inventory_item_id)
+    item = db.session.get(InventoryItem, inventory_item_id)
     if not item:
         return jsonify({"msg": "Inventory item not found"}), 404
 
-    # Check if stock already exists
     existing_stock = StoreStock.query.filter_by(inventory_item_id=inventory_item_id).first()
     if existing_stock:
-        existing_stock.quantity += quantity
+        existing_stock.quantity = _as_float(existing_stock.quantity) + quantity
         db.session.commit()
         return jsonify({"msg": "Store stock updated", "quantity": existing_stock.quantity}), 200
 
     stock = StoreStock(inventory_item_id=inventory_item_id, quantity=quantity)
     db.session.add(stock)
     db.session.commit()
-
     return jsonify({"msg": "Store stock created", "id": stock.id}), 201
 
 
-# --------------------- GET ALL STORE STOCK --------------------- #
 @inventory_stock_bp.route("/store", methods=["GET"])
 @jwt_required()
 def get_all_store_stock():
-    stocks = StoreStock.query.all()
-    result = [
-        {
-            "id": s.id,
-            "inventory_item_id": s.inventory_item_id,
-            "inventory_item_name": s.inventory_item.name if s.inventory_item else None,
-            "quantity": s.quantity,
-            "updated_at": s.updated_at,
-        }
-        for s in stocks
-    ]
-    return jsonify(result), 200
+    stocks = StoreStock.query.order_by(StoreStock.updated_at.desc()).all()
+    return jsonify([_serialize_store_stock(stock) for stock in stocks]), 200
 
 
-# --------------------- UPDATE STORE STOCK --------------------- #
 @inventory_stock_bp.route("/store/<int:stock_id>", methods=["PUT"])
 @jwt_required()
 def update_store_stock(stock_id):
-    stock = StoreStock.query.get(stock_id)
+    stock = db.session.get(StoreStock, stock_id)
     if not stock:
         return jsonify({"msg": "Store stock not found"}), 404
 
-    data = request.get_json()
+    data = request.get_json() or {}
     stock.quantity = data.get("quantity", stock.quantity)
     db.session.commit()
-
     return jsonify({"msg": "Store stock updated successfully"}), 200
 
 
-# --------------------- DELETE STORE STOCK --------------------- #
 @inventory_stock_bp.route("/store/<int:stock_id>", methods=["DELETE"])
 @jwt_required()
 def delete_store_stock(stock_id):
-    stock = StoreStock.query.get(stock_id)
+    stock = db.session.get(StoreStock, stock_id)
     if not stock:
         return jsonify({"msg": "Store stock not found"}), 404
 
@@ -86,47 +112,40 @@ def delete_store_stock(stock_id):
     return jsonify({"msg": "Store stock deleted"}), 200
 
 
-# ============================================================
-# 🧾 STATION STOCK MANAGEMENT
-# ============================================================
-
-# --------------------- CREATE STATION STOCK --------------------- #
 @inventory_stock_bp.route("/station", methods=["POST"])
 @jwt_required()
 def create_station_stock():
-    data = request.get_json()
+    data = request.get_json() or {}
     inventory_item_id = data.get("inventory_item_id")
     station_id = data.get("station_id")
-    quantity = data.get("quantity", 0)
+    quantity = float(data.get("quantity", 0) or 0)
 
     if not inventory_item_id or not station_id:
         return jsonify({"msg": "inventory_item_id and station_id are required"}), 400
 
-    item = InventoryItem.query.get(inventory_item_id)
+    item = db.session.get(InventoryItem, inventory_item_id)
     if not item:
         return jsonify({"msg": "Inventory item not found"}), 404
 
-    station = Station.query.get(station_id)
+    station = db.session.get(Station, station_id)
     if not station:
         return jsonify({"msg": "Station not found"}), 404
 
     existing_stock = StationStock.query.filter_by(
-        inventory_item_id=inventory_item_id, station_id=station_id
+        inventory_item_id=inventory_item_id,
+        station_id=station_id,
     ).first()
-
     if existing_stock:
-        existing_stock.quantity += quantity
+        existing_stock.quantity = _as_float(existing_stock.quantity) + quantity
         db.session.commit()
         return jsonify({"msg": "Station stock updated", "quantity": existing_stock.quantity}), 200
 
     stock = StationStock(inventory_item_id=inventory_item_id, station_id=station_id, quantity=quantity)
     db.session.add(stock)
     db.session.commit()
-
     return jsonify({"msg": "Station stock created", "id": stock.id}), 201
 
 
-# --------------------- GET ALL STATION STOCK --------------------- #
 @inventory_stock_bp.route("/station", methods=["GET"])
 @jwt_required()
 def get_all_station_stock():
@@ -134,43 +153,27 @@ def get_all_station_stock():
     query = StationStock.query
     if station_id:
         query = query.filter_by(station_id=station_id)
-
-    stocks = query.all()
-    result = [
-        {
-            "id": s.id,
-            "station_id": s.station_id,
-            "station_name": s.station.name if s.station else None,
-            "inventory_item_id": s.inventory_item_id,
-            "inventory_item_name": s.inventory_item.name if s.inventory_item else None,
-            "quantity": s.quantity,
-            "updated_at": s.updated_at,
-        }
-        for s in stocks
-    ]
-    return jsonify(result), 200
+    stocks = query.order_by(StationStock.updated_at.desc()).all()
+    return jsonify([_serialize_station_stock(stock) for stock in stocks]), 200
 
 
-# --------------------- UPDATE STATION STOCK --------------------- #
 @inventory_stock_bp.route("/station/<int:stock_id>", methods=["PUT"])
 @jwt_required()
 def update_station_stock(stock_id):
-    stock = StationStock.query.get(stock_id)
+    stock = db.session.get(StationStock, stock_id)
     if not stock:
         return jsonify({"msg": "Station stock not found"}), 404
 
-    data = request.get_json()
+    data = request.get_json() or {}
     stock.quantity = data.get("quantity", stock.quantity)
     db.session.commit()
-
     return jsonify({"msg": "Station stock updated successfully"}), 200
 
 
-# --------------------- DELETE STATION STOCK --------------------- #
 @inventory_stock_bp.route("/station/<int:stock_id>", methods=["DELETE"])
 @jwt_required()
 def delete_station_stock(stock_id):
-    stock = StationStock.query.get(stock_id)
+    stock = db.session.get(StationStock, stock_id)
     if not stock:
         return jsonify({"msg": "Station stock not found"}), 404
 
@@ -178,36 +181,356 @@ def delete_station_stock(stock_id):
     db.session.commit()
     return jsonify({"msg": "Station stock deleted"}), 200
 
-# --------------------- GET OVERALL STOCK --------------------- #
+
 @inventory_stock_bp.route("/overall", methods=["GET"])
 @jwt_required()
 def get_overall_stock():
-    # Get all inventory items
-    items = InventoryItem.query.all()
+    items = InventoryItem.query.order_by(InventoryItem.name.asc()).all()
     result = []
 
     for item in items:
-        # Total store quantity
-        store_qty = (
+        store_qty = _as_float(
             db.session.query(func.coalesce(func.sum(StoreStock.quantity), 0))
             .filter(StoreStock.inventory_item_id == item.id)
             .scalar()
         )
-
-        # Total quantity from all stations
-        station_qty = (
+        station_qty = _as_float(
             db.session.query(func.coalesce(func.sum(StationStock.quantity), 0))
             .filter(StationStock.inventory_item_id == item.id)
             .scalar()
         )
-
-        total = (store_qty or 0) + (station_qty or 0)
-        result.append({
-            "inventory_item_id": item.id,
-            "menu_item": item.name,
-            "store_quantity": store_qty or 0,
-            "station_quantity": station_qty or 0,
-            "total_quantity": total
-        })
+        result.append(
+            {
+                "inventory_item_id": item.id,
+                "menu_item": item.name,
+                "store_quantity": store_qty,
+                "station_quantity": station_qty,
+                "total_quantity": store_qty + station_qty,
+            }
+        )
 
     return jsonify(result), 200
+
+
+@inventory_stock_bp.route("/overview", methods=["GET"])
+@jwt_required()
+def get_stock_overview():
+    items = InventoryItem.query.order_by(InventoryItem.name.asc()).all()
+    stations = Station.query.order_by(Station.name.asc()).all()
+    store_rows = StoreStock.query.all()
+    station_rows = StationStock.query.all()
+
+    store_map = {row.inventory_item_id: _as_float(row.quantity) for row in store_rows}
+    station_map = {}
+    for row in station_rows:
+        station_map[(row.station_id, row.inventory_item_id)] = _as_float(row.quantity)
+
+    payload_rows = []
+    for item in items:
+        station_values = []
+        total_station_quantity = 0.0
+        for station in stations:
+            qty = station_map.get((station.id, item.id), 0.0)
+            total_station_quantity += qty
+            station_values.append(
+                {
+                    "station_id": station.id,
+                    "station_name": station.name,
+                    "quantity": qty,
+                }
+            )
+
+        store_quantity = store_map.get(item.id, 0.0)
+        payload_rows.append(
+            {
+                "inventory_item_id": item.id,
+                "inventory_item_name": item.name,
+                "container_size_ml": _as_float(item.container_size_ml),
+                "default_shot_ml": _as_float(item.default_shot_ml),
+                "store_quantity": store_quantity,
+                "total_station_quantity": total_station_quantity,
+                "total_quantity": store_quantity + total_station_quantity,
+                "stations": station_values,
+            }
+        )
+
+    return (
+        jsonify(
+            {
+                "stations": [{"id": station.id, "name": station.name} for station in stations],
+                "rows": payload_rows,
+                "generated_for": get_eat_today().isoformat(),
+            }
+        ),
+        200,
+    )
+
+
+def _store_row_for_date(
+    item,
+    query_date,
+    current_store_map,
+    snapshot_map,
+    previous_snapshot_map,
+    purchase_totals,
+    transfer_totals,
+    today,
+):
+    purchased = purchase_totals.get(item.id, 0.0)
+    transferred_out = transfer_totals.get(item.id, 0.0)
+    current_quantity = current_store_map.get(item.id, 0.0)
+    snapshot = snapshot_map.get(item.id)
+
+    if query_date == today:
+        if snapshot:
+            opening = _as_float(snapshot.opening_quantity)
+            purchased = _as_float(snapshot.purchased_quantity)
+            transferred_out = _as_float(snapshot.transferred_out_quantity)
+        elif previous_snapshot_map.get(item.id):
+            opening = _as_float(previous_snapshot_map[item.id].closing_quantity)
+        else:
+            opening = current_quantity - purchased + transferred_out
+        closing = current_quantity
+    elif snapshot:
+        opening = _as_float(snapshot.opening_quantity)
+        closing = _as_float(snapshot.closing_quantity)
+        purchased = _as_float(snapshot.purchased_quantity)
+        transferred_out = _as_float(snapshot.transferred_out_quantity)
+    elif previous_snapshot_map.get(item.id):
+        opening = _as_float(previous_snapshot_map[item.id].closing_quantity)
+        closing = opening + purchased - transferred_out
+    else:
+        opening = _as_float(
+            db.session.query(func.coalesce(func.sum(StockPurchase.quantity), 0))
+            .filter(
+                StockPurchase.inventory_item_id == item.id,
+                StockPurchase.status != "Deleted",
+                StockPurchase.created_at < get_business_day_bounds(query_date)[0],
+            )
+            .scalar()
+        ) - _as_float(
+            db.session.query(func.coalesce(func.sum(StockTransfer.quantity), 0))
+            .filter(
+                StockTransfer.inventory_item_id == item.id,
+                StockTransfer.status != "Deleted",
+                StockTransfer.created_at < get_business_day_bounds(query_date)[0],
+            )
+            .scalar()
+        )
+        closing = opening + purchased - transferred_out
+
+    return {
+        "scope_type": "store",
+        "scope_id": None,
+        "scope_name": "Store",
+        "inventory_item_id": item.id,
+        "inventory_item_name": item.name,
+        "opening_quantity": opening,
+        "purchased_quantity": purchased,
+        "transferred_out_quantity": transferred_out,
+        "transferred_in_quantity": 0.0,
+        "sold_quantity": 0.0,
+        "void_quantity": 0.0,
+        "closing_quantity": closing,
+    }
+
+
+def _station_row_for_date(
+    station,
+    item,
+    query_date,
+    today,
+    current_station_map,
+    transfer_in_totals,
+    snapshot_map,
+    previous_snapshot_map,
+):
+    transfer_in = transfer_in_totals.get((station.id, item.id), 0.0)
+    current_quantity = current_station_map.get((station.id, item.id), 0.0)
+    snapshot = snapshot_map.get((station.id, item.id))
+
+    if query_date == today:
+        sold = _as_float(snapshot.sold_quantity) if snapshot else 0.0
+        void_qty = _as_float(snapshot.void_quantity) if snapshot else 0.0
+        if snapshot:
+            transfer_in = _as_float(snapshot.added_quantity)
+        if previous_snapshot_map.get((station.id, item.id)):
+            opening = _as_float(previous_snapshot_map[(station.id, item.id)].remaining_quantity)
+        else:
+            opening = current_quantity - transfer_in + sold - void_qty
+        closing = current_quantity
+    elif snapshot:
+        opening = _as_float(snapshot.start_of_day_quantity)
+        transfer_in = _as_float(snapshot.added_quantity)
+        sold = _as_float(snapshot.sold_quantity)
+        void_qty = _as_float(snapshot.void_quantity)
+        closing = _as_float(snapshot.remaining_quantity)
+    elif previous_snapshot_map.get((station.id, item.id)):
+        opening = _as_float(previous_snapshot_map[(station.id, item.id)].remaining_quantity)
+        sold = 0.0
+        void_qty = 0.0
+        closing = opening + transfer_in
+    else:
+        opening = 0.0
+        sold = 0.0
+        void_qty = 0.0
+        closing = opening + transfer_in
+
+    return {
+        "scope_type": "station",
+        "scope_id": station.id,
+        "scope_name": station.name,
+        "inventory_item_id": item.id,
+        "inventory_item_name": item.name,
+        "opening_quantity": opening,
+        "purchased_quantity": 0.0,
+        "transferred_out_quantity": 0.0,
+        "transferred_in_quantity": transfer_in,
+        "sold_quantity": sold,
+        "void_quantity": void_qty,
+        "closing_quantity": closing,
+    }
+
+
+@inventory_stock_bp.route("/daily-history", methods=["GET"])
+@jwt_required()
+def get_daily_stock_history():
+    query_date = _parse_business_date()
+    if query_date is None:
+        return jsonify({"msg": "Invalid date format, use YYYY-MM-DD"}), 400
+
+    scope = (request.args.get("scope") or "all").strip().lower()
+    station_id = request.args.get("station_id", type=int)
+    today = get_eat_today()
+    start_dt, end_dt = get_business_day_bounds(query_date)
+
+    items = InventoryItem.query.order_by(InventoryItem.name.asc()).all()
+    stations_query = Station.query.order_by(Station.name.asc())
+    if station_id:
+        stations_query = stations_query.filter(Station.id == station_id)
+    stations = stations_query.all()
+
+    current_store_map = {
+        row.inventory_item_id: _as_float(row.quantity)
+        for row in StoreStock.query.all()
+    }
+    current_station_map = {
+        (row.station_id, row.inventory_item_id): _as_float(row.quantity)
+        for row in StationStock.query.all()
+    }
+
+    store_snapshots = {
+        row.inventory_item_id: row
+        for row in StoreStockSnapshot.query.filter_by(snapshot_date=query_date).all()
+    }
+    previous_store_snapshots = {
+        row.inventory_item_id: row
+        for row in StoreStockSnapshot.query.filter_by(snapshot_date=query_date - timedelta(days=1)).all()
+    }
+    station_snapshots = {
+        (row.station_id, row.inventory_item_id): row
+        for row in StationStockSnapshot.query.filter_by(snapshot_date=query_date).all()
+    }
+    previous_station_snapshots = {
+        (row.station_id, row.inventory_item_id): row
+        for row in StationStockSnapshot.query.filter_by(snapshot_date=query_date - timedelta(days=1)).all()
+    }
+
+    purchase_totals = {
+        inventory_item_id: _as_float(quantity)
+        for inventory_item_id, quantity in (
+            db.session.query(
+                StockPurchase.inventory_item_id,
+                func.coalesce(func.sum(StockPurchase.quantity), 0),
+            )
+            .filter(
+                StockPurchase.status != "Deleted",
+                StockPurchase.created_at >= start_dt,
+                StockPurchase.created_at < end_dt,
+            )
+            .group_by(StockPurchase.inventory_item_id)
+            .all()
+        )
+    }
+    transfer_totals = {
+        inventory_item_id: _as_float(quantity)
+        for inventory_item_id, quantity in (
+            db.session.query(
+                StockTransfer.inventory_item_id,
+                func.coalesce(func.sum(StockTransfer.quantity), 0),
+            )
+            .filter(
+                StockTransfer.status != "Deleted",
+                StockTransfer.created_at >= start_dt,
+                StockTransfer.created_at < end_dt,
+            )
+            .group_by(StockTransfer.inventory_item_id)
+            .all()
+        )
+    }
+    transfer_in_totals = {
+        (station_id_value, inventory_item_id): _as_float(quantity)
+        for station_id_value, inventory_item_id, quantity in (
+            db.session.query(
+                StockTransfer.station_id,
+                StockTransfer.inventory_item_id,
+                func.coalesce(func.sum(StockTransfer.quantity), 0),
+            )
+            .filter(
+                StockTransfer.status != "Deleted",
+                StockTransfer.created_at >= start_dt,
+                StockTransfer.created_at < end_dt,
+            )
+            .group_by(StockTransfer.station_id, StockTransfer.inventory_item_id)
+            .all()
+        )
+    }
+
+    rows = []
+    if scope in {"all", "store"}:
+        for item in items:
+            row = _store_row_for_date(
+                item,
+                query_date,
+                current_store_map,
+                store_snapshots,
+                previous_store_snapshots,
+                purchase_totals,
+                transfer_totals,
+                today,
+            )
+            if any(_as_float(row[key]) != 0.0 for key in ("opening_quantity", "purchased_quantity", "transferred_out_quantity", "closing_quantity")):
+                rows.append(row)
+
+    if scope in {"all", "station"}:
+        for station in stations:
+            for item in items:
+                row = _station_row_for_date(
+                    station,
+                    item,
+                    query_date,
+                    today,
+                    current_station_map,
+                    transfer_in_totals,
+                    station_snapshots,
+                    previous_station_snapshots,
+                )
+                if any(
+                    _as_float(row[key]) != 0.0
+                    for key in ("opening_quantity", "transferred_in_quantity", "sold_quantity", "void_quantity", "closing_quantity")
+                ):
+                    rows.append(row)
+
+    return (
+        jsonify(
+            {
+                "business_date": query_date.isoformat(),
+                "business_day_start": start_dt.isoformat(),
+                "business_day_end": end_dt.isoformat(),
+                "scope": scope,
+                "stations": [{"id": station.id, "name": station.name} for station in stations],
+                "rows": rows,
+            }
+        ),
+        200,
+    )

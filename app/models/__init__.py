@@ -11,4 +11,13 @@ from .models import (
     WaiterProfile,
     InventoryOutbox,
 )
-from .inventory_models import InventoryItem, StoreStock, StationStock, StockPurchase, StockTransfer, StationStockSnapshot, InventoryMenuLink
+from .inventory_models import (
+    InventoryItem,
+    StoreStock,
+    StationStock,
+    StockPurchase,
+    StockTransfer,
+    StationStockSnapshot,
+    StoreStockSnapshot,
+    InventoryMenuLink,
+)

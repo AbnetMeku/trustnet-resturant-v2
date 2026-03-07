@@ -20,7 +20,7 @@ def app():
         db.drop_all()
 
 
-def test_adjust_inventory_reverse_reduces_sold_quantity(app):
+def test_adjust_inventory_reverse_tracks_voids_and_restores_stock(app):
     with app.app_context():
         station = Station(name="Bar Reverse", password_hash="hash")
         category = Category(name="Drinks Reverse", quantity_step=Decimal("1.00"))
@@ -61,6 +61,7 @@ def test_adjust_inventory_reverse_reduces_sold_quantity(app):
             start_of_day_quantity=10.0,
             added_quantity=0.0,
             sold_quantity=0.0,
+            void_quantity=0.0,
             remaining_quantity=10.0,
         )
         db.session.add_all([link, station_stock, snapshot])
@@ -73,6 +74,7 @@ def test_adjust_inventory_reverse_reduces_sold_quantity(app):
             snapshot_date=get_eat_today(),
         ).one()
         assert after_sale.sold_quantity == pytest.approx(2.0 / 15.0)
+        assert after_sale.void_quantity == 0.0
         assert after_sale.remaining_quantity == pytest.approx(10.0 - (2.0 / 15.0))
 
         adjust_inventory_for_order_item(station.name, menu_item.id, 2.0, reverse=True)
@@ -86,6 +88,7 @@ def test_adjust_inventory_reverse_reduces_sold_quantity(app):
             inventory_item_id=inventory_item.id,
         ).one()
 
-        assert after_reverse.sold_quantity == 0.0
+        assert after_reverse.sold_quantity == pytest.approx(2.0 / 15.0)
+        assert after_reverse.void_quantity == pytest.approx(2.0 / 15.0)
         assert after_reverse.remaining_quantity == 10.0
         assert final_station_stock.quantity == 10.0

@@ -1,43 +1,72 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import ReactSelect from "react-select";
+import { toast } from "react-hot-toast";
+
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/context/AuthContext";
 import { formatEatDateTime } from "@/lib/timezone";
-import {
-  getTransfers,
-  createTransfer,
-  updateTransfer,
-  deleteTransfer,
-} from "@/api/inventory/transfer";
+import { getApiErrorMessage } from "@/lib/apiError";
+import { getTransfers, createTransfer, updateTransfer, deleteTransfer } from "@/api/inventory/transfer";
 import { getStations } from "@/api/stations";
 import { getInventoryItems } from "@/api/inventory/items";
-import { getAllStoreStock } from "@/api/inventory/stock";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import ReactSelect from "react-select";
-import { toast } from "react-hot-toast";
-import { getApiErrorMessage } from "@/lib/apiError";
+import { getAllStationStock, getAllStoreStock } from "@/api/inventory/stock";
 
 const PAGE_SIZE = 10;
 
+const selectStyles = {
+  control: (base, state) => ({
+    ...base,
+    minHeight: 44,
+    backgroundColor: "hsl(var(--background))",
+    color: "hsl(var(--foreground))",
+    borderColor: state.isFocused ? "hsl(var(--ring))" : "hsl(var(--border))",
+    boxShadow: state.isFocused ? "0 0 0 1px hsl(var(--ring))" : "none",
+    "&:hover": { borderColor: "hsl(var(--ring))" },
+  }),
+  menu: (base) => ({
+    ...base,
+    backgroundColor: "hsl(var(--popover))",
+    color: "hsl(var(--foreground))",
+    zIndex: 50,
+  }),
+  singleValue: (base) => ({ ...base, color: "hsl(var(--foreground))" }),
+  option: (base, { isFocused }) => ({
+    ...base,
+    backgroundColor: isFocused ? "hsl(var(--accent))" : "hsl(var(--popover))",
+    color: "hsl(var(--foreground))",
+  }),
+};
+
+function StatusBadge({ status }) {
+  const normalized = String(status || "").toLowerCase();
+  const styles =
+    normalized === "deleted"
+      ? "bg-red-100 text-red-700 border-red-200"
+      : normalized === "updated"
+      ? "bg-amber-100 text-amber-700 border-amber-200"
+      : "bg-sky-100 text-sky-700 border-sky-200";
+
+  return <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${styles}`}>{status}</span>;
+}
+
 export default function TransferManagement() {
   const { token, user } = useAuth();
-  const [activeTab, setActiveTab] = useState("add");
+  const [activeTab, setActiveTab] = useState("entry");
   const [items, setItems] = useState([]);
   const [stocks, setStocks] = useState([]);
+  const [stationStocks, setStationStocks] = useState([]);
   const [stations, setStations] = useState([]);
   const [transfers, setTransfers] = useState([]);
   const [transferPage, setTransferPage] = useState(1);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [deleteId, setDeleteId] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [editId, setEditId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [historySearch, setHistorySearch] = useState("");
 
   const [form, setForm] = useState({
     inventory_item_id: "",
@@ -45,411 +74,425 @@ export default function TransferManagement() {
     quantity: "",
   });
 
+  const loadData = async () => {
+    try {
+      const [inventoryItems, storeStockRows, stationRows, transferRows, stationStockRows] = await Promise.all([
+        getInventoryItems(token),
+        getAllStoreStock(token),
+        getStations(token),
+        getTransfers(null, token),
+        getAllStationStock(null, token),
+      ]);
+      setItems(inventoryItems);
+      setStocks(storeStockRows);
+      setStations(stationRows);
+      setTransfers(transferRows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+      setStationStocks(stationStockRows);
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to load transfer data."));
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [token]);
+
   const selectedItem = useMemo(
-    () => items.find((i) => i.id === Number(form.inventory_item_id)),
+    () => items.find((item) => item.id === Number(form.inventory_item_id)),
     [items, form.inventory_item_id]
   );
   const selectedStation = useMemo(
-    () => stations.find((s) => s.id === Number(form.station_id)),
+    () => stations.find((station) => station.id === Number(form.station_id)),
     [stations, form.station_id]
   );
-  const currentStockQty = useMemo(() => {
-    const stock = stocks.find((s) => s.inventory_item_id === Number(form.inventory_item_id));
-    return stock ? stock.quantity : 0;
+
+  const currentStoreStock = useMemo(() => {
+    const row = stocks.find((stock) => stock.inventory_item_id === Number(form.inventory_item_id));
+    return Number(row?.quantity || 0);
   }, [stocks, form.inventory_item_id]);
+
+  const currentStationStock = useMemo(() => {
+    const row = stationStocks.find(
+      (stock) =>
+        stock.inventory_item_id === Number(form.inventory_item_id) && stock.station_id === Number(form.station_id)
+    );
+    return Number(row?.quantity || 0);
+  }, [stationStocks, form.inventory_item_id, form.station_id]);
+
+  const originalTransfer = useMemo(
+    () => (editId ? transfers.find((transfer) => transfer.id === editId) : null),
+    [transfers, editId]
+  );
+
   const parsedQuantity = Number(form.quantity || 0);
-  const previousQty = editId ? transfers.find((t) => t.id === editId)?.quantity || 0 : 0;
-  const availableForEntry = currentStockQty + previousQty;
+  const originalQuantity = Number(originalTransfer?.quantity || 0);
+  const availableForTransfer = currentStoreStock + originalQuantity;
+  const storeAfterTransfer = Number.isFinite(parsedQuantity) ? availableForTransfer - parsedQuantity : availableForTransfer;
+  const stationAfterTransfer = Number.isFinite(parsedQuantity)
+    ? Math.max(0, currentStationStock - originalQuantity) + parsedQuantity
+    : currentStationStock;
+
   const canSubmit =
     Boolean(form.inventory_item_id) &&
     Boolean(form.station_id) &&
     Number.isFinite(parsedQuantity) &&
     parsedQuantity > 0 &&
-    parsedQuantity <= availableForEntry &&
+    parsedQuantity <= availableForTransfer &&
     !submitting;
 
-  // --- Load data ---
-  const loadItems = async () => {
-    try {
-      const data = await getInventoryItems(token);
-      setItems(data);
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, "Failed to load inventory items."));
-    }
-  };
+  const itemOptions = useMemo(
+    () =>
+      items
+        .filter((item) => {
+          const stock = Number(stocks.find((row) => row.inventory_item_id === item.id)?.quantity || 0);
+          return stock > 0 || item.id === Number(form.inventory_item_id);
+        })
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((item) => ({
+          value: item.id,
+          label: `${item.name} • ${Number(item.container_size_ml || 0)}ml • ${Number(
+            stocks.find((row) => row.inventory_item_id === item.id)?.quantity || 0
+          )} in store`,
+        })),
+    [items, stocks, form.inventory_item_id]
+  );
 
-  const loadStocks = async () => {
-    try {
-      const data = await getAllStoreStock(token);
-      setStocks(data);
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, "Failed to load store stock data."));
-    }
-  };
+  const stationOptions = useMemo(
+    () =>
+      stations
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((station) => ({ value: station.id, label: station.name })),
+    [stations]
+  );
 
-  const loadStations = async () => {
-    try {
-      const data = await getStations(token);
-      setStations(data);
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, "Failed to load stations."));
-    }
-  };
+  const recentTransfers = transfers.filter((transfer) => transfer.status !== "Deleted").slice(0, 3);
 
-  const loadTransfers = async () => {
-    try {
-      const data = await getTransfers(null, token);
-      setTransfers(
-        data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  const filteredTransfers = useMemo(() => {
+    const query = historySearch.trim().toLowerCase();
+    if (!query) return transfers;
+    return transfers.filter((transfer) => {
+      return (
+        String(transfer.inventory_item_name || "").toLowerCase().includes(query) ||
+        String(transfer.station_name || "").toLowerCase().includes(query) ||
+        String(transfer.status || "").toLowerCase().includes(query)
       );
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, "Failed to load transfers."));
-    }
+    });
+  }, [transfers, historySearch]);
+
+  const paginatedTransfers = filteredTransfers.slice((transferPage - 1) * PAGE_SIZE, transferPage * PAGE_SIZE);
+
+  const resetForm = () => {
+    setForm({
+      inventory_item_id: "",
+      station_id: "",
+      quantity: "",
+    });
+    setEditId(null);
   };
 
-  useEffect(() => {
-    loadItems();
-    loadStocks();
-    loadStations();
-    loadTransfers();
-  }, [token]);
-
-  // --- Helper ---
-  const getStockQty = (inventoryId) => {
-    const stock = stocks.find((s) => s.inventory_item_id === inventoryId);
-    return stock ? stock.quantity : 0;
-  };
-
-  // --- Form submission ---
   const handleSubmit = async () => {
-    const { inventory_item_id, station_id, quantity } = form;
-
-    if (!inventory_item_id) return toast.error("Please select an inventory item.");
-    if (!station_id) return toast.error("Please select a station.");
-    if (!quantity || isNaN(quantity) || quantity <= 0)
-      return toast.error("Enter a valid quantity greater than zero.");
-
-    // Include previous quantity if editing
-    const previousQty = editId
-      ? transfers.find((t) => t.id === editId)?.quantity || 0
-      : 0;
-
-    const available = getStockQty(parseInt(inventory_item_id)) + previousQty;
-    if (parseFloat(quantity) > available)
-      return toast.error(`Not enough stock. Only ${available} left.`);
-
     const payload = {
-      inventory_item_id: parseInt(inventory_item_id),
-      station_id: parseInt(station_id),
-      quantity: parseFloat(parseFloat(quantity).toFixed(3)),
+      inventory_item_id: Number(form.inventory_item_id),
+      station_id: Number(form.station_id),
+      quantity: Number(Number(form.quantity).toFixed(3)),
     };
 
     try {
       setSubmitting(true);
       if (editId) {
         await updateTransfer(editId, payload, token);
-        toast.success("Transfer updated successfully.");
+        toast.success("Transfer updated");
       } else {
         await createTransfer(payload, token);
-        toast.success("Transfer created successfully.");
+        toast.success("Stock transferred");
       }
-
-      setForm({ inventory_item_id: "", station_id: "", quantity: "" });
-      setEditId(null);
-      await loadTransfers();
-      await loadStocks(); // refresh stock after transfer
+      resetForm();
+      await loadData();
     } catch (err) {
-      toast.error(getApiErrorMessage(err, "Failed to save transfer. Please check input and try again."));
+      toast.error(getApiErrorMessage(err, "Failed to save transfer."));
     } finally {
       setSubmitting(false);
     }
   };
 
-  // --- Delete handler ---
   const handleDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await deleteTransfer(deleteId, token);
-      toast.success("Transfer deleted successfully.");
+      await deleteTransfer(deleteTarget.id, token);
+      toast.success("Transfer deleted");
       setShowDeleteDialog(false);
-      setDeleteId(null);
-      await loadTransfers();
-      await loadStocks();
+      setDeleteTarget(null);
+      await loadData();
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Failed to delete transfer."));
     }
   };
 
-  const paginate = (data, page) =>
-    data.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  const selectStyles = {
-    control: (base, state) => ({
-      ...base,
-      backgroundColor: "hsl(var(--background))",
-      color: "hsl(var(--foreground))",
-      borderColor: state.isFocused ? "hsl(var(--ring))" : "hsl(var(--border))",
-      boxShadow: state.isFocused ? "0 0 0 1px hsl(var(--ring))" : "none",
-      "&:hover": { borderColor: "hsl(var(--ring))" },
-    }),
-    menu: (base) => ({
-      ...base,
-      backgroundColor: "hsl(var(--popover))",
-      color: "hsl(var(--foreground))",
-      zIndex: 50,
-    }),
-    singleValue: (base) => ({ ...base, color: "hsl(var(--foreground))" }),
-    option: (base, { isFocused }) => ({
-      ...base,
-      backgroundColor: isFocused
-        ? "hsl(var(--accent))"
-        : "hsl(var(--popover))",
-      color: "hsl(var(--foreground))",
-    }),
+  const openEdit = (transfer) => {
+    setEditId(transfer.id);
+    setForm({
+      inventory_item_id: String(transfer.inventory_item_id),
+      station_id: String(transfer.station_id),
+      quantity: String(transfer.quantity),
+    });
+    setActiveTab("entry");
   };
 
-  const latestTransfers = transfers.slice(0, 3);
-
   return (
-    <Card className="p-6 w-full dark:bg-gray-900 dark:text-white">
-      {/* Tabs */}
-      <div className="flex mb-6 border-b border-gray-200 dark:border-gray-700">
-        {["add", "history"].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 mr-4 transition-colors ${
-              activeTab === tab
-                ? "border-b-2 border-blue-500 font-semibold"
-                : "text-gray-500 dark:text-gray-300 hover:text-blue-500"
-            }`}
-          >
-            {tab === "add" ? "Add Transfer" : "Transfer History"}
-          </button>
-        ))}
-      </div>
+    <div className="space-y-5">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="mb-2">
+          <TabsTrigger value="entry">Transfer To Station</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
+        </TabsList>
 
-      {/* Add Transfer */}
-      {activeTab === "add" && (
-        <div className="flex flex-col gap-5">
-          <div className="flex flex-col gap-4">
-            {/* Inventory */}
-            <ReactSelect
-              styles={selectStyles}
-              isClearable
-              placeholder="Select Inventory Item"
-              options={items.map((i) => ({
-                value: i.id,
-                label: `${i.name} (${getStockQty(i.id)} left)`,
-              }))}
-              value={
-                form.inventory_item_id
-                  ? {
-                      value: form.inventory_item_id,
-                      label:
-                        items.find((x) => x.id === +form.inventory_item_id)
-                          ?.name || "",
-                    }
-                  : null
-              }
-              onChange={(opt) =>
-                setForm({ ...form, inventory_item_id: opt?.value || "" })
-              }
-            />
-
-            {/* Station */}
-            <ReactSelect
-              styles={selectStyles}
-              isClearable
-              placeholder="Select Station"
-              options={stations.map((s) => ({ value: s.id, label: s.name }))}
-              value={
-                form.station_id
-                  ? {
-                      value: form.station_id,
-                      label:
-                        stations.find((x) => x.id === +form.station_id)?.name ||
-                        "",
-                    }
-                  : null
-              }
-              onChange={(opt) => setForm({ ...form, station_id: opt?.value || "" })}
-            />
-
-            {/* Quantity */}
-            <Input
-              name="quantity"
-              type="number"
-              step="0.001"
-              placeholder="Quantity"
-              value={form.quantity}
-              onChange={(e) =>
-                setForm({ ...form, quantity: e.target.value })
-              }
-              className="dark:bg-gray-800 dark:text-white"
-            />
+        <TabsContent value="entry" className="space-y-5">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card className="border-border/70 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Stations</p>
+              <p className="mt-2 text-2xl font-semibold">{stations.length}</p>
+            </Card>
+            <Card className="border-border/70 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Active Transfers</p>
+              <p className="mt-2 text-2xl font-semibold">{transfers.filter((row) => row.status !== "Deleted").length}</p>
+            </Card>
+            <Card className="border-border/70 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Store Bottles Available</p>
+              <p className="mt-2 text-2xl font-semibold">
+                {stocks.reduce((sum, row) => sum + Number(row.quantity || 0), 0).toFixed(3)}
+              </p>
+            </Card>
           </div>
 
-          <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800">
-            <p className="text-sm font-medium">
-              {selectedItem ? selectedItem.name : "No item selected"}
-            </p>
-            <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-              Destination station: {selectedStation ? selectedStation.name : "Not selected"}
-            </p>
-            <p className="text-xs text-gray-600 dark:text-gray-300">
-              Available in store: {availableForEntry}
-            </p>
-            <p className="text-xs text-gray-600 dark:text-gray-300">
-              Remaining after transfer: {Number.isFinite(parsedQuantity) ? availableForEntry - parsedQuantity : availableForEntry}
-            </p>
+          <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+            <Card className="inventory-panel p-5">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold">{editId ? "Update Transfer" : "Transfer To Station"}</h3>
+                <p className="text-sm text-muted-foreground">Move bottles from store stock to a destination station with a clear before/after preview.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium">Inventory Item</label>
+                  <ReactSelect
+                    styles={selectStyles}
+                    isClearable
+                    isSearchable
+                    placeholder="Search inventory item"
+                    options={itemOptions}
+                    value={itemOptions.find((option) => option.value === Number(form.inventory_item_id)) || null}
+                    onChange={(option) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        inventory_item_id: option?.value || "",
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium">Destination Station</label>
+                  <ReactSelect
+                    styles={selectStyles}
+                    isClearable
+                    isSearchable
+                    placeholder="Search station"
+                    options={stationOptions}
+                    value={stationOptions.find((option) => option.value === Number(form.station_id)) || null}
+                    onChange={(option) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        station_id: option?.value || "",
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium">Quantity To Transfer</label>
+                  <Input
+                    type="number"
+                    step="0.001"
+                    min="0.001"
+                    placeholder="0"
+                    value={form.quantity}
+                    onChange={(e) => setForm((prev) => ({ ...prev, quantity: e.target.value }))}
+                  />
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="inventory-panel-soft rounded-xl p-3">
+                    <p className="text-xs text-muted-foreground">Store Before / After</p>
+                    <p className="mt-1 text-xl font-semibold">
+                      {availableForTransfer.toFixed(3)} / {storeAfterTransfer.toFixed(3)}
+                    </p>
+                  </div>
+                  <div className="inventory-panel-soft rounded-xl p-3">
+                    <p className="text-xs text-muted-foreground">Station Before / After</p>
+                    <p className="mt-1 text-xl font-semibold">
+                      {currentStationStock.toFixed(3)} / {stationAfterTransfer.toFixed(3)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={handleSubmit} disabled={!canSubmit}>
+                    {submitting ? "Saving..." : editId ? "Update Transfer" : "Transfer Stock"}
+                  </Button>
+                  {(editId || form.inventory_item_id || form.station_id || form.quantity) && (
+                    <Button type="button" variant="outline" onClick={resetForm} disabled={submitting}>
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            <Card className="inventory-panel p-5">
+              <h3 className="text-lg font-semibold">Recent Transfers</h3>
+              <p className="text-sm text-muted-foreground">Latest non-deleted stock moves to stations.</p>
+              <div className="mt-4 space-y-3">
+                {recentTransfers.length ? (
+                  recentTransfers.map((transfer) => (
+                    <div key={transfer.id} className="inventory-panel-soft rounded-xl p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium">{transfer.inventory_item_name}</p>
+                          <p className="text-sm text-muted-foreground">To {transfer.station_name}</p>
+                          <p className="text-xs text-muted-foreground">{transfer.quantity} units • {formatEatDateTime(transfer.created_at)}</p>
+                        </div>
+                        <StatusBadge status={transfer.status} />
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">No transfers recorded yet.</p>
+                )}
+              </div>
+            </Card>
           </div>
+        </TabsContent>
 
-          <Button
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="bg-blue-600 hover:bg-blue-700 text-white w-fit"
-          >
-            {submitting ? "Saving..." : editId ? "Update Transfer" : "Create Transfer"}
-          </Button>
-
-          {/* Latest 3 Transfers */}
-          {latestTransfers.length > 0 && (
-            <div className="mt-8">
-              <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-200">
-                Recent Transfers
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {latestTransfers.map((t) => (
-                  <Card
-                    key={t.id}
-                    className="p-4 bg-gray-50 dark:bg-gray-800 border dark:border-gray-700 shadow-sm"
-                  >
-                    <div className="font-medium text-gray-900 dark:text-white">
-                      {t.inventory_item_name}
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-300">
-                      to {t.station_name}
-                    </div>
-                    <div className="mt-1 text-blue-600 dark:text-blue-400 font-semibold">
-                      {t.quantity} units
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {formatEatDateTime(t.created_at)}
-                    </div>
-                  </Card>
-                ))}
+        <TabsContent value="history" className="space-y-4">
+          <Card className="inventory-panel p-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Transfer History</h3>
+                <p className="text-sm text-muted-foreground">Edits and deletes remain visible in the ledger with their status.</p>
+              </div>
+              <div className="w-full md:w-80">
+                <Input
+                  placeholder="Search item, station, or status"
+                  value={historySearch}
+                  onChange={(e) => {
+                    setHistorySearch(e.target.value);
+                    setTransferPage(1);
+                  }}
+                />
               </div>
             </div>
-          )}
-        </div>
-      )}
 
-      {/* History tab */}
-      {activeTab === "history" && (
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full border rounded-lg dark:border-gray-700">
-            <thead className="bg-gray-100 dark:bg-gray-800">
-              <tr>
-                <th className="p-2 border dark:border-gray-700">#</th>
-                <th className="p-2 border dark:border-gray-700">Item</th>
-                <th className="p-2 border dark:border-gray-700">Station</th>
-                <th className="p-2 border dark:border-gray-700">Quantity</th>
-                <th className="p-2 border dark:border-gray-700">Date</th>
-                {user?.role === "admin" && (
-                  <th className="p-2 border dark:border-gray-700">Actions</th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {paginate(transfers, transferPage).map((t, i) => (
-                <tr
-                  key={t.id}
-                  className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <td className="p-2 border dark:border-gray-700">
-                    {(transferPage - 1) * PAGE_SIZE + i + 1}
-                  </td>
-                  <td className="p-2 border dark:border-gray-700">
-                    {t.inventory_item_name}
-                  </td>
-                  <td className="p-2 border dark:border-gray-700">
-                    {t.station_name}
-                  </td>
-                  <td className="p-2 border dark:border-gray-700">{t.quantity}</td>
-                  <td className="p-2 border dark:border-gray-700">
-                    {formatEatDateTime(t.created_at)}
-                  </td>
-                  {user?.role === "admin" && (
-                    <td className="p-2 border dark:border-gray-700 flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditId(t.id);
-                          setForm({
-                            inventory_item_id: t.inventory_item_id,
-                            station_id: t.station_id,
-                            quantity: t.quantity,
-                          });
-                          setActiveTab("add");
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => {
-                          setDeleteId(t.id);
-                          setShowDeleteDialog(true);
-                        }}
-                      >
-                        Delete
-                      </Button>
-                    </td>
+            <div className="inventory-table-shell mt-4">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="inventory-table-head border-b">
+                    <th className="px-4 py-3 font-medium">#</th>
+                    <th className="px-4 py-3 font-medium">Item</th>
+                    <th className="px-4 py-3 font-medium">Station</th>
+                    <th className="px-4 py-3 font-medium">Quantity</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Date</th>
+                    {user?.role === "admin" && <th className="px-4 py-3 font-medium text-right">Actions</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedTransfers.length === 0 ? (
+                    <tr>
+                      <td colSpan={user?.role === "admin" ? 7 : 6} className="px-4 py-10 text-center text-muted-foreground">
+                        No transfer history matches your search.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedTransfers.map((transfer, index) => (
+                      <tr key={transfer.id} className="inventory-table-row">
+                        <td className="px-4 py-3">{(transferPage - 1) * PAGE_SIZE + index + 1}</td>
+                        <td className="px-4 py-3 font-medium">{transfer.inventory_item_name}</td>
+                        <td className="px-4 py-3">{transfer.station_name}</td>
+                        <td className="px-4 py-3">{transfer.quantity}</td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={transfer.status} />
+                        </td>
+                        <td className="px-4 py-3">{formatEatDateTime(transfer.created_at)}</td>
+                        {user?.role === "admin" && (
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={transfer.status === "Deleted"}
+                                onClick={() => openEdit(transfer)}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                disabled={transfer.status === "Deleted"}
+                                onClick={() => {
+                                  setDeleteTarget(transfer);
+                                  setShowDeleteDialog(true);
+                                }}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    ))
                   )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                </tbody>
+              </table>
+            </div>
 
-          {/* Pagination */}
-          <div className="flex justify-between items-center mt-3">
-            <Button
-              disabled={transferPage === 1}
-              onClick={() => setTransferPage(transferPage - 1)}
-            >
-              Prev
-            </Button>
-            <span>
-              Page {transferPage} of {Math.ceil(transfers.length / PAGE_SIZE) || 1}
-            </span>
-            <Button
-              disabled={transferPage * PAGE_SIZE >= transfers.length}
-              onClick={() => setTransferPage(transferPage + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
+            <div className="mt-4 flex items-center justify-between">
+              <Button variant="outline" disabled={transferPage === 1} onClick={() => setTransferPage((page) => page - 1)}>
+                Prev
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {transferPage} of {Math.max(1, Math.ceil(filteredTransfers.length / PAGE_SIZE))}
+              </span>
+              <Button
+                variant="outline"
+                disabled={transferPage * PAGE_SIZE >= filteredTransfers.length}
+                onClick={() => setTransferPage((page) => page + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
-      {/* Delete Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogTitle>Delete Transfer</DialogTitle>
           </DialogHeader>
-          <p>Are you sure you want to delete this transfer?</p>
-          <DialogFooter className="flex justify-end gap-2">
-            <Button onClick={() => setShowDeleteDialog(false)}>Cancel</Button>
+          <p className="text-sm text-muted-foreground">
+            This keeps the row in history and reverses stock only when the station still has enough remaining stock to roll back the transfer.
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
             <Button variant="destructive" onClick={handleDelete}>
               Delete
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </div>
   );
 }
-
