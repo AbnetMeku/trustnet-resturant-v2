@@ -10,6 +10,12 @@ export const DEFAULT_BRANDING = {
   business_day_start_time: "06:00",
   print_preview_enabled: false,
   kds_mark_unavailable_enabled: false,
+  kitchen_tag_category_id: null,
+  kitchen_tag_subcategory_id: null,
+  kitchen_tag_subcategory_ids: [],
+  kitchen_tag_category_name: null,
+  kitchen_tag_subcategory_name: null,
+  kitchen_tag_subcategory_names: [],
 };
 
 const getAuthHeader = (token) => ({

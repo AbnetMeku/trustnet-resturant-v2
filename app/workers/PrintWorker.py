@@ -1,9 +1,11 @@
 import logging
 import os
 import socket
+import threading
 import time
 from datetime import timedelta
 
+from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
 from sqlalchemy import and_, create_engine, or_
 from sqlalchemy.orm import sessionmaker
@@ -13,6 +15,43 @@ from app.utils.timezone import eat_now, eat_now_naive
 
 LOGGER = logging.getLogger("print_worker")
 logging.basicConfig(level=logging.INFO)
+load_dotenv()
+
+_worker_thread = None
+
+
+def _build_database_uri_from_env() -> str | None:
+    explicit_uri = os.environ.get("SQLALCHEMY_DATABASE_URI") or os.environ.get("DATABASE_URI")
+    if explicit_uri:
+        return explicit_uri
+
+    db_user = os.environ.get("DB_USER")
+    db_password = os.environ.get("DB_PASSWORD")
+    db_host = os.environ.get("DB_HOST")
+    db_port = os.environ.get("DB_PORT")
+    db_name = os.environ.get("DB_NAME")
+    if all([db_user, db_password, db_host, db_port, db_name]):
+        return f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+
+    return None
+
+
+def start_embedded_print_worker(database_uri: str) -> threading.Thread:
+    global _worker_thread
+    if _worker_thread is not None and _worker_thread.is_alive():
+        return _worker_thread
+
+    worker = PrintWorker(
+        database_uri=database_uri,
+        check_interval_seconds=int(os.environ.get("PRINT_CHECK_INTERVAL_SECONDS", "2")),
+        max_retries=int(os.environ.get("PRINT_MAX_RETRIES", "2")),
+        retry_delay_seconds=int(os.environ.get("PRINT_RETRY_DELAY_SECONDS", "60")),
+        default_printer_ip=os.environ.get("DEFAULT_PRINTER_IP", "127.0.0.1"),
+    )
+    thread = threading.Thread(target=worker.run_forever, name="print-worker", daemon=True)
+    thread.start()
+    _worker_thread = thread
+    return thread
 
 
 class PrintWorker:
@@ -47,10 +86,7 @@ class PrintWorker:
 
     @classmethod
     def from_env(cls):
-        database_uri = (
-            os.environ.get("SQLALCHEMY_DATABASE_URI")
-            or os.environ.get("DATABASE_URI")
-        )
+        database_uri = _build_database_uri_from_env()
         return cls(
             database_uri=database_uri,
             check_interval_seconds=int(os.environ.get("PRINT_CHECK_INTERVAL_SECONDS", "2")),
@@ -65,6 +101,19 @@ class PrintWorker:
         except Exception:
             return ImageFont.load_default()
 
+    def _line_height(self, font, extra_spacing=4):
+        bbox = font.getbbox("A")
+        return bbox[3] - bbox[1] + extra_spacing
+
+    def _load_logo(self):
+        if not os.path.exists(self.logo_path):
+            return None
+        try:
+            return Image.open(self.logo_path).convert("1")
+        except Exception:
+            LOGGER.warning("Failed to load logo from %s", self.logo_path, exc_info=True)
+            return None
+
     def _normalize_items(self, job: PrintJob):
         payload = job.items_data if isinstance(job.items_data, dict) else {}
         raw_items = payload.get("items", [])
@@ -72,62 +121,149 @@ class PrintWorker:
             raw_items = []
         return [item for item in raw_items if isinstance(item, dict)]
 
-    def _draw_centered(self, draw, y, text, font):
+    def _draw_aligned(self, draw, y, text, font, anchor="left", margin=10):
         bbox = draw.textbbox((0, 0), text, font=font)
         text_width = bbox[2] - bbox[0]
-        x = max((self.printer_width_px - text_width) // 2, 0)
-        draw.text((x, y), text, font=font, fill=0)
-        return bbox[3] - bbox[1] + 6
-
-    def render_ticket(self, job: PrintJob, items: list[dict]):
-        font_header = self.load_font(30)
-        font_regular = self.load_font(24)
-        font_bold = self.load_font(34)
-        payload = job.items_data if isinstance(job.items_data, dict) else {}
-
-        lines: list[tuple[str, ImageFont.FreeTypeFont]] = []
-        if job.type == "station":
-            lines.append(("ለኩሽና", font_bold))
-
-        prep_tag = next((i.get("prep_tag") for i in items if i.get("prep_tag")), None)
-        if prep_tag:
-            lines.append((str(prep_tag), font_bold))
-
-        lines.append((f"Order ID: {job.order_id}", font_header))
-        lines.append((f"Time: {eat_now().strftime('%Y-%m-%d %H:%M:%S')}", font_regular))
-        lines.append((f"Waiter: {payload.get('waiter', 'Unknown')}", font_regular))
-        lines.append((f"Table: {payload.get('table', 'N/A')}", font_regular))
-        lines.append(("--------------------------------", font_regular))
-
-        if job.type == "cashier":
-            total = 0.0
-            for item in items:
-                qty = float(item.get("quantity", 0))
-                price = float(item.get("price", 0.0))
-                line_total = qty * price
-                total += line_total
-                lines.append((f"{qty:g} x {item.get('name', '')}", font_regular))
-                lines.append((f"{line_total:.2f} ETB", font_regular))
-            lines.append(("--------------------------------", font_regular))
-            lines.append((f"Total: {float(payload.get('total', total)):.2f} ETB", font_bold))
+        if anchor == "center":
+            x = max((self.printer_width_px - text_width) // 2, 0)
+        elif anchor == "right":
+            x = max(self.printer_width_px - text_width - margin, 0)
         else:
-            for item in items:
-                qty = item.get("quantity", 1)
-                name = item.get("name", "")
-                lines.append((f"{qty} x {name}", font_regular))
-                notes = item.get("notes")
-                if notes:
-                    lines.append((f"Notes: {notes}", font_regular))
+            x = margin
+        draw.text((x, y), text, font=font, fill=0)
 
-        lines.append(("Thank you!", font_regular))
+    def _paste_logo(self, image, y_offset):
+        logo = self._load_logo()
+        if logo is None:
+            return image
+        logo_width = min(int(logo.width * 0.5), self.printer_width_px // 2)
+        logo_height = int(logo.height * logo_width / logo.width)
+        resized_logo = logo.resize((logo_width, logo_height))
+        output = Image.new("1", (self.printer_width_px, image.height + logo_height + y_offset + 20), 1)
+        output.paste(image, (0, 0))
+        output.paste(resized_logo, ((self.printer_width_px - resized_logo.width) // 2, image.height + y_offset))
+        return output
 
-        estimated_height = 40 + len(lines) * 42
-        image = Image.new("1", (self.printer_width_px, estimated_height), 1)
+    def _render_cashier_ticket(self, job: PrintJob, items: list[dict], payload: dict):
+        font_header = self.load_font(30)
+        font_regular = self.load_font(20)
+        header_line_height = self._line_height(font_header)
+        line_height = self._line_height(font_regular)
+
+        lines = [
+            ("Yonas Cher Cher", font_header, "center"),
+            ("---- Non Fiscal ----", font_header, "center"),
+            ("-" * 45, font_header, "center"),
+            (f"ORDER #: {job.order_id}", font_regular, "left"),
+            (f"DATE: {eat_now().strftime('%Y-%m-%d %H:%M:%S')}", font_regular, "left"),
+            (f"WAITER: {payload.get('waiter', 'Unknown')}", font_regular, "left"),
+            (f"TABLE: {payload.get('table', 'N/A')}", font_regular, "left"),
+            ("-" * 92, font_regular, "center"),
+        ]
+
+        subtotal = 0.0
+        item_rows = []
+        for item in items:
+            qty = float(item.get("quantity", 1) or 1)
+            price = float(item.get("price", 0.0) or 0.0)
+            total = qty * price
+            subtotal += total
+            item_rows.append((str(item.get("name", "")), f"{qty:g} x {price:.2f}", f"{total:.2f}"))
+
+        footer_lines = [
+            ("-" * 92, font_regular, "center"),
+            (f"TOTAL: {float(payload.get('total', subtotal)):.2f}ETB ", font_regular, "right"),
+            ("THANK YOU!", font_regular, "center"),
+        ]
+
+        height = (
+            sum(header_line_height if font == font_header else line_height for _, font, _ in lines)
+            + ((len(item_rows) + 2) * (line_height + 5))
+            + sum(line_height + 5 for _ in footer_lines)
+            + 120
+        )
+
+        image = Image.new("1", (self.printer_width_px, height), 1)
         draw = ImageDraw.Draw(image)
         y = 10
-        for text, font in lines:
-            y += self._draw_centered(draw, y, text, font)
-        return image.crop((0, 0, self.printer_width_px, min(max(y + 20, 80), estimated_height)))
+
+        for text, font, anchor in lines:
+            self._draw_aligned(draw, y, text, font, anchor=anchor)
+            y += (header_line_height if font == font_header else line_height) + 5
+
+        col_item_x = 10
+        col_qty_x = 260
+        col_total_x = 480
+
+        draw.text((col_item_x, y), "Item", font=font_regular, fill=0)
+        draw.text((col_qty_x, y), "Qty x Price", font=font_regular, fill=0)
+        draw.text((col_total_x, y), "Total", font=font_regular, fill=0)
+        y += line_height + 5
+        draw.line((10, y, self.printer_width_px - 10, y), fill=0)
+        y += 5
+
+        for name, qty_price, total in item_rows:
+            draw.text((col_item_x, y), name[:28], font=font_regular, fill=0)
+            draw.text((col_qty_x, y), qty_price, font=font_regular, fill=0)
+            draw.text((col_total_x, y), total, font=font_regular, fill=0)
+            y += line_height + 5
+
+        for text, font, anchor in footer_lines:
+            self._draw_aligned(draw, y, text, font, anchor=anchor)
+            y += line_height + 5
+
+        cropped = image.crop((0, 0, self.printer_width_px, min(max(y + 20, 80), height)))
+        return self._paste_logo(cropped, 10)
+
+    def _render_station_ticket(self, job: PrintJob, items: list[dict], payload: dict):
+        font_regular = self.load_font(20)
+        font_bold = self.load_font(30)
+        line_height = self._line_height(font_regular)
+        bold_line_height = self._line_height(font_bold)
+
+        lines = []
+        prep_tag = next((str(item.get("prep_tag")) for item in items if item.get("prep_tag")), None)
+        if prep_tag:
+            lines.append(prep_tag)
+
+        lines.append(f"Order ID: {job.order_id}")
+        lines.append(f"Time: {eat_now().strftime('%H:%M:%S')}")
+        lines.append(f"Waiter: {payload.get('waiter', 'Unknown')}  Table: {payload.get('table', 'N/A')}")
+        lines.append("." * 32)
+
+        for item in items:
+            lines.append(f"{item.get('quantity', 1)}x {str(item.get('name', ''))[:24]}")
+            if item.get("notes"):
+                lines.append(f"Notes: {item['notes']}")
+
+        lines.append("." * 32)
+        lines.append("Thank you!")
+
+        bold_values = set()
+        if prep_tag:
+            bold_values.add(prep_tag)
+
+        height = sum(bold_line_height if line in bold_values else line_height for line in lines) + 60
+        image = Image.new("1", (self.printer_width_px, height), 1)
+        draw = ImageDraw.Draw(image)
+        y = 10
+
+        for line in lines:
+            font = font_bold if line in bold_values else font_regular
+            bbox = draw.textbbox((0, 0), line, font=font)
+            text_width = bbox[2] - bbox[0]
+            x = (self.printer_width_px - text_width) // 2 if text_width < self.printer_width_px else 0
+            draw.text((x, y), line, font=font, fill=0)
+            y += bold_line_height if font == font_bold else line_height
+
+        cropped = image.crop((0, 0, self.printer_width_px, min(max(y + 20, 80), height)))
+        return self._paste_logo(cropped, 10)
+
+    def render_ticket(self, job: PrintJob, items: list[dict]):
+        payload = job.items_data if isinstance(job.items_data, dict) else {}
+        if job.type == "cashier":
+            return self._render_cashier_ticket(job, items, payload)
+        return self._render_station_ticket(job, items, payload)
 
     def is_printer_reachable(self, ip, port=9100, timeout=2):
         try:

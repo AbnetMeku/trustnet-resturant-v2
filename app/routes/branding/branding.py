@@ -7,7 +7,7 @@ from flask_jwt_extended import jwt_required
 from werkzeug.utils import secure_filename
 
 from app.extensions import db
-from app.models.models import BrandingSettings
+from app.models.models import BrandingSettings, Category, SubCategory
 from app.utils.decorators import roles_required
 
 branding_bp = Blueprint("branding_bp", __name__, url_prefix="/branding")
@@ -25,6 +25,26 @@ TIME_PATTERN = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 def _serialize_branding(settings):
     custom_logo = settings.logo_url if settings else None
     custom_background = settings.background_url if settings else None
+    kitchen_tag_category = settings.kitchen_tag_category if settings else None
+    kitchen_tag_subcategory = settings.kitchen_tag_subcategory if settings else None
+    kitchen_tag_subcategory_ids = []
+    kitchen_tag_subcategory_names = []
+    if settings:
+        raw_ids = settings.kitchen_tag_subcategory_ids or []
+        if not raw_ids and settings.kitchen_tag_subcategory_id is not None:
+            raw_ids = [settings.kitchen_tag_subcategory_id]
+        if isinstance(raw_ids, list):
+            kitchen_tag_subcategory_ids = [int(value) for value in raw_ids if isinstance(value, int) or (isinstance(value, str) and value.isdigit())]
+        if kitchen_tag_subcategory_ids:
+            subcategories = (
+                db.session.query(SubCategory)
+                .filter(SubCategory.id.in_(kitchen_tag_subcategory_ids))
+                .all()
+            )
+            by_id = {item.id: item for item in subcategories}
+            kitchen_tag_subcategory_names = [
+                by_id[item_id].name for item_id in kitchen_tag_subcategory_ids if item_id in by_id
+            ]
 
     return {
         "logo_url": custom_logo or DEFAULT_LOGO_URL,
@@ -36,6 +56,12 @@ def _serialize_branding(settings):
         ),
         "print_preview_enabled": bool(settings.print_preview_enabled) if settings else False,
         "kds_mark_unavailable_enabled": bool(settings.kds_mark_unavailable_enabled) if settings else False,
+        "kitchen_tag_category_id": settings.kitchen_tag_category_id if settings else None,
+        "kitchen_tag_subcategory_id": settings.kitchen_tag_subcategory_id if settings else None,
+        "kitchen_tag_subcategory_ids": kitchen_tag_subcategory_ids,
+        "kitchen_tag_category_name": kitchen_tag_category.name if kitchen_tag_category else None,
+        "kitchen_tag_subcategory_name": kitchen_tag_subcategory.name if kitchen_tag_subcategory else None,
+        "kitchen_tag_subcategory_names": kitchen_tag_subcategory_names,
     }
 
 
@@ -77,6 +103,34 @@ def _normalize_kds_mark_unavailable_enabled(value):
     if isinstance(value, bool):
         return value
     raise ValueError("kds_mark_unavailable_enabled must be a boolean")
+
+
+def _normalize_nullable_fk(value, field_name, model_cls):
+    if value in (None, "", 0, "0"):
+        return None
+    try:
+        normalized_id = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name} must be an integer or null")
+
+    instance = db.session.get(model_cls, normalized_id)
+    if instance is None:
+        raise ValueError(f"{field_name} references a missing record")
+    return normalized_id
+
+
+def _normalize_nullable_fk_list(value, field_name, model_cls):
+    if value in (None, "", []):
+        return []
+    if not isinstance(value, list):
+        raise ValueError(f"{field_name} must be a list of integers")
+
+    normalized_ids = []
+    for item in value:
+        normalized_id = _normalize_nullable_fk(item, field_name, model_cls)
+        if normalized_id is not None and normalized_id not in normalized_ids:
+            normalized_ids.append(normalized_id)
+    return normalized_ids
 
 
 def _upload_dir():
@@ -170,10 +224,13 @@ def update_branding():
         and "business_day_start_time" not in data
         and "print_preview_enabled" not in data
         and "kds_mark_unavailable_enabled" not in data
+        and "kitchen_tag_category_id" not in data
+        and "kitchen_tag_subcategory_id" not in data
+        and "kitchen_tag_subcategory_ids" not in data
     ):
         return jsonify(
             {
-                "error": "Provide logo_url, background_url, business_day_start_time, print_preview_enabled, and/or kds_mark_unavailable_enabled"
+                "error": "Provide logo_url, background_url, business_day_start_time, print_preview_enabled, kds_mark_unavailable_enabled, kitchen_tag_category_id, kitchen_tag_subcategory_id, and/or kitchen_tag_subcategory_ids"
             }
         ), 400
 
@@ -201,6 +258,34 @@ def update_branding():
             settings.kds_mark_unavailable_enabled = _normalize_kds_mark_unavailable_enabled(
                 data.get("kds_mark_unavailable_enabled")
             )
+        if "kitchen_tag_category_id" in data:
+            settings.kitchen_tag_category_id = _normalize_nullable_fk(
+                data.get("kitchen_tag_category_id"),
+                "kitchen_tag_category_id",
+                Category,
+            )
+            if settings.kitchen_tag_category_id is not None:
+                settings.kitchen_tag_subcategory_id = None
+        if "kitchen_tag_subcategory_id" in data:
+            next_subcategory_id = _normalize_nullable_fk(
+                data.get("kitchen_tag_subcategory_id"),
+                "kitchen_tag_subcategory_id",
+                SubCategory,
+            )
+            settings.kitchen_tag_subcategory_id = next_subcategory_id
+            if next_subcategory_id is not None:
+                subcategory = db.session.get(SubCategory, next_subcategory_id)
+                settings.kitchen_tag_category_id = subcategory.category_id if subcategory else None
+                settings.kitchen_tag_subcategory_ids = [next_subcategory_id]
+        if "kitchen_tag_subcategory_ids" in data:
+            next_subcategory_ids = _normalize_nullable_fk_list(
+                data.get("kitchen_tag_subcategory_ids"),
+                "kitchen_tag_subcategory_ids",
+                SubCategory,
+            )
+            settings.kitchen_tag_subcategory_ids = next_subcategory_ids
+            settings.kitchen_tag_subcategory_id = next_subcategory_ids[0] if next_subcategory_ids else None
+            settings.kitchen_tag_category_id = None
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 

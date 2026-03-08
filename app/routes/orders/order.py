@@ -5,7 +5,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app.extensions import db
 from app.models.models import Order, OrderItem, MenuItem, Table, User, Station, PrintJob
 from app.utils.decorators import roles_required, extract_roles_from_claims
-from app.routes.orders.kitchen_tag import generate_kitchen_tag
+from app.routes.orders.kitchen_tag import generate_kitchen_tag, should_generate_kitchen_tag
 from collections import defaultdict
 import logging
 from app.routes.print.print_jobs import create_station_print_jobs, create_cashier_print_job 
@@ -299,7 +299,7 @@ def create_order():
         quantity_to_add = Decimal(str(payload.get("quantity", default_increment)))
 
         try:
-            prep_tag = generate_kitchen_tag() if category_name.lower() == "food" else None
+            prep_tag = generate_kitchen_tag() if should_generate_kitchen_tag(menu_item) else None
         except Exception as e:
             return rollback_error(f"Failed to generate kitchen tag: {str(e)}", 500)
 
@@ -401,7 +401,7 @@ def add_order_item(order_id):
 
         # Create a new OrderItem row instead of updating existing one
         try:
-            prep_tag = generate_kitchen_tag() if category_name.lower() == "food" else None
+            prep_tag = generate_kitchen_tag() if should_generate_kitchen_tag(menu_item) else None
         except Exception as e:
             return rollback_error(f"Failed to generate kitchen tag: {str(e)}", 500)
         status = "pending"

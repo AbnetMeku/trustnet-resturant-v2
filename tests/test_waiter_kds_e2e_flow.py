@@ -4,7 +4,7 @@ import pytest
 from werkzeug.security import generate_password_hash
 
 from app import create_app, db
-from app.models.models import Category, MenuItem, Station, SubCategory, Table, User
+from app.models.models import BrandingSettings, Category, MenuItem, Station, SubCategory, Table, User
 from app.utils.timezone import get_eat_today
 
 
@@ -30,6 +30,11 @@ def _auth_headers(token: str):
 
 def test_waiter_to_kds_end_to_end_flow(client, app):
     with app.app_context():
+        admin = User(
+            username="admin_kds_e2e",
+            password_hash=generate_password_hash("adminpass"),
+            role="admin",
+        )
         waiter = User(username="waiter_kds_e2e", password_hash="x", pin_hash="1234", role="waiter")
         table = Table(number="KDS-E2E-1")
         table.waiters.append(waiter)
@@ -44,11 +49,27 @@ def test_waiter_to_kds_end_to_end_flow(client, app):
             station_rel=station,
             subcategory=subcategory,
         )
-        db.session.add_all([waiter, table, station, category, subcategory, menu_item])
+        db.session.add_all([admin, waiter, table, station, category, subcategory, menu_item])
         db.session.commit()
 
         table_id = table.id
         menu_item_id = menu_item.id
+        subcategory_id = subcategory.id
+
+    admin_login = client.post(
+        "/api/auth/login",
+        json={"username": "admin_kds_e2e", "password": "adminpass"},
+    )
+    assert admin_login.status_code == 200
+    admin_token = admin_login.get_json()["access_token"]
+
+    update_branding = client.put(
+        "/api/branding/",
+        json={"kitchen_tag_subcategory_ids": [subcategory_id]},
+        headers=_auth_headers(admin_token),
+    )
+    assert update_branding.status_code == 200
+    assert update_branding.get_json()["kitchen_tag_subcategory_ids"] == [subcategory_id]
 
     waiter_login = client.post("/api/auth/pin/waiter", json={"pin": "1234"})
     assert waiter_login.status_code == 200

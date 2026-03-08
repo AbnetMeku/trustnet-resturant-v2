@@ -1,9 +1,27 @@
-from app.models.models import KitchenTagCounter, db
+from app.models.models import BrandingSettings, KitchenTagCounter, db
 import logging
 from app.utils.timezone import get_eat_today
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def should_generate_kitchen_tag(menu_item) -> bool:
+    settings = db.session.get(BrandingSettings, 1)
+    if settings is None:
+        return False
+
+    multi_ids = settings.kitchen_tag_subcategory_ids or []
+    if isinstance(multi_ids, list) and multi_ids:
+        normalized_ids = {
+            int(value) for value in multi_ids if isinstance(value, int) or (isinstance(value, str) and value.isdigit())
+        }
+        return menu_item.subcategory_id in normalized_ids
+
+    return (
+        settings.kitchen_tag_subcategory_id is not None
+        and menu_item.subcategory_id == settings.kitchen_tag_subcategory_id
+    )
 
 def generate_kitchen_tag() -> str:
     """

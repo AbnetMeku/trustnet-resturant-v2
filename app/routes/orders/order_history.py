@@ -1,8 +1,9 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from sqlalchemy.orm import joinedload
+from sqlalchemy import delete
 from app.extensions import db
-from app.models.models import Order, OrderItem, Table, User
+from app.models.models import Order, OrderItem, PrintJob, Table, User
 from app.routes.orders.order import order_to_dict, error_response
 from app.utils.decorators import roles_required, extract_roles_from_claims
 from datetime import datetime, timedelta
@@ -17,6 +18,24 @@ def _current_waiter_from_jwt():
     except (TypeError, ValueError):
         return None
     return db.session.get(User, user_id)
+
+
+def _parse_history_range(start_date_str, end_date_str):
+    if not start_date_str or not end_date_str:
+        return None, None, error_response("start_date and end_date are required.", 400)
+
+    try:
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+        end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return None, None, error_response("Invalid date format. Use YYYY-MM-DD.", 400)
+
+    if start_date > end_date:
+        return None, None, error_response("start_date cannot be after end_date.", 400)
+
+    start_dt, _ = get_business_day_bounds(start_date)
+    _, end_dt = get_business_day_bounds(end_date)
+    return start_dt, end_dt, None
 
 # ---------------------- GET /order-history ---------------------- #
 @order_history_bp.route("/", methods=["GET"])
@@ -380,6 +399,65 @@ def get_order_summary_range():
     }
 
     return jsonify(summary), 200
+
+
+@order_history_bp.route("/clear-range", methods=["DELETE"])
+@jwt_required()
+@roles_required("admin")
+def clear_order_history_range():
+    payload = request.get_json(silent=True) or {}
+    start_dt, end_dt, error = _parse_history_range(
+        payload.get("start_date"),
+        payload.get("end_date"),
+    )
+    if error:
+        return error
+
+    order_ids_query = db.session.query(Order.id).filter(
+        Order.created_at >= start_dt,
+        Order.created_at < end_dt,
+    )
+    order_ids = [order_id for (order_id,) in order_ids_query.all()]
+
+    if not order_ids:
+        return (
+            jsonify(
+                {
+                    "message": "No order history found in the selected date range.",
+                    "deleted_orders": 0,
+                    "deleted_order_items": 0,
+                    "deleted_print_jobs": 0,
+                    "start_date": payload.get("start_date"),
+                    "end_date": payload.get("end_date"),
+                }
+            ),
+            200,
+        )
+
+    deleted_order_items = db.session.execute(
+        delete(OrderItem).where(OrderItem.order_id.in_(order_ids))
+    ).rowcount or 0
+    deleted_print_jobs = db.session.execute(
+        delete(PrintJob).where(PrintJob.order_id.in_(order_ids))
+    ).rowcount or 0
+    deleted_orders = db.session.execute(
+        delete(Order).where(Order.id.in_(order_ids))
+    ).rowcount or 0
+    db.session.commit()
+
+    return (
+        jsonify(
+            {
+                "message": "Order history cleared successfully.",
+                "deleted_orders": deleted_orders,
+                "deleted_order_items": deleted_order_items,
+                "deleted_print_jobs": deleted_print_jobs,
+                "start_date": payload.get("start_date"),
+                "end_date": payload.get("end_date"),
+            }
+        ),
+        200,
+    )
 
 # ---------------------- GET /order-history/raw ---------------------- #
 @order_history_bp.route("/raw", methods=["GET"])

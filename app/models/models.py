@@ -215,7 +215,21 @@ class BrandingSettings(db.Model):
     business_day_start_time = db.Column(db.String(5), nullable=False, default="06:00")
     print_preview_enabled = db.Column(db.Boolean, nullable=False, default=False)
     kds_mark_unavailable_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    kitchen_tag_category_id = db.Column(
+        db.Integer,
+        db.ForeignKey("categories.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    kitchen_tag_subcategory_id = db.Column(
+        db.Integer,
+        db.ForeignKey("subcategories.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    kitchen_tag_subcategory_ids = db.Column(db.JSON, nullable=True)
     updated_at = db.Column(db.DateTime, default=eat_now_naive, onupdate=eat_now_naive)
+
+    kitchen_tag_category = db.relationship("Category", foreign_keys=[kitchen_tag_category_id])
+    kitchen_tag_subcategory = db.relationship("SubCategory", foreign_keys=[kitchen_tag_subcategory_id])
 
 
 class InventoryOutbox(db.Model):

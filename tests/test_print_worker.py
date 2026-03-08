@@ -6,7 +6,7 @@ from PIL import Image
 from app import create_app, db
 from app.models.models import BrandingSettings, MenuItem, Order, OrderItem, PrintJob, Station, Table, User
 from app.utils.timezone import eat_now_naive
-from app.workers.PrintWorker import PrintWorker
+from app.workers.PrintWorker import PrintWorker, _build_database_uri_from_env
 
 
 @pytest.fixture
@@ -198,3 +198,26 @@ def test_process_job_shows_preview_when_enabled(app, worker, monkeypatch):
 
         assert len(preview_calls) == 1
         assert preview_calls[0] == f"Job {job.id} Preview"
+
+
+def test_build_database_uri_from_env_prefers_explicit_uri(monkeypatch):
+    monkeypatch.setenv("SQLALCHEMY_DATABASE_URI", "postgresql://explicit")
+    monkeypatch.setenv("DB_USER", "user1")
+    monkeypatch.setenv("DB_PASSWORD", "pass1")
+    monkeypatch.setenv("DB_HOST", "localhost")
+    monkeypatch.setenv("DB_PORT", "5432")
+    monkeypatch.setenv("DB_NAME", "db1")
+
+    assert _build_database_uri_from_env() == "postgresql://explicit"
+
+
+def test_build_database_uri_from_env_falls_back_to_db_parts(monkeypatch):
+    monkeypatch.delenv("SQLALCHEMY_DATABASE_URI", raising=False)
+    monkeypatch.delenv("DATABASE_URI", raising=False)
+    monkeypatch.setenv("DB_USER", "user1")
+    monkeypatch.setenv("DB_PASSWORD", "pass1")
+    monkeypatch.setenv("DB_HOST", "localhost")
+    monkeypatch.setenv("DB_PORT", "5432")
+    monkeypatch.setenv("DB_NAME", "db1")
+
+    assert _build_database_uri_from_env() == "postgresql://user1:pass1@localhost:5432/db1"
