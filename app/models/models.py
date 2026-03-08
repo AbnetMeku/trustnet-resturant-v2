@@ -248,3 +248,85 @@ class InventoryOutbox(db.Model):
         onupdate=eat_now_naive,
         nullable=False,
     )
+
+
+class CloudInstanceConfig(db.Model):
+    __tablename__ = "cloud_instance_config"
+
+    id = db.Column(db.Integer, primary_key=True, default=1)
+    tenant_id = db.Column(db.Integer, nullable=True)
+    store_id = db.Column(db.Integer, nullable=True)
+    device_id = db.Column(db.String(128), nullable=True)
+    device_name = db.Column(db.String(120), nullable=True)
+    machine_fingerprint = db.Column(db.String(255), nullable=True)
+    cloud_base_url = db.Column(db.String(255), nullable=True)
+    license_key = db.Column(db.String(128), nullable=True)
+    created_at = db.Column(db.DateTime, default=eat_now_naive, nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=eat_now_naive,
+        onupdate=eat_now_naive,
+        nullable=False,
+    )
+
+
+class CloudLicenseState(db.Model):
+    __tablename__ = "cloud_license_state"
+
+    id = db.Column(db.Integer, primary_key=True, default=1)
+    tenant_id = db.Column(db.Integer, nullable=True)
+    store_id = db.Column(db.Integer, nullable=True)
+    device_id = db.Column(db.String(128), nullable=True)
+    license_key = db.Column(db.String(128), nullable=True)
+    status = db.Column(db.String(32), nullable=False, default="unknown")
+    is_valid = db.Column(db.Boolean, nullable=False, default=False)
+    activated_at = db.Column(db.DateTime, nullable=True)
+    last_validated_at = db.Column(db.DateTime, nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    grace_until = db.Column(db.DateTime, nullable=True)
+    last_error = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=eat_now_naive, nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=eat_now_naive,
+        onupdate=eat_now_naive,
+        nullable=False,
+    )
+
+
+class CloudSyncState(db.Model):
+    __tablename__ = "cloud_sync_state"
+
+    id = db.Column(db.Integer, primary_key=True, default=1)
+    last_pulled_event_id = db.Column(db.Integer, nullable=False, default=0)
+    last_synced_at = db.Column(db.DateTime, nullable=True)
+    last_sync_error = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=eat_now_naive, nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=eat_now_naive,
+        onupdate=eat_now_naive,
+        nullable=False,
+    )
+
+
+class CloudSyncOutbox(db.Model):
+    __tablename__ = "cloud_sync_outbox"
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.String(128), nullable=False, unique=True)
+    entity_type = db.Column(db.String(64), nullable=False)
+    entity_id = db.Column(db.String(64), nullable=False)
+    operation = db.Column(db.String(32), nullable=False)
+    payload = db.Column(db.JSON, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="pending")
+    retry_count = db.Column(db.Integer, nullable=False, default=0)
+    sent_at = db.Column(db.DateTime, nullable=True)
+    last_error = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=eat_now_naive, nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=eat_now_naive,
+        onupdate=eat_now_naive,
+        nullable=False,
+    )

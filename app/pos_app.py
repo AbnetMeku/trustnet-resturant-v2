@@ -112,7 +112,12 @@ def create_pos_app(config_name="development"):
             )
         return jsonify({"error": "Database operation failed."}), 500
 
-    if not app.config.get("TESTING"):
+    disable_inventory_outbox_worker = os.environ.get("DISABLE_INVENTORY_OUTBOX_WORKER", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    if not app.config.get("TESTING") and not disable_inventory_outbox_worker:
         start_inventory_outbox_worker(app)
 
     return app

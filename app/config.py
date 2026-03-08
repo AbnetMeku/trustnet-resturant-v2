@@ -22,6 +22,20 @@ class Config:
     INVENTORY_OUTBOX_RETRY_INTERVAL_SECONDS = int(
         os.environ.get("INVENTORY_OUTBOX_RETRY_INTERVAL_SECONDS", "10")
     )
+    CLOUD_BASE_URL = os.environ.get("CLOUD_BASE_URL", "http://127.0.0.1:7000")
+    CLOUD_SYNC_TIMEOUT_SECONDS = float(os.environ.get("CLOUD_SYNC_TIMEOUT_SECONDS", "5"))
+    CLOUD_SYNC_INTERVAL_SECONDS = int(os.environ.get("CLOUD_SYNC_INTERVAL_SECONDS", "600"))
+    CLOUD_SYNC_BATCH_SIZE = int(os.environ.get("CLOUD_SYNC_BATCH_SIZE", "100"))
+    CLOUD_LICENSE_VALIDATE_INTERVAL_SECONDS = int(
+        os.environ.get("CLOUD_LICENSE_VALIDATE_INTERVAL_SECONDS", "21600")
+    )
+    CLOUD_DEVICE_GRACE_HOURS = int(os.environ.get("CLOUD_DEVICE_GRACE_HOURS", "168"))
+    CLOUD_TENANT_ID = os.environ.get("CLOUD_TENANT_ID")
+    CLOUD_STORE_ID = os.environ.get("CLOUD_STORE_ID")
+    CLOUD_DEVICE_ID = os.environ.get("CLOUD_DEVICE_ID")
+    CLOUD_DEVICE_NAME = os.environ.get("CLOUD_DEVICE_NAME", "local-restaurant-node")
+    CLOUD_MACHINE_FINGERPRINT = os.environ.get("CLOUD_MACHINE_FINGERPRINT", "")
+    CLOUD_LICENSE_KEY = os.environ.get("CLOUD_LICENSE_KEY", "")
     BRANDING_MAX_UPLOAD_BYTES = int(os.environ.get("BRANDING_MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
     MENU_IMAGE_MAX_UPLOAD_BYTES = int(os.environ.get("MENU_IMAGE_MAX_UPLOAD_BYTES", str(3 * 1024 * 1024)))
 

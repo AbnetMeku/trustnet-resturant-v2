@@ -10,6 +10,10 @@ from .models import (
     Station,
     WaiterProfile,
     InventoryOutbox,
+    CloudInstanceConfig,
+    CloudLicenseState,
+    CloudSyncState,
+    CloudSyncOutbox,
 )
 from .inventory_models import (
     InventoryItem,

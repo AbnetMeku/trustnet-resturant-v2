@@ -17,15 +17,19 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column(
-        "branding_settings",
-        sa.Column(
-            "business_day_start_time",
-            sa.String(length=5),
-            nullable=False,
-            server_default="06:00",
-        ),
-    )
+    inspector = sa.inspect(op.get_bind())
+    columns = {col["name"] for col in inspector.get_columns("branding_settings")}
+
+    if "business_day_start_time" not in columns:
+        op.add_column(
+            "branding_settings",
+            sa.Column(
+                "business_day_start_time",
+                sa.String(length=5),
+                nullable=False,
+                server_default="06:00",
+            ),
+        )
 
     # Ensure existing rows have a valid value.
     op.execute(
@@ -35,4 +39,7 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_column("branding_settings", "business_day_start_time")
+    inspector = sa.inspect(op.get_bind())
+    columns = {col["name"] for col in inspector.get_columns("branding_settings")}
+    if "business_day_start_time" in columns:
+        op.drop_column("branding_settings", "business_day_start_time")

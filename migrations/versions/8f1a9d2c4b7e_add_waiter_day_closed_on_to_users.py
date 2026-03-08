@@ -18,9 +18,14 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column("users", sa.Column("waiter_day_closed_on", sa.Date(), nullable=True))
+    inspector = sa.inspect(op.get_bind())
+    columns = {col["name"] for col in inspector.get_columns("users")}
+    if "waiter_day_closed_on" not in columns:
+        op.add_column("users", sa.Column("waiter_day_closed_on", sa.Date(), nullable=True))
 
 
 def downgrade():
-    op.drop_column("users", "waiter_day_closed_on")
-
+    inspector = sa.inspect(op.get_bind())
+    columns = {col["name"] for col in inspector.get_columns("users")}
+    if "waiter_day_closed_on" in columns:
+        op.drop_column("users", "waiter_day_closed_on")

@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /app
 
-RUN chmod +x /app/docker/backend/start.sh /app/docker/backend/start_inventory.sh
+RUN chmod +x /app/docker/backend/start.sh /app/docker/backend/start_inventory.sh /app/docker/backend/start_cloud_sync.sh
 
 EXPOSE 5000
 EXPOSE 5001
