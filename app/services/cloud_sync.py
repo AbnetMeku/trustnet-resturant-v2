@@ -18,6 +18,7 @@ from app.models.models import (
     Category,
     CloudInstanceConfig,
     CloudLicenseState,
+    CloudLicensePolicy,
     CloudSyncOutbox,
     CloudSyncState,
     MenuItem,
@@ -181,6 +182,52 @@ def _ensure_license_state() -> CloudLicenseState:
     return row
 
 
+def _ensure_license_policy() -> CloudLicensePolicy:
+    row = db.session.get(CloudLicensePolicy, 1)
+    if row is None:
+        row = CloudLicensePolicy(id=1)
+        db.session.add(row)
+        db.session.commit()
+    return row
+
+
+def _policy_defaults() -> dict:
+    return {
+        "validation_interval_days": 7,
+        "grace_period_days": 15,
+        "lock_mode": "full",
+    }
+
+
+def _apply_policy_payload(payload: dict | None) -> None:
+    if not payload:
+        return
+    row = _ensure_license_policy()
+    defaults = _policy_defaults()
+    try:
+        row.validation_interval_days = int(payload.get("validation_interval_days") or defaults["validation_interval_days"])
+    except (TypeError, ValueError):
+        row.validation_interval_days = defaults["validation_interval_days"]
+    try:
+        row.grace_period_days = int(payload.get("grace_period_days") or defaults["grace_period_days"])
+    except (TypeError, ValueError):
+        row.grace_period_days = defaults["grace_period_days"]
+    lock_mode = (payload.get("lock_mode") or defaults["lock_mode"]).strip().lower()
+    row.lock_mode = lock_mode if lock_mode in {"full", "none"} else defaults["lock_mode"]
+    row.last_fetched_at = eat_now_naive()
+    db.session.commit()
+
+
+def _get_effective_policy() -> dict:
+    row = _ensure_license_policy()
+    defaults = _policy_defaults()
+    return {
+        "validation_interval_days": int(row.validation_interval_days or defaults["validation_interval_days"]),
+        "grace_period_days": int(row.grace_period_days or defaults["grace_period_days"]),
+        "lock_mode": (row.lock_mode or defaults["lock_mode"]).strip().lower(),
+    }
+
+
 def _ensure_sync_state() -> CloudSyncState:
     row = db.session.get(CloudSyncState, 1)
     if row is None:
@@ -225,6 +272,7 @@ def activate_cloud_device() -> dict:
         response.raise_for_status()
 
     data = response.json()
+    _apply_policy_payload(data.get("policy"))
     state.tenant_id = data.get("tenant_id")
     state.store_id = data.get("store_id")
     state.device_id = data.get("device_id")
@@ -263,6 +311,7 @@ def validate_cloud_license() -> dict:
         response.raise_for_status()
 
     data = response.json()
+    _apply_policy_payload(data.get("policy"))
     state.tenant_id = data.get("tenant_id")
     state.store_id = data.get("store_id")
     state.device_id = data.get("device_id")
@@ -289,7 +338,8 @@ def _extract_error_message(response: requests.Response, fallback: str) -> str:
 
 def _ensure_grace_period(state: CloudLicenseState) -> None:
     now = eat_now_naive()
-    grace_hours = int(current_app.config.get("CLOUD_DEVICE_GRACE_HOURS", "360"))
+    policy = _get_effective_policy()
+    grace_hours = int(policy.get("grace_period_days", 15)) * 24
     if grace_hours <= 0:
         state.grace_until = None
         return
@@ -314,7 +364,8 @@ def _validate_before_sync() -> bool:
 
 
 def _should_validate_license(license_state: CloudLicenseState) -> bool:
-    interval = int(current_app.config.get("CLOUD_LICENSE_VALIDATE_INTERVAL_SECONDS", "604800"))
+    policy = _get_effective_policy()
+    interval = int(policy.get("validation_interval_days", 7)) * 24 * 3600
     if interval <= 0:
         return True
     if not license_state.last_validated_at:

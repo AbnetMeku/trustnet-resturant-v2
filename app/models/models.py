@@ -294,6 +294,23 @@ class CloudLicenseState(db.Model):
     )
 
 
+class CloudLicensePolicy(db.Model):
+    __tablename__ = "cloud_license_policy"
+
+    id = db.Column(db.Integer, primary_key=True, default=1)
+    validation_interval_days = db.Column(db.Integer, nullable=False, default=7)
+    grace_period_days = db.Column(db.Integer, nullable=False, default=15)
+    lock_mode = db.Column(db.String(20), nullable=False, default="full")
+    last_fetched_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=eat_now_naive, nullable=False)
+    updated_at = db.Column(
+        db.DateTime,
+        default=eat_now_naive,
+        onupdate=eat_now_naive,
+        nullable=False,
+    )
+
+
 class CloudSyncState(db.Model):
     __tablename__ = "cloud_sync_state"
 

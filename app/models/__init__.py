@@ -12,6 +12,7 @@ from .models import (
     InventoryOutbox,
     CloudInstanceConfig,
     CloudLicenseState,
+    CloudLicensePolicy,
     CloudSyncState,
     CloudSyncOutbox,
 )

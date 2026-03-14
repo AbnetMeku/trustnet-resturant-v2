@@ -101,7 +101,7 @@ def create_pos_app(config_name="development"):
     from .routes.cloud.cloud_config import cloud_bp
     register_api(cloud_bp)
 
-    from .models.models import CloudInstanceConfig, CloudLicenseState
+    from .models.models import CloudInstanceConfig, CloudLicensePolicy, CloudLicenseState
 
     def _is_license_locked() -> tuple[bool, str]:
         cfg = db.session.get(CloudInstanceConfig, 1)
@@ -109,8 +109,15 @@ def create_pos_app(config_name="development"):
         if not cfg or not cfg.tenant_id or not cfg.store_id or not cfg.license_key:
             return True, "Cloud license is not configured."
 
-        grace_hours = int(app.config.get("CLOUD_DEVICE_GRACE_HOURS", 360))
+        policy = db.session.get(CloudLicensePolicy, 1)
+        grace_days = int(getattr(policy, "grace_period_days", 15) or 15)
+        lock_mode = (getattr(policy, "lock_mode", "full") or "full").strip().lower()
+        grace_hours = grace_days * 24
         now = eat_now_naive()
+
+        if lock_mode == "none":
+            return False, ""
+
         if state and state.is_valid:
             if state.last_validated_at and grace_hours > 0:
                 elapsed = (now - state.last_validated_at).total_seconds()
