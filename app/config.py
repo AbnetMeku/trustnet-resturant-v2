@@ -22,7 +22,7 @@ class Config:
     INVENTORY_OUTBOX_RETRY_INTERVAL_SECONDS = int(
         os.environ.get("INVENTORY_OUTBOX_RETRY_INTERVAL_SECONDS", "10")
     )
-    CLOUD_BASE_URL = "https://restaurant.trustnetsolution.com"
+    CLOUD_BASE_URL = os.environ.get("CLOUD_BASE_URL", "https://rms.trustnetsolution.com")
     CLOUD_SYNC_TIMEOUT_SECONDS = float(os.environ.get("CLOUD_SYNC_TIMEOUT_SECONDS", "5"))
     CLOUD_SYNC_INTERVAL_SECONDS = int(os.environ.get("CLOUD_SYNC_INTERVAL_SECONDS", "600"))
     CLOUD_SYNC_BATCH_SIZE = int(os.environ.get("CLOUD_SYNC_BATCH_SIZE", "100"))

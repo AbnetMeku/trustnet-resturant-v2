@@ -144,7 +144,7 @@ def _generate_machine_fingerprint() -> str:
 
 
 def _base_url() -> str:
-    return "https://restaurant.trustnetsolution.com"
+    return current_app.config.get("CLOUD_BASE_URL", "https://rms.trustnetsolution.com")
 
 
 def _timeout() -> float:
