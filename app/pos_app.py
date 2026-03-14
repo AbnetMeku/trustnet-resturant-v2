@@ -1,6 +1,5 @@
-from flask import Flask
+from flask import Flask, jsonify, request
 from sqlalchemy.exc import OperationalError
-from flask import jsonify
 from dotenv import load_dotenv
 import os
 
@@ -10,6 +9,7 @@ from .config import DevelopmentConfig, ProductionConfig, TestingConfig
 from .extensions import db, jwt, migrate
 from .routes.cors.cors_setup import init_cors
 from .workers.outbox_worker import start_inventory_outbox_worker
+from .utils.timezone import eat_now_naive
 
 config_map = {
     "development": DevelopmentConfig,
@@ -97,6 +97,48 @@ def create_pos_app(config_name="development"):
 
     from .routes.waiter_profiles.waiter_profiles import waiter_profiles_bp
     register_api(waiter_profiles_bp)
+
+    from .routes.cloud.cloud_config import cloud_bp
+    register_api(cloud_bp)
+
+    from .models.models import CloudInstanceConfig, CloudLicenseState
+
+    def _is_license_locked() -> tuple[bool, str]:
+        cfg = db.session.get(CloudInstanceConfig, 1)
+        state = db.session.get(CloudLicenseState, 1)
+        if not cfg or not cfg.tenant_id or not cfg.store_id or not cfg.license_key:
+            return True, "Cloud license is not configured."
+
+        grace_hours = int(app.config.get("CLOUD_DEVICE_GRACE_HOURS", 360))
+        now = eat_now_naive()
+        if state and state.is_valid:
+            if state.last_validated_at and grace_hours > 0:
+                elapsed = (now - state.last_validated_at).total_seconds()
+                if elapsed > grace_hours * 3600:
+                    return True, "Cloud license validation expired."
+            return False, ""
+
+        if state and state.grace_until and now <= state.grace_until:
+            return False, ""
+
+        return True, "Cloud license validation failed."
+
+    @app.before_request
+    def enforce_cloud_license():
+        path = request.path or ""
+        if not path.startswith("/api"):
+            return None
+        if request.method == "OPTIONS":
+            return None
+
+        allow_prefixes = ("/api/auth", "/api/cloud/config")
+        if any(path.startswith(prefix) for prefix in allow_prefixes):
+            return None
+
+        locked, reason = _is_license_locked()
+        if locked:
+            return jsonify({"error": "License inactive", "detail": reason}), 403
+        return None
 
     @app.errorhandler(OperationalError)
     def handle_operational_error(exc):

@@ -1,6 +1,11 @@
+import hashlib
 import logging
 import socket
+import subprocess
+import sys
 import time
+import uuid
+from datetime import timedelta
 from typing import Iterable
 
 import requests
@@ -27,8 +32,118 @@ from app.utils.timezone import eat_now_naive
 logger = logging.getLogger(__name__)
 
 
+def _generate_device_id() -> str:
+    return uuid.uuid4().hex
+
+
+def _read_file(path: str) -> str | None:
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return handle.read().strip()
+    except OSError:
+        return None
+
+
+def _run_command(command: list[str]) -> str | None:
+    try:
+        return subprocess.check_output(command, stderr=subprocess.DEVNULL, text=True).strip()
+    except Exception:
+        return None
+
+
+def _normalize_id(value: str | None) -> str | None:
+    if not value:
+        return None
+    normalized = value.strip().strip('"').strip().upper()
+    if not normalized:
+        return None
+    if normalized in {
+        "00000000-0000-0000-0000-000000000000",
+        "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
+    }:
+        return None
+    return normalized
+
+
+def _get_os_machine_id() -> str | None:
+    if sys.platform.startswith("win"):
+        try:
+            import winreg
+
+            key = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\Microsoft\Cryptography",
+            )
+            value, _ = winreg.QueryValueEx(key, "MachineGuid")
+            return _normalize_id(value)
+        except Exception:
+            return None
+
+    if sys.platform.startswith("linux"):
+        return _normalize_id(_read_file("/etc/machine-id") or _read_file("/var/lib/dbus/machine-id"))
+
+    if sys.platform == "darwin":
+        output = _run_command(["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"])
+        if not output:
+            return None
+        for line in output.splitlines():
+            if "IOPlatformUUID" in line:
+                return _normalize_id(line.split("=", 1)[1].strip())
+    return None
+
+
+def _get_bios_uuid() -> str | None:
+    if sys.platform.startswith("win"):
+        output = _run_command(["wmic", "csproduct", "get", "uuid"])
+        if not output:
+            return None
+        for line in output.splitlines():
+            value = _normalize_id(line)
+            if value and value != "UUID":
+                return value
+        return None
+
+    if sys.platform.startswith("linux"):
+        return _normalize_id(_read_file("/sys/class/dmi/id/product_uuid"))
+
+    if sys.platform == "darwin":
+        return None
+
+    return None
+
+
+def _get_mac_address() -> str | None:
+    node = uuid.getnode()
+    if (node >> 40) & 1:
+        return None
+    return ":".join(f"{(node >> shift) & 0xFF:02x}" for shift in range(40, -1, -8))
+
+
+def _generate_machine_fingerprint() -> str:
+    parts = []
+    machine_id = _get_os_machine_id()
+    bios_uuid = _get_bios_uuid()
+    hostname = socket.gethostname()
+    mac_address = _get_mac_address()
+
+    if machine_id:
+        parts.append(f"machine_id:{machine_id}")
+    if bios_uuid:
+        parts.append(f"bios_uuid:{bios_uuid}")
+    if hostname:
+        parts.append(f"hostname:{hostname}")
+    if mac_address:
+        parts.append(f"mac:{mac_address}")
+
+    if not parts:
+        parts = [f"fallback:{uuid.uuid4().hex}"]
+
+    digest = hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
+    return digest
+
+
 def _base_url() -> str:
-    return current_app.config.get("CLOUD_BASE_URL", "http://127.0.0.1:7000").rstrip("/")
+    return "https://restaurant.trustnetsolution.com"
 
 
 def _timeout() -> float:
@@ -43,11 +158,14 @@ def _ensure_instance_config() -> CloudInstanceConfig:
 
     row.tenant_id = int(current_app.config["CLOUD_TENANT_ID"]) if current_app.config.get("CLOUD_TENANT_ID") else row.tenant_id
     row.store_id = int(current_app.config["CLOUD_STORE_ID"]) if current_app.config.get("CLOUD_STORE_ID") else row.store_id
-    row.device_id = current_app.config.get("CLOUD_DEVICE_ID") or row.device_id
-    row.device_name = current_app.config.get("CLOUD_DEVICE_NAME") or row.device_name
-    row.machine_fingerprint = (
-        current_app.config.get("CLOUD_MACHINE_FINGERPRINT") or row.machine_fingerprint or socket.gethostname()
-    )
+
+    device_id = row.device_id or _generate_device_id()
+    device_name = row.device_name or socket.gethostname()
+    machine_fingerprint = row.machine_fingerprint or _generate_machine_fingerprint()
+
+    row.device_id = device_id
+    row.device_name = device_name
+    row.machine_fingerprint = machine_fingerprint
     row.cloud_base_url = _base_url()
     row.license_key = current_app.config.get("CLOUD_LICENSE_KEY") or row.license_key
     db.session.commit()
@@ -91,15 +209,22 @@ def activate_cloud_device() -> dict:
     if missing:
         raise ValueError(f"Missing cloud instance config values: {', '.join(missing)}")
 
-    response = requests.post(
-        f"{_base_url()}/api/devices/activate",
-        json=payload,
-        timeout=_timeout(),
-    )
-    response.raise_for_status()
-    data = response.json()
-
     state = _ensure_license_state()
+    try:
+        response = requests.post(
+            f"{_base_url()}/api/devices/activate",
+            json=payload,
+            timeout=_timeout(),
+        )
+    except Exception as exc:
+        _apply_validation_failure(state, f"Activation failed: {exc}")
+        raise
+
+    if response.status_code >= 400:
+        _apply_validation_failure(state, _extract_error_message(response, "Activation rejected"))
+        response.raise_for_status()
+
+    data = response.json()
     state.tenant_id = data.get("tenant_id")
     state.store_id = data.get("store_id")
     state.device_id = data.get("device_id")
@@ -117,20 +242,27 @@ def activate_cloud_device() -> dict:
 
 def validate_cloud_license() -> dict:
     payload = _instance_payload()
-    response = requests.post(
-        f"{_base_url()}/api/licenses/validate",
-        json={
-            "tenant_id": payload["tenant_id"],
-            "store_id": payload["store_id"],
-            "device_id": payload["device_id"],
-            "license_key": payload["license_key"],
-        },
-        timeout=_timeout(),
-    )
-    response.raise_for_status()
-    data = response.json()
-
     state = _ensure_license_state()
+    try:
+        response = requests.post(
+            f"{_base_url()}/api/licenses/validate",
+            json={
+                "tenant_id": payload["tenant_id"],
+                "store_id": payload["store_id"],
+                "device_id": payload["device_id"],
+                "license_key": payload["license_key"],
+            },
+            timeout=_timeout(),
+        )
+    except Exception as exc:
+        _apply_validation_failure(state, f"Validation failed: {exc}")
+        raise
+
+    if response.status_code >= 400:
+        _apply_validation_failure(state, _extract_error_message(response, "License validation rejected"))
+        response.raise_for_status()
+
+    data = response.json()
     state.tenant_id = data.get("tenant_id")
     state.store_id = data.get("store_id")
     state.device_id = data.get("device_id")
@@ -139,8 +271,56 @@ def validate_cloud_license() -> dict:
     state.is_valid = bool(data.get("is_valid"))
     state.last_validated_at = eat_now_naive()
     state.last_error = None
+    if state.is_valid:
+        state.grace_until = None
+    else:
+        _ensure_grace_period(state)
     db.session.commit()
     return data
+
+
+def _extract_error_message(response: requests.Response, fallback: str) -> str:
+    try:
+        payload = response.json() or {}
+    except Exception:
+        payload = {}
+    return payload.get("error") or payload.get("msg") or fallback
+
+
+def _ensure_grace_period(state: CloudLicenseState) -> None:
+    now = eat_now_naive()
+    grace_hours = int(current_app.config.get("CLOUD_DEVICE_GRACE_HOURS", "360"))
+    if grace_hours <= 0:
+        state.grace_until = None
+        return
+    if not state.grace_until or state.grace_until < now:
+        state.grace_until = now + timedelta(hours=grace_hours)
+
+
+def _apply_validation_failure(state: CloudLicenseState, error_message: str) -> None:
+    state.is_valid = False
+    state.status = state.status or "unknown"
+    state.last_error = error_message
+    _ensure_grace_period(state)
+    db.session.commit()
+
+
+def _validate_before_sync() -> bool:
+    try:
+        validate_cloud_license()
+        return True
+    except Exception:
+        return False
+
+
+def _should_validate_license(license_state: CloudLicenseState) -> bool:
+    interval = int(current_app.config.get("CLOUD_LICENSE_VALIDATE_INTERVAL_SECONDS", "604800"))
+    if interval <= 0:
+        return True
+    if not license_state.last_validated_at:
+        return True
+    elapsed = (eat_now_naive() - license_state.last_validated_at).total_seconds()
+    return elapsed >= interval
 
 
 def _upsert_outbox_event(event_id: str, entity_type: str, entity_id: str, operation: str, payload: dict) -> None:
@@ -317,6 +497,9 @@ def process_cloud_sync_outbox_batch() -> int:
         logger.warning("Cloud sync skipped: tenant/store/device config missing")
         return 0
 
+    if not _validate_before_sync():
+        return 0
+
     batch_size = int(current_app.config.get("CLOUD_SYNC_BATCH_SIZE", 100))
     rows = (
         CloudSyncOutbox.query.filter_by(status="pending")
@@ -374,6 +557,9 @@ def pull_cloud_updates() -> int:
     if not all([cfg.tenant_id, cfg.store_id, cfg.device_id]):
         return 0
 
+    if not _validate_before_sync():
+        return 0
+
     state = _ensure_sync_state()
     response = requests.get(
         f"{_base_url()}/api/sync/pull",
@@ -402,9 +588,11 @@ def run_cloud_sync_cycle() -> dict:
         if not license_state.activated_at:
             activate_cloud_device()
             result["activated"] = True
+            license_state = _ensure_license_state()
 
-        validate_cloud_license()
-        result["validated"] = True
+        if _should_validate_license(license_state):
+            validate_cloud_license()
+            result["validated"] = True
 
         result["seeded"] = seed_cloud_sync_outbox()
         result["pushed"] = process_cloud_sync_outbox_batch()

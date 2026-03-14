@@ -32,6 +32,7 @@ import OverView from "@/components/admin/OverView";
 import OrderTracker from "@/components/admin/OrderTracker";
 import PrintJobs from "@/components/admin/PrintJobs";
 import BrandingManagement from "@/components/admin/BrandingManagement";
+import CloudSettings from "@/components/admin/CloudSettings";
 import { useBranding } from "@/hooks/useBranding";
 
 export default function AdminDashboard() {
@@ -341,9 +342,14 @@ export default function AdminDashboard() {
             )}
 
             {active === "settings" && (
-              <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]">
-                <BrandingManagement />
-              </Card>
+              <div className="flex flex-col gap-6">
+                <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]">
+                  <CloudSettings />
+                </Card>
+                <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]">
+                  <BrandingManagement />
+                </Card>
+              </div>
             )}
           </main>
         </div>
