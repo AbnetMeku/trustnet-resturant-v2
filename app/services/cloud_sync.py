@@ -13,6 +13,16 @@ from flask import current_app
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.extensions import db
+from app.models.inventory_models import (
+    InventoryItem,
+    InventoryMenuLink,
+    StationStock,
+    StationStockSnapshot,
+    StockPurchase,
+    StockTransfer,
+    StoreStock,
+    StoreStockSnapshot,
+)
 from app.models.models import (
     BrandingSettings,
     Category,
@@ -428,7 +438,13 @@ def seed_cloud_sync_outbox() -> int:
                 (
                     row.id,
                     None,
-                    {"id": row.id, "number": row.number, "status": row.status, "is_vip": row.is_vip},
+                    {
+                        "id": row.id,
+                        "number": row.number,
+                        "status": row.status,
+                        "is_vip": row.is_vip,
+                        "waiter_ids": [waiter.id for waiter in (row.waiters or [])],
+                    },
                 )
                 for row in Table.query.order_by(Table.id.asc()).all()
             ),
@@ -480,6 +496,7 @@ def seed_cloud_sync_outbox() -> int:
                     {
                         "id": row.id,
                         "name": row.name,
+                        "description": row.description,
                         "price": float(row.price) if row.price is not None else None,
                         "vip_price": float(row.vip_price) if row.vip_price is not None else None,
                         "quantity_step": float(row.quantity_step) if row.quantity_step is not None else None,
@@ -490,6 +507,147 @@ def seed_cloud_sync_outbox() -> int:
                     },
                 )
                 for row in MenuItem.query.order_by(MenuItem.id.asc()).all()
+            ),
+        ),
+        (
+            "inventory_item",
+            (
+                (
+                    row.id,
+                    row.created_at,
+                    {
+                        "id": row.id,
+                        "name": row.name,
+                        "unit": row.unit,
+                        "serving_unit": row.serving_unit,
+                        "servings_per_unit": row.servings_per_unit,
+                        "container_size_ml": row.container_size_ml,
+                        "default_shot_ml": row.default_shot_ml,
+                        "is_active": row.is_active,
+                    },
+                )
+                for row in InventoryItem.query.order_by(InventoryItem.id.asc()).all()
+            ),
+        ),
+        (
+            "inventory_menu_link",
+            (
+                (
+                    row.id,
+                    row.created_at,
+                    {
+                        "id": row.id,
+                        "inventory_item_id": row.inventory_item_id,
+                        "menu_item_id": row.menu_item_id,
+                        "deduction_ratio": row.deduction_ratio,
+                        "serving_type": row.serving_type,
+                        "serving_value": row.serving_value,
+                    },
+                )
+                for row in InventoryMenuLink.query.order_by(InventoryMenuLink.id.asc()).all()
+            ),
+        ),
+        (
+            "store_stock",
+            (
+                (
+                    row.id,
+                    row.updated_at,
+                    {
+                        "inventory_item_id": row.inventory_item_id,
+                        "quantity": row.quantity,
+                    },
+                )
+                for row in StoreStock.query.order_by(StoreStock.id.asc()).all()
+            ),
+        ),
+        (
+            "station_stock",
+            (
+                (
+                    row.id,
+                    row.updated_at,
+                    {
+                        "station_id": row.station_id,
+                        "inventory_item_id": row.inventory_item_id,
+                        "quantity": row.quantity,
+                    },
+                )
+                for row in StationStock.query.order_by(StationStock.id.asc()).all()
+            ),
+        ),
+        (
+            "stock_purchase",
+            (
+                (
+                    row.id,
+                    row.created_at,
+                    {
+                        "id": row.id,
+                        "inventory_item_id": row.inventory_item_id,
+                        "quantity": row.quantity,
+                        "unit_price": row.unit_price,
+                        "status": row.status,
+                        "created_at": row.created_at.isoformat() if row.created_at else None,
+                    },
+                )
+                for row in StockPurchase.query.order_by(StockPurchase.id.asc()).all()
+            ),
+        ),
+        (
+            "stock_transfer",
+            (
+                (
+                    row.id,
+                    row.created_at,
+                    {
+                        "id": row.id,
+                        "inventory_item_id": row.inventory_item_id,
+                        "station_id": row.station_id,
+                        "quantity": row.quantity,
+                        "status": row.status,
+                        "created_at": row.created_at.isoformat() if row.created_at else None,
+                    },
+                )
+                for row in StockTransfer.query.order_by(StockTransfer.id.asc()).all()
+            ),
+        ),
+        (
+            "station_stock_snapshot",
+            (
+                (
+                    row.id,
+                    row.created_at,
+                    {
+                        "station_id": row.station_id,
+                        "inventory_item_id": row.inventory_item_id,
+                        "snapshot_date": row.snapshot_date.isoformat(),
+                        "start_of_day_quantity": row.start_of_day_quantity,
+                        "added_quantity": row.added_quantity,
+                        "sold_quantity": row.sold_quantity,
+                        "void_quantity": row.void_quantity,
+                        "remaining_quantity": row.remaining_quantity,
+                    },
+                )
+                for row in StationStockSnapshot.query.order_by(StationStockSnapshot.id.asc()).all()
+            ),
+        ),
+        (
+            "store_stock_snapshot",
+            (
+                (
+                    row.id,
+                    row.created_at,
+                    {
+                        "inventory_item_id": row.inventory_item_id,
+                        "snapshot_date": row.snapshot_date.isoformat(),
+                        "opening_quantity": row.opening_quantity,
+                        "purchased_quantity": row.purchased_quantity,
+                        "transferred_out_quantity": row.transferred_out_quantity,
+                        "closing_quantity": row.closing_quantity,
+                    },
+                )
+                for row in StoreStockSnapshot.query.order_by(StoreStockSnapshot.id.asc()).all()
             ),
         ),
         (

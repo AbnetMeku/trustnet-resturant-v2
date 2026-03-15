@@ -56,16 +56,16 @@ export default function TableSelection({ selectedTable, setSelectedTable, onNext
   if (!user?.id) {
     return (
       <div className="p-4 text-center text-red-600">
-        <p>???? ????? ???? ???????</p>
+        <p>User not authenticated.</p>
         <Button variant="outline" onClick={onBack} className="mt-4">
-          ?? ??? ????
+          Go Back
         </Button>
       </div>
     );
   }
 
   if (loading) {
-    return <p className="text-center py-10">?????? ???? ??...</p>;
+    return <p className="text-center py-10">የተመደቡ ጠረጴዛዎች በመጫን ላይ...</p>;
   }
 
   if (localError) {
@@ -73,7 +73,7 @@ export default function TableSelection({ selectedTable, setSelectedTable, onNext
       <div className="p-4 text-center text-red-600">
         <p>{localError}</p>
         <Button onClick={() => window.location.reload()} className="mt-4">
-          ????? ???
+          Retry
         </Button>
       </div>
     );
@@ -82,9 +82,9 @@ export default function TableSelection({ selectedTable, setSelectedTable, onNext
   if (!tables.length) {
     return (
       <div className="p-4 text-center">
-        <p>????? ??????? ???? ????</p>
+        <p>ሁሉም ጠረጴዛ ተይዟል</p>
         <Button variant="outline" onClick={onBack}>
-          ?? ??? ????
+          ተመለስ
         </Button>
       </div>
     );
@@ -94,11 +94,11 @@ export default function TableSelection({ selectedTable, setSelectedTable, onNext
     <div className="p-2 flex flex-col h-full bg-gray-50 dark:bg-gray-900 rounded-lg">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold">???? ????</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">??? ???? ??? ???? ????</p>
+          <h2 className="text-xl font-semibold">ጠረጴዛ ይምረጡ ለማዘዝ</h2>
+          {/* <p className="text-sm text-gray-500 dark:text-gray-400">ጠረጴዛ ይምረጡ ለማዘዝ</p> */}
         </div>
         <Button variant="outline" size="sm" onClick={onBack}>
-          {"\u2190"} ????
+          {"\u2190"} ተመለስ
         </Button>
       </div>
 
