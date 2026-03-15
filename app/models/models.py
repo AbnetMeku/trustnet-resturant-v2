@@ -318,6 +318,7 @@ class CloudSyncState(db.Model):
     last_pulled_event_id = db.Column(db.Integer, nullable=False, default=0)
     last_synced_at = db.Column(db.DateTime, nullable=True)
     last_sync_error = db.Column(db.Text, nullable=True)
+    last_full_replace_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=eat_now_naive, nullable=False)
     updated_at = db.Column(
         db.DateTime,

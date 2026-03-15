@@ -162,6 +162,10 @@ def _timeout() -> float:
     return float(current_app.config.get("CLOUD_SYNC_TIMEOUT_SECONDS", 5))
 
 
+def _flag_enabled(value: str | None) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _ensure_instance_config() -> CloudInstanceConfig:
     row = db.session.get(CloudInstanceConfig, 1)
     if row is None:
@@ -200,6 +204,31 @@ def _ensure_license_policy() -> CloudLicensePolicy:
         db.session.add(row)
         db.session.commit()
     return row
+
+
+def _should_full_replace(state: CloudSyncState) -> bool:
+    if _flag_enabled(current_app.config.get("CLOUD_SYNC_FULL_REPLACE_FORCE")):
+        return True
+    if not _flag_enabled(current_app.config.get("CLOUD_SYNC_FULL_REPLACE")):
+        return False
+    return state.last_full_replace_at is None
+
+
+def reset_cloud_tenant() -> None:
+    cfg = _ensure_instance_config()
+    if not all([cfg.tenant_id, cfg.store_id, cfg.device_id]):
+        raise RuntimeError("Cloud sync reset skipped: tenant/store/device config missing")
+
+    response = requests.post(
+        f"{_base_url()}/api/sync/reset",
+        json={
+            "tenant_id": cfg.tenant_id,
+            "store_id": cfg.store_id,
+            "device_id": cfg.device_id,
+        },
+        timeout=_timeout(),
+    )
+    response.raise_for_status()
 
 
 def _policy_defaults() -> dict:
@@ -419,39 +448,6 @@ def seed_cloud_sync_outbox() -> int:
 
     entities: Iterable[tuple[str, Iterable]] = (
         (
-            "user",
-            (
-                (
-                    row.id,
-                    row.updated_at if hasattr(row, "updated_at") else None,
-                    {
-                        "id": row.id,
-                        "username": row.username,
-                        "role": row.role,
-                        "waiter_profile_id": row.waiter_profile_id,
-                    },
-                )
-                for row in User.query.order_by(User.id.asc()).all()
-            ),
-        ),
-        (
-            "table",
-            (
-                (
-                    row.id,
-                    None,
-                    {
-                        "id": row.id,
-                        "number": row.number,
-                        "status": row.status,
-                        "is_vip": row.is_vip,
-                        "waiter_ids": [waiter.id for waiter in (row.waiters or [])],
-                    },
-                )
-                for row in Table.query.order_by(Table.id.asc()).all()
-            ),
-        ),
-        (
             "station",
             (
                 (
@@ -482,6 +478,39 @@ def seed_cloud_sync_outbox() -> int:
                     },
                 )
                 for row in WaiterProfile.query.order_by(WaiterProfile.id.asc()).all()
+            ),
+        ),
+        (
+            "user",
+            (
+                (
+                    row.id,
+                    row.updated_at if hasattr(row, "updated_at") else None,
+                    {
+                        "id": row.id,
+                        "username": row.username,
+                        "role": row.role,
+                        "waiter_profile_id": row.waiter_profile_id,
+                    },
+                )
+                for row in User.query.order_by(User.id.asc()).all()
+            ),
+        ),
+        (
+            "table",
+            (
+                (
+                    row.id,
+                    None,
+                    {
+                        "id": row.id,
+                        "number": row.number,
+                        "status": row.status,
+                        "is_vip": row.is_vip,
+                        "waiter_ids": [waiter.id for waiter in (row.waiters or [])],
+                    },
+                )
+                for row in Table.query.order_by(Table.id.asc()).all()
             ),
         ),
         (
@@ -809,7 +838,7 @@ def pull_cloud_updates() -> int:
 
 
 def run_cloud_sync_cycle() -> dict:
-    result = {"activated": False, "validated": False, "seeded": 0, "pushed": 0, "pulled": 0}
+    result = {"activated": False, "validated": False, "full_replaced": False, "seeded": 0, "pushed": 0, "pulled": 0}
     license_state = _ensure_license_state()
 
     try:
@@ -821,6 +850,15 @@ def run_cloud_sync_cycle() -> dict:
         if _should_validate_license(license_state):
             validate_cloud_license()
             result["validated"] = True
+
+        state = _ensure_sync_state()
+        if _should_full_replace(state):
+            reset_cloud_tenant()
+            state.last_pulled_event_id = 0
+            state.last_full_replace_at = eat_now_naive()
+            state.last_sync_error = None
+            db.session.commit()
+            result["full_replaced"] = True
 
         result["seeded"] = seed_cloud_sync_outbox()
         result["pushed"] = process_cloud_sync_outbox_batch()
