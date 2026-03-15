@@ -225,6 +225,7 @@ def reset_cloud_tenant() -> None:
             "tenant_id": cfg.tenant_id,
             "store_id": cfg.store_id,
             "device_id": cfg.device_id,
+            "confirm": True,
         },
         timeout=_timeout(),
     )
