@@ -37,6 +37,7 @@ from app.models.models import (
     SubCategory,
     Table,
     User,
+    WaiterProfile,
 )
 from app.utils.timezone import eat_now_naive
 
@@ -427,6 +428,7 @@ def seed_cloud_sync_outbox() -> int:
                         "id": row.id,
                         "username": row.username,
                         "role": row.role,
+                        "waiter_profile_id": row.waiter_profile_id,
                     },
                 )
                 for row in User.query.order_by(User.id.asc()).all()
@@ -463,6 +465,23 @@ def seed_cloud_sync_outbox() -> int:
                     },
                 )
                 for row in Station.query.order_by(Station.id.asc()).all()
+            ),
+        ),
+        (
+            "waiter_profile",
+            (
+                (
+                    row.id,
+                    row.updated_at if hasattr(row, "updated_at") else None,
+                    {
+                        "id": row.id,
+                        "name": row.name,
+                        "max_tables": row.max_tables,
+                        "allow_vip": row.allow_vip,
+                        "station_ids": [station.id for station in (row.stations or [])],
+                    },
+                )
+                for row in WaiterProfile.query.order_by(WaiterProfile.id.asc()).all()
             ),
         ),
         (
