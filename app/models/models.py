@@ -328,6 +328,19 @@ class CloudSyncState(db.Model):
     )
 
 
+class CloudSyncIdMap(db.Model):
+    __tablename__ = "cloud_sync_id_map"
+    __table_args__ = (
+        db.UniqueConstraint("entity_type", "cloud_id", name="uq_cloud_sync_id_map"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    entity_type = db.Column(db.String(64), nullable=False)
+    cloud_id = db.Column(db.String(64), nullable=False)
+    local_id = db.Column(db.String(64), nullable=False)
+    created_at = db.Column(db.DateTime, default=eat_now_naive, nullable=False)
+
+
 class CloudSyncOutbox(db.Model):
     __tablename__ = "cloud_sync_outbox"
 

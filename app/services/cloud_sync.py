@@ -5,7 +5,7 @@ import subprocess
 import sys
 import time
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Iterable
 
 import requests
@@ -27,6 +27,7 @@ from app.models.models import (
     BrandingSettings,
     Category,
     CloudInstanceConfig,
+    CloudSyncIdMap,
     CloudLicenseState,
     CloudLicensePolicy,
     CloudSyncOutbox,
@@ -40,6 +41,7 @@ from app.models.models import (
     WaiterProfile,
 )
 from app.utils.timezone import eat_now_naive
+from werkzeug.security import generate_password_hash
 
 logger = logging.getLogger(__name__)
 
@@ -276,6 +278,600 @@ def _ensure_sync_state() -> CloudSyncState:
         db.session.add(row)
         db.session.commit()
     return row
+
+
+def _parse_date(value):
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value).date()
+        except ValueError:
+            return None
+    return None
+
+
+def _parse_datetime(value):
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _coerce_int(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _get_mapped_local_id(entity_type: str, cloud_id: str | int | None) -> int | None:
+    if cloud_id is None:
+        return None
+    row = CloudSyncIdMap.query.filter_by(entity_type=entity_type, cloud_id=str(cloud_id)).first()
+    if row is None:
+        return None
+    return _coerce_int(row.local_id)
+
+
+def _ensure_mapping(entity_type: str, cloud_id: str | int, local_id: int) -> None:
+    row = CloudSyncIdMap.query.filter_by(entity_type=entity_type, cloud_id=str(cloud_id)).first()
+    if row is None:
+        db.session.add(
+            CloudSyncIdMap(
+                entity_type=entity_type,
+                cloud_id=str(cloud_id),
+                local_id=str(local_id),
+            )
+        )
+    elif row.local_id != str(local_id):
+        row.local_id = str(local_id)
+
+
+def _delete_mapping(entity_type: str, cloud_id: str | int | None) -> None:
+    if cloud_id is None:
+        return
+    CloudSyncIdMap.query.filter_by(entity_type=entity_type, cloud_id=str(cloud_id)).delete(synchronize_session=False)
+
+
+def _resolve_entity_id(entity_type: str, cloud_id: str | int | None) -> int | None:
+    if cloud_id is None:
+        return None
+    return _get_mapped_local_id(entity_type, cloud_id)
+
+
+def _find_station_by_name(name: str | None):
+    if not name:
+        return None
+    return Station.query.filter_by(name=name).first()
+
+
+def _find_waiter_profile_by_name(name: str | None):
+    if not name:
+        return None
+    return WaiterProfile.query.filter_by(name=name).first()
+
+
+def _find_user_by_username(username: str | None):
+    if not username:
+        return None
+    return User.query.filter_by(username=username).first()
+
+
+def _find_table_by_number(number: str | None):
+    if not number:
+        return None
+    return Table.query.filter_by(number=number).first()
+
+
+def _find_category_by_name(name: str | None):
+    if not name:
+        return None
+    return Category.query.filter_by(name=name).first()
+
+
+def _find_subcategory_by_name(name: str | None, category_id: int | None):
+    if not name:
+        return None
+    query = SubCategory.query.filter_by(name=name)
+    if category_id is None:
+        query = query.filter(SubCategory.category_id.is_(None))
+    else:
+        query = query.filter_by(category_id=category_id)
+    return query.first()
+
+
+def _find_menu_item_by_name(name: str | None):
+    if not name:
+        return None
+    return MenuItem.query.filter_by(name=name).first()
+
+
+def _find_inventory_item_by_name(name: str | None):
+    if not name:
+        return None
+    return InventoryItem.query.filter_by(name=name).first()
+
+
+def _ensure_station_for_cloud_id(cloud_id: str | int | None, name: str | None = None) -> Station | None:
+    local_id = _resolve_entity_id("station", cloud_id)
+    if local_id:
+        return db.session.get(Station, local_id)
+    station = _find_station_by_name(name) if name else None
+    if station is None:
+        fallback_name = name or f"Station-{cloud_id}"
+        station = Station(
+            name=fallback_name,
+            password_hash=generate_password_hash("0000"),
+            print_mode="grouped",
+            cashier_printer=False,
+        )
+        db.session.add(station)
+        db.session.flush()
+    _ensure_mapping("station", cloud_id, station.id)
+    return station
+
+
+def _ensure_inventory_item_for_cloud_id(cloud_id: str | int | None, name: str | None = None) -> InventoryItem | None:
+    local_id = _resolve_entity_id("inventory_item", cloud_id)
+    if local_id:
+        return db.session.get(InventoryItem, local_id)
+    item = _find_inventory_item_by_name(name) if name else None
+    if item is None:
+        fallback_name = name or f"Item-{cloud_id}"
+        item = InventoryItem(
+            name=fallback_name,
+            unit="Bottle",
+            serving_unit="unit",
+            servings_per_unit=1.0,
+            container_size_ml=1.0,
+            default_shot_ml=1.0,
+            is_active=True,
+        )
+        db.session.add(item)
+        db.session.flush()
+    _ensure_mapping("inventory_item", cloud_id, item.id)
+    return item
+
+
+def _upsert_user(payload: dict) -> None:
+    cloud_id = payload.get("id")
+    local_id = _resolve_entity_id("user", cloud_id)
+    row = db.session.get(User, local_id) if local_id else None
+    if row is None:
+        row = _find_user_by_username(payload.get("username")) or User()
+        if row.id is None:
+            db.session.add(row)
+
+    username = (payload.get("username") or "").strip()
+    if not username:
+        username = f"user-{cloud_id}"
+    row.username = username
+    row.role = (payload.get("role") or row.role or "waiter").strip()
+    if row.password_hash is None:
+        row.password_hash = generate_password_hash("change-me")
+
+    waiter_profile_id = payload.get("waiter_profile_id")
+    with db.session.no_autoflush:
+        mapped_profile_id = _resolve_entity_id("waiter_profile", waiter_profile_id)
+    row.waiter_profile_id = mapped_profile_id
+    db.session.flush()
+    _ensure_mapping("user", cloud_id, row.id)
+
+
+def _upsert_station(payload: dict) -> None:
+    cloud_id = payload.get("id")
+    local_id = _resolve_entity_id("station", cloud_id)
+    row = db.session.get(Station, local_id) if local_id else None
+    if row is None:
+        row = _find_station_by_name(payload.get("name")) or Station()
+        if row.id is None:
+            row.password_hash = generate_password_hash("0000")
+            db.session.add(row)
+
+    name = (payload.get("name") or row.name or "").strip()
+    if not name:
+        name = f"Station-{cloud_id}"
+    row.name = name
+    row.print_mode = (payload.get("print_mode") or row.print_mode or "grouped").strip()
+    row.cashier_printer = bool(payload.get("cashier_printer", False))
+    row.printer_identifier = payload.get("printer_identifier") or row.printer_identifier
+    if not row.password_hash:
+        row.password_hash = generate_password_hash("0000")
+    db.session.flush()
+    _ensure_mapping("station", cloud_id, row.id)
+
+
+def _upsert_waiter_profile(payload: dict) -> None:
+    cloud_id = payload.get("id")
+    local_id = _resolve_entity_id("waiter_profile", cloud_id)
+    row = db.session.get(WaiterProfile, local_id) if local_id else None
+    if row is None:
+        row = _find_waiter_profile_by_name(payload.get("name")) or WaiterProfile()
+        if row.id is None:
+            db.session.add(row)
+
+    name = (payload.get("name") or row.name or "").strip()
+    if not name:
+        name = f"Waiter-{cloud_id}"
+    row.name = name
+    row.max_tables = int(payload.get("max_tables") or row.max_tables or 5)
+    row.allow_vip = bool(payload.get("allow_vip", row.allow_vip if row.allow_vip is not None else True))
+
+    station_ids = payload.get("station_ids") or []
+    mapped_stations = []
+    for station_id in station_ids:
+        station = _ensure_station_for_cloud_id(station_id)
+        if station:
+            mapped_stations.append(station)
+    row.stations = mapped_stations
+    db.session.flush()
+    _ensure_mapping("waiter_profile", cloud_id, row.id)
+
+
+def _upsert_table(payload: dict) -> None:
+    cloud_id = payload.get("id")
+    local_id = _resolve_entity_id("table", cloud_id)
+    row = db.session.get(Table, local_id) if local_id else None
+    if row is None:
+        row = _find_table_by_number(payload.get("number")) or Table()
+        if row.id is None:
+            db.session.add(row)
+
+    number = str(payload.get("number") or row.number or "").strip()
+    if not number:
+        number = f"Table-{cloud_id}"
+    row.number = number
+    row.status = (payload.get("status") or row.status or "available").strip().lower()
+    row.is_vip = bool(payload.get("is_vip", row.is_vip or False))
+
+    waiter_ids = payload.get("waiter_ids") or []
+    mapped_waiters = []
+    for waiter_id in waiter_ids:
+        mapped_id = _resolve_entity_id("user", waiter_id)
+        if mapped_id:
+            waiter = db.session.get(User, mapped_id)
+            if waiter:
+                mapped_waiters.append(waiter)
+    row.waiters = mapped_waiters
+    db.session.flush()
+    _ensure_mapping("table", cloud_id, row.id)
+
+
+def _upsert_category(payload: dict) -> None:
+    cloud_id = payload.get("id")
+    local_id = _resolve_entity_id("category", cloud_id)
+    row = db.session.get(Category, local_id) if local_id else None
+    if row is None:
+        row = _find_category_by_name(payload.get("name")) or Category()
+        if row.id is None:
+            db.session.add(row)
+
+    name = (payload.get("name") or row.name or "").strip()
+    if not name:
+        name = f"Category-{cloud_id}"
+    row.name = name
+    row.quantity_step = payload.get("quantity_step") or row.quantity_step or 1
+    db.session.flush()
+    _ensure_mapping("category", cloud_id, row.id)
+
+
+def _upsert_subcategory(payload: dict) -> None:
+    cloud_id = payload.get("id")
+    category_id = payload.get("category_id")
+    mapped_category_id = _resolve_entity_id("category", category_id)
+    local_id = _resolve_entity_id("subcategory", cloud_id)
+    row = db.session.get(SubCategory, local_id) if local_id else None
+    if row is None:
+        row = _find_subcategory_by_name(payload.get("name"), mapped_category_id) or SubCategory()
+        if row.id is None:
+            db.session.add(row)
+
+    name = (payload.get("name") or row.name or "").strip()
+    if not name:
+        name = f"Subcategory-{cloud_id}"
+    row.name = name
+    row.category_id = mapped_category_id
+    db.session.flush()
+    _ensure_mapping("subcategory", cloud_id, row.id)
+
+
+def _upsert_menu_item(payload: dict) -> None:
+    cloud_id = payload.get("id")
+    local_id = _resolve_entity_id("menu_item", cloud_id)
+    row = db.session.get(MenuItem, local_id) if local_id else None
+    if row is None:
+        row = _find_menu_item_by_name(payload.get("name")) or MenuItem()
+        if row.id is None:
+            db.session.add(row)
+
+    name = (payload.get("name") or row.name or "").strip()
+    if not name:
+        name = f"Menu-{cloud_id}"
+    row.name = name
+    row.description = payload.get("description")
+    row.price = payload.get("price")
+    row.vip_price = payload.get("vip_price")
+    row.quantity_step = payload.get("quantity_step")
+    row.is_available = bool(payload.get("is_available", True))
+    row.image_url = payload.get("image_url")
+
+    station_id = payload.get("station_id")
+    station = _ensure_station_for_cloud_id(station_id)
+    if station is None:
+        return
+    row.station_id = station.id
+
+    subcategory_id = payload.get("subcategory_id")
+    row.subcategory_id = _resolve_entity_id("subcategory", subcategory_id)
+
+    db.session.flush()
+    _ensure_mapping("menu_item", cloud_id, row.id)
+
+
+def _upsert_branding(payload: dict) -> None:
+    row = BrandingSettings.query.first()
+    if row is None:
+        row = BrandingSettings()
+        db.session.add(row)
+
+    if "business_day_start_time" in payload:
+        row.business_day_start_time = payload.get("business_day_start_time") or row.business_day_start_time
+    if "print_preview_enabled" in payload:
+        row.print_preview_enabled = bool(payload.get("print_preview_enabled", row.print_preview_enabled))
+    if "kds_mark_unavailable_enabled" in payload:
+        row.kds_mark_unavailable_enabled = bool(payload.get("kds_mark_unavailable_enabled", row.kds_mark_unavailable_enabled))
+    db.session.flush()
+
+
+def _upsert_inventory_item(payload: dict) -> None:
+    cloud_id = payload.get("id")
+    local_id = _resolve_entity_id("inventory_item", cloud_id)
+    row = db.session.get(InventoryItem, local_id) if local_id else None
+    if row is None:
+        row = _find_inventory_item_by_name(payload.get("name")) or InventoryItem()
+        if row.id is None:
+            db.session.add(row)
+
+    name = (payload.get("name") or row.name or "").strip()
+    if not name:
+        name = f"Item-{cloud_id}"
+    row.name = name
+    row.unit = payload.get("unit") or row.unit or "Bottle"
+    row.serving_unit = payload.get("serving_unit") or row.serving_unit or "unit"
+    row.servings_per_unit = payload.get("servings_per_unit") or row.servings_per_unit or 1.0
+    row.container_size_ml = payload.get("container_size_ml") or row.container_size_ml or 1.0
+    row.default_shot_ml = payload.get("default_shot_ml") or row.default_shot_ml or 1.0
+    row.is_active = bool(payload.get("is_active", True))
+    db.session.flush()
+    _ensure_mapping("inventory_item", cloud_id, row.id)
+
+
+def _upsert_inventory_menu_link(payload: dict) -> None:
+    cloud_id = payload.get("id")
+    local_id = _resolve_entity_id("inventory_menu_link", cloud_id)
+    row = db.session.get(InventoryMenuLink, local_id) if local_id else None
+
+    inventory_item = _ensure_inventory_item_for_cloud_id(payload.get("inventory_item_id"))
+    menu_item_id = _resolve_entity_id("menu_item", payload.get("menu_item_id"))
+    if inventory_item is None or menu_item_id is None:
+        return
+
+    if row is None:
+        row = InventoryMenuLink.query.filter_by(inventory_item_id=inventory_item.id, menu_item_id=menu_item_id).first()
+    if row is None:
+        row = InventoryMenuLink(inventory_item_id=inventory_item.id, menu_item_id=menu_item_id)
+        db.session.add(row)
+
+    row.deduction_ratio = payload.get("deduction_ratio") or row.deduction_ratio or 1.0
+    row.serving_type = payload.get("serving_type") or row.serving_type or "custom_ml"
+    row.serving_value = payload.get("serving_value") or row.serving_value or 1.0
+    db.session.flush()
+    _ensure_mapping("inventory_menu_link", cloud_id, row.id)
+
+
+def _upsert_store_stock(payload: dict) -> None:
+    inventory_item = _ensure_inventory_item_for_cloud_id(payload.get("inventory_item_id"))
+    if inventory_item is None:
+        return
+    row = StoreStock.query.filter_by(inventory_item_id=inventory_item.id).first()
+    if row is None:
+        row = StoreStock(inventory_item_id=inventory_item.id)
+        db.session.add(row)
+    row.quantity = float(payload.get("quantity") or 0)
+    db.session.flush()
+
+
+def _upsert_station_stock(payload: dict) -> None:
+    station = _ensure_station_for_cloud_id(payload.get("station_id"))
+    inventory_item = _ensure_inventory_item_for_cloud_id(payload.get("inventory_item_id"))
+    if station is None or inventory_item is None:
+        return
+    row = StationStock.query.filter_by(station_id=station.id, inventory_item_id=inventory_item.id).first()
+    if row is None:
+        row = StationStock(station_id=station.id, inventory_item_id=inventory_item.id)
+        db.session.add(row)
+    row.quantity = float(payload.get("quantity") or 0)
+    db.session.flush()
+
+
+def _upsert_stock_purchase(payload: dict) -> None:
+    cloud_id = payload.get("id")
+    local_id = _resolve_entity_id("stock_purchase", cloud_id)
+    row = db.session.get(StockPurchase, local_id) if local_id else None
+
+    inventory_item = _ensure_inventory_item_for_cloud_id(payload.get("inventory_item_id"))
+    if inventory_item is None:
+        return
+
+    if row is None:
+        row = StockPurchase()
+        db.session.add(row)
+
+    row.inventory_item_id = inventory_item.id
+    row.quantity = float(payload.get("quantity") or 0)
+    row.unit_price = payload.get("unit_price")
+    row.status = payload.get("status") or row.status or "Purchased"
+    created_at = _parse_datetime(payload.get("created_at"))
+    if created_at:
+        row.created_at = created_at
+    db.session.flush()
+    _ensure_mapping("stock_purchase", cloud_id, row.id)
+
+
+def _upsert_stock_transfer(payload: dict) -> None:
+    cloud_id = payload.get("id")
+    local_id = _resolve_entity_id("stock_transfer", cloud_id)
+    row = db.session.get(StockTransfer, local_id) if local_id else None
+
+    inventory_item = _ensure_inventory_item_for_cloud_id(payload.get("inventory_item_id"))
+    station = _ensure_station_for_cloud_id(payload.get("station_id"))
+    if inventory_item is None or station is None:
+        return
+
+    if row is None:
+        row = StockTransfer()
+        db.session.add(row)
+
+    row.inventory_item_id = inventory_item.id
+    row.station_id = station.id
+    row.quantity = float(payload.get("quantity") or 0)
+    row.status = payload.get("status") or row.status or "Transferred"
+    created_at = _parse_datetime(payload.get("created_at"))
+    if created_at:
+        row.created_at = created_at
+    db.session.flush()
+    _ensure_mapping("stock_transfer", cloud_id, row.id)
+
+
+def _upsert_station_stock_snapshot(payload: dict) -> None:
+    station = _ensure_station_for_cloud_id(payload.get("station_id"))
+    inventory_item = _ensure_inventory_item_for_cloud_id(payload.get("inventory_item_id"))
+    snapshot_date = _parse_date(payload.get("snapshot_date"))
+    if station is None or inventory_item is None or snapshot_date is None:
+        return
+
+    row = StationStockSnapshot.query.filter_by(
+        station_id=station.id,
+        inventory_item_id=inventory_item.id,
+        snapshot_date=snapshot_date,
+    ).first()
+    if row is None:
+        row = StationStockSnapshot(
+            station_id=station.id,
+            inventory_item_id=inventory_item.id,
+            snapshot_date=snapshot_date,
+        )
+        db.session.add(row)
+
+    row.start_of_day_quantity = float(payload.get("start_of_day_quantity") or 0)
+    row.added_quantity = float(payload.get("added_quantity") or 0)
+    row.sold_quantity = float(payload.get("sold_quantity") or 0)
+    row.void_quantity = float(payload.get("void_quantity") or 0)
+    row.remaining_quantity = float(payload.get("remaining_quantity") or 0)
+    db.session.flush()
+
+
+def _upsert_store_stock_snapshot(payload: dict) -> None:
+    inventory_item = _ensure_inventory_item_for_cloud_id(payload.get("inventory_item_id"))
+    snapshot_date = _parse_date(payload.get("snapshot_date"))
+    if inventory_item is None or snapshot_date is None:
+        return
+
+    row = StoreStockSnapshot.query.filter_by(
+        inventory_item_id=inventory_item.id,
+        snapshot_date=snapshot_date,
+    ).first()
+    if row is None:
+        row = StoreStockSnapshot(
+            inventory_item_id=inventory_item.id,
+            snapshot_date=snapshot_date,
+        )
+        db.session.add(row)
+
+    row.opening_quantity = float(payload.get("opening_quantity") or 0)
+    row.purchased_quantity = float(payload.get("purchased_quantity") or 0)
+    row.transferred_out_quantity = float(payload.get("transferred_out_quantity") or 0)
+    row.closing_quantity = float(payload.get("closing_quantity") or 0)
+    db.session.flush()
+
+
+def _apply_cloud_event(entity_type: str, operation: str, payload: dict) -> None:
+    if operation == "delete":
+        cloud_id = payload.get("id") or payload.get("cloud_id") or payload.get("entity_id")
+        local_id = _resolve_entity_id(entity_type, cloud_id)
+        if local_id:
+            if entity_type == "user":
+                row = db.session.get(User, local_id)
+            elif entity_type == "station":
+                row = db.session.get(Station, local_id)
+            elif entity_type == "waiter_profile":
+                row = db.session.get(WaiterProfile, local_id)
+            elif entity_type == "table":
+                row = db.session.get(Table, local_id)
+            elif entity_type == "category":
+                row = db.session.get(Category, local_id)
+            elif entity_type == "subcategory":
+                row = db.session.get(SubCategory, local_id)
+            elif entity_type == "menu_item":
+                row = db.session.get(MenuItem, local_id)
+            elif entity_type == "inventory_item":
+                row = db.session.get(InventoryItem, local_id)
+            elif entity_type == "inventory_menu_link":
+                row = db.session.get(InventoryMenuLink, local_id)
+            elif entity_type == "stock_purchase":
+                row = db.session.get(StockPurchase, local_id)
+            elif entity_type == "stock_transfer":
+                row = db.session.get(StockTransfer, local_id)
+            else:
+                row = None
+            if row is not None:
+                db.session.delete(row)
+        _delete_mapping(entity_type, cloud_id)
+        return
+
+    if entity_type == "user":
+        _upsert_user(payload)
+    elif entity_type == "station":
+        _upsert_station(payload)
+    elif entity_type == "waiter_profile":
+        _upsert_waiter_profile(payload)
+    elif entity_type == "table":
+        _upsert_table(payload)
+    elif entity_type == "category":
+        _upsert_category(payload)
+    elif entity_type == "subcategory":
+        _upsert_subcategory(payload)
+    elif entity_type == "menu_item":
+        _upsert_menu_item(payload)
+    elif entity_type == "branding":
+        _upsert_branding(payload)
+    elif entity_type == "inventory_item":
+        _upsert_inventory_item(payload)
+    elif entity_type == "inventory_menu_link":
+        _upsert_inventory_menu_link(payload)
+    elif entity_type == "store_stock":
+        _upsert_store_stock(payload)
+    elif entity_type == "station_stock":
+        _upsert_station_stock(payload)
+    elif entity_type == "stock_purchase":
+        _upsert_stock_purchase(payload)
+    elif entity_type == "stock_transfer":
+        _upsert_stock_transfer(payload)
+    elif entity_type == "station_stock_snapshot":
+        _upsert_station_stock_snapshot(payload)
+    elif entity_type == "store_stock_snapshot":
+        _upsert_store_stock_snapshot(payload)
+    else:
+        logger.info("Cloud sync: ignoring unsupported entity_type=%s", entity_type)
 
 
 def _instance_payload() -> dict:
@@ -831,11 +1427,39 @@ def pull_cloud_updates() -> int:
     )
     response.raise_for_status()
     data = response.json() or {}
-    state.last_pulled_event_id = int(data.get("next_since_id") or state.last_pulled_event_id or 0)
+    events = data.get("events") or []
+    last_applied_id = state.last_pulled_event_id or 0
+    applied = 0
+
+    for event in events:
+        event_id = int(event.get("id") or 0)
+        event_device_id = event.get("device_id")
+        if event_device_id and event_device_id == cfg.device_id:
+            last_applied_id = max(last_applied_id, event_id)
+            continue
+
+        entity_type = (event.get("entity_type") or "").strip()
+        operation = (event.get("operation") or "").strip().lower()
+        payload = event.get("payload") or {}
+
+        if not entity_type or not operation or not isinstance(payload, dict):
+            last_applied_id = max(last_applied_id, event_id)
+            continue
+
+        try:
+            with db.session.begin_nested():
+                _apply_cloud_event(entity_type, operation, payload)
+            last_applied_id = max(last_applied_id, event_id)
+            applied += 1
+        except Exception:
+            logger.exception("Cloud sync apply failed for event=%s type=%s", event.get("event_id"), entity_type)
+            break
+
+    state.last_pulled_event_id = int(last_applied_id)
     state.last_synced_at = eat_now_naive()
     state.last_sync_error = None
     db.session.commit()
-    return len(data.get("events") or [])
+    return applied
 
 
 def run_cloud_sync_cycle() -> dict:
@@ -861,9 +1485,9 @@ def run_cloud_sync_cycle() -> dict:
             db.session.commit()
             result["full_replaced"] = True
 
+        result["pulled"] = pull_cloud_updates()
         result["seeded"] = seed_cloud_sync_outbox()
         result["pushed"] = process_cloud_sync_outbox_batch()
-        result["pulled"] = pull_cloud_updates()
     except Exception as exc:
         logger.warning("Cloud sync cycle failed: %s", exc)
         state = _ensure_sync_state()

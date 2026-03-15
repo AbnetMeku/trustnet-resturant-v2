@@ -14,6 +14,7 @@ from .models import (
     CloudLicenseState,
     CloudLicensePolicy,
     CloudSyncState,
+    CloudSyncIdMap,
     CloudSyncOutbox,
 )
 from .inventory_models import (
