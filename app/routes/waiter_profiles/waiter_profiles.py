@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required
 
 from app.extensions import db
 from app.models import Station, User, WaiterProfile
+from app.services.cloud_sync import queue_cloud_sync_delete
 from app.services.waiter_profiles import auto_assign_tables_for_waiter
 from app.utils.decorators import roles_required
 
@@ -163,6 +164,6 @@ def delete_waiter_profile(profile_id: int):
         waiter.waiter_profile = None
 
     db.session.delete(profile)
+    queue_cloud_sync_delete("waiter_profile", profile_id)
     db.session.commit()
     return jsonify({"message": "Profile deleted"}), 200
-

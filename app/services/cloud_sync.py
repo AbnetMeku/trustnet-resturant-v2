@@ -1,4 +1,5 @@
 import hashlib
+import json
 import logging
 import socket
 import subprocess
@@ -1014,9 +1015,10 @@ def _should_validate_license(license_state: CloudLicenseState) -> bool:
 def _upsert_outbox_event(event_id: str, entity_type: str, entity_id: str, operation: str, payload: dict) -> None:
     existing = CloudSyncOutbox.query.filter_by(event_id=event_id).first()
     if existing:
-        existing.payload = payload
-        existing.operation = operation
-        if existing.status == "sent":
+        payload_changed = existing.payload != payload or existing.operation != operation
+        if payload_changed:
+            existing.payload = payload
+            existing.operation = operation
             existing.status = "pending"
             existing.sent_at = None
         return
@@ -1038,6 +1040,20 @@ def _timestamp_suffix(value) -> str:
     if value is None:
         return "na"
     return value.strftime("%Y%m%d%H%M%S")
+
+
+def _payload_fingerprint(payload: dict) -> str:
+    try:
+        encoded = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+    except Exception:
+        encoded = str(payload).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()[:12]
+
+
+def _event_suffix(updated_at, payload: dict) -> str:
+    if updated_at is None:
+        return _payload_fingerprint(payload)
+    return _timestamp_suffix(updated_at)
 
 
 def _build_sync_payload(entity_type: str, row) -> dict | None:
@@ -1501,7 +1517,7 @@ def seed_cloud_sync_outbox() -> int:
     try:
         for entity_type, rows in entities:
             for entity_id, updated_at, payload in rows:
-                event_id = f"{entity_type}-{entity_id}-{_timestamp_suffix(updated_at)}"
+                event_id = f"{entity_type}-{entity_id}-{_event_suffix(updated_at, payload)}"
                 before = CloudSyncOutbox.query.filter_by(event_id=event_id).first()
                 _upsert_outbox_event(event_id, entity_type, str(entity_id), "upsert", payload)
                 if before is None:

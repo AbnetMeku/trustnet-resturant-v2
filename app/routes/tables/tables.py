@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, abort
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from app.extensions import db
 from app.models.models import Table, TableNumberCounter, User
+from app.services.cloud_sync import queue_cloud_sync_delete
 from app.services.waiter_profiles import waiter_can_access_table
 from app.services.table_numbers import ensure_table_number_counter
 from app.utils.decorators import roles_required
@@ -132,5 +133,6 @@ def delete_table(table_id):
     if not table:
         abort(404)
     db.session.delete(table)
+    queue_cloud_sync_delete("table", table_id)
     db.session.commit()
     return jsonify({"message": "Table deleted"}), 200

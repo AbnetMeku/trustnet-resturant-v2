@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify, abort
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import jwt_required
 from app.extensions import db
+from app.services.cloud_sync import queue_cloud_sync_delete
 from app.models.models import Station
 from app.utils.decorators import roles_required
 
@@ -159,6 +160,7 @@ def delete_station(station_id):
 
     station_name = station.name
     db.session.delete(station)
+    queue_cloud_sync_delete("station", station_id)
     db.session.commit()
     return jsonify({
         "message": "Station deleted",

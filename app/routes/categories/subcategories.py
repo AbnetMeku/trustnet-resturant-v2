@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required
 from app.extensions import db
 from app.models.models import SubCategory, Category
 from app.utils.decorators import roles_required
+from app.services.cloud_sync import queue_cloud_sync_delete
 
 subcategories_bp = Blueprint("subcategories_bp", __name__, url_prefix="/subcategories")
 
@@ -99,6 +100,7 @@ def delete_subcategory(sc_id):
         return jsonify({"error": "Cannot delete subcategory because it has menu items."}), 400
 
     db.session.delete(subcategory)
+    queue_cloud_sync_delete("subcategory", sc_id)
     db.session.commit()
     return jsonify({"message": "Subcategory deleted successfully"}), 200
 
