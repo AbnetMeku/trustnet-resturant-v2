@@ -12,7 +12,8 @@ from app.routes.print.print_jobs import create_station_print_jobs, create_cashie
 from sqlalchemy.exc import IntegrityError
 from app.services.inventory_integration import send_inventory_adjustment_or_queue
 from app.services.waiter_profiles import waiter_allowed_station_ids, waiter_can_access_table
-from app.utils.timezone import get_eat_today
+from app.utils.timezone import get_eat_today, eat_now_naive
+from app.services.cloud_sync import _upsert_outbox_event, _timestamp_suffix
 
 
 orders_bp = Blueprint("orders_bp", __name__, url_prefix="/orders")
@@ -667,6 +668,9 @@ def delete_order(order_id):
     except ValueError:
         return error_response("Invalid token identity.", 401)
     try:
+        event_id = f"order-{order_id}-delete-{_timestamp_suffix(eat_now_naive())}"
+        payload = {"id": order_id, "order_id": order_id}
+        _upsert_outbox_event(event_id, "order", str(order_id), "delete", payload)
         db.session.delete(order)
         db.session.commit()
         logger.info(f"Deleted order {order_id} by user {user_id}")

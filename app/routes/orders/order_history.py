@@ -7,7 +7,8 @@ from app.models.models import Order, OrderItem, PrintJob, Table, User
 from app.routes.orders.order import order_to_dict, error_response
 from app.utils.decorators import roles_required, extract_roles_from_claims
 from datetime import datetime, timedelta
-from app.utils.timezone import get_business_day_bounds, get_eat_today
+from app.utils.timezone import get_business_day_bounds, get_eat_today, eat_now_naive
+from app.services.cloud_sync import _upsert_outbox_event, _timestamp_suffix
 
 order_history_bp = Blueprint("order_history_bp", __name__, url_prefix="/order-history")
 
@@ -433,6 +434,11 @@ def clear_order_history_range():
             ),
             200,
         )
+
+    for order_id in order_ids:
+        event_id = f"order-{order_id}-delete-{_timestamp_suffix(eat_now_naive())}"
+        payload = {"id": order_id, "order_id": order_id}
+        _upsert_outbox_event(event_id, "order", str(order_id), "delete", payload)
 
     deleted_order_items = db.session.execute(
         delete(OrderItem).where(OrderItem.order_id.in_(order_ids))

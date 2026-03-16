@@ -1040,6 +1040,175 @@ def _timestamp_suffix(value) -> str:
     return value.strftime("%Y%m%d%H%M%S")
 
 
+def _build_sync_payload(entity_type: str, row) -> dict | None:
+    if row is None:
+        return None
+    if entity_type == "station":
+        return {
+            "id": row.id,
+            "name": row.name,
+            "print_mode": row.print_mode,
+            "cashier_printer": row.cashier_printer,
+        }
+    if entity_type == "waiter_profile":
+        return {
+            "id": row.id,
+            "name": row.name,
+            "max_tables": row.max_tables,
+            "allow_vip": row.allow_vip,
+            "station_ids": [station.id for station in (row.stations or [])],
+        }
+    if entity_type == "user":
+        return {
+            "id": row.id,
+            "username": row.username,
+            "role": row.role,
+            "waiter_profile_id": row.waiter_profile_id,
+        }
+    if entity_type == "table":
+        return {
+            "id": row.id,
+            "number": row.number,
+            "status": row.status,
+            "is_vip": row.is_vip,
+            "waiter_ids": [waiter.id for waiter in (row.waiters or [])],
+        }
+    if entity_type == "category":
+        return {
+            "id": row.id,
+            "name": row.name,
+            "quantity_step": float(row.quantity_step or 1),
+        }
+    if entity_type == "subcategory":
+        return {
+            "id": row.id,
+            "name": row.name,
+            "category_id": row.category_id,
+        }
+    if entity_type == "menu_item":
+        return {
+            "id": row.id,
+            "name": row.name,
+            "description": row.description,
+            "price": float(row.price) if row.price is not None else None,
+            "vip_price": float(row.vip_price) if row.vip_price is not None else None,
+            "quantity_step": float(row.quantity_step) if row.quantity_step is not None else None,
+            "is_available": row.is_available,
+            "station_id": row.station_id,
+            "subcategory_id": row.subcategory_id,
+            "image_url": row.image_url,
+        }
+    if entity_type == "branding":
+        return {
+            "business_day_start_time": row.business_day_start_time,
+            "print_preview_enabled": row.print_preview_enabled,
+            "kds_mark_unavailable_enabled": row.kds_mark_unavailable_enabled,
+        }
+    if entity_type == "inventory_item":
+        return {
+            "id": row.id,
+            "name": row.name,
+            "unit": row.unit,
+            "serving_unit": row.serving_unit,
+            "servings_per_unit": row.servings_per_unit,
+            "container_size_ml": row.container_size_ml,
+            "default_shot_ml": row.default_shot_ml,
+            "is_active": row.is_active,
+        }
+    if entity_type == "inventory_menu_link":
+        return {
+            "id": row.id,
+            "inventory_item_id": row.inventory_item_id,
+            "menu_item_id": row.menu_item_id,
+            "deduction_ratio": row.deduction_ratio,
+            "serving_type": row.serving_type,
+            "serving_value": row.serving_value,
+        }
+    if entity_type == "store_stock":
+        return {
+            "id": row.id,
+            "inventory_item_id": row.inventory_item_id,
+            "quantity": row.quantity,
+        }
+    if entity_type == "station_stock":
+        return {
+            "id": row.id,
+            "station_id": row.station_id,
+            "inventory_item_id": row.inventory_item_id,
+            "quantity": row.quantity,
+        }
+    if entity_type == "stock_purchase":
+        return {
+            "id": row.id,
+            "inventory_item_id": row.inventory_item_id,
+            "quantity": row.quantity,
+            "unit_price": row.unit_price,
+            "status": row.status,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+    if entity_type == "stock_transfer":
+        return {
+            "id": row.id,
+            "inventory_item_id": row.inventory_item_id,
+            "station_id": row.station_id,
+            "quantity": row.quantity,
+            "status": row.status,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+    if entity_type == "station_stock_snapshot":
+        return {
+            "id": row.id,
+            "station_id": row.station_id,
+            "inventory_item_id": row.inventory_item_id,
+            "snapshot_date": row.snapshot_date.isoformat() if row.snapshot_date else None,
+            "start_of_day_quantity": row.start_of_day_quantity,
+            "added_quantity": row.added_quantity,
+            "sold_quantity": row.sold_quantity,
+            "void_quantity": row.void_quantity,
+            "remaining_quantity": row.remaining_quantity,
+        }
+    if entity_type == "store_stock_snapshot":
+        return {
+            "id": row.id,
+            "inventory_item_id": row.inventory_item_id,
+            "snapshot_date": row.snapshot_date.isoformat() if row.snapshot_date else None,
+            "opening_quantity": row.opening_quantity,
+            "purchased_quantity": row.purchased_quantity,
+            "transferred_out_quantity": row.transferred_out_quantity,
+            "closing_quantity": row.closing_quantity,
+        }
+    if entity_type == "order":
+        return {
+            "order_id": row.id,
+            "status": row.status,
+            "total_amount": float(row.total_amount or 0),
+            "table_number": row.table.number if row.table else None,
+            "user_name": row.user.username if row.user else None,
+        }
+    return None
+
+
+def queue_cloud_sync_upsert(entity_type: str, row) -> None:
+    payload = _build_sync_payload(entity_type, row)
+    if not payload:
+        return
+    entity_id = payload.get("id") or payload.get("order_id") or getattr(row, "id", None)
+    if entity_id is None:
+        return
+    event_id = f"{entity_type}-{entity_id}-{_timestamp_suffix(eat_now_naive())}"
+    _upsert_outbox_event(event_id, entity_type, str(entity_id), "upsert", payload)
+
+
+def queue_cloud_sync_delete(entity_type: str, entity_id: int | str) -> None:
+    if entity_id is None:
+        return
+    payload = {"id": entity_id}
+    if entity_type == "order":
+        payload["order_id"] = entity_id
+    event_id = f"{entity_type}-{entity_id}-delete-{_timestamp_suffix(eat_now_naive())}"
+    _upsert_outbox_event(event_id, entity_type, str(entity_id), "delete", payload)
+
+
 def seed_cloud_sync_outbox() -> int:
     created = 0
 
