@@ -34,7 +34,8 @@ for attempt in range(1, 61):
 PY
 
 echo "Running database migrations..."
-flask --app run.py db upgrade
+# Support multiple alembic heads by upgrading all heads.
+flask --app run.py db upgrade heads
 
 echo "Starting Inventory API..."
 gunicorn --bind 0.0.0.0:5001 --workers "${GUNICORN_WORKERS:-2}" --threads "${GUNICORN_THREADS:-4}" --timeout 120 wsgi_inventory:application

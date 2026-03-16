@@ -34,7 +34,8 @@ for attempt in range(1, 61):
 PY
 
 echo "Running database migrations..."
-flask --app run.py db upgrade
+# Support multiple alembic heads by upgrading all heads.
+flask --app run.py db upgrade heads
 
 echo "Ensuring default admin user..."
 python -m app.scripts.ensure_default_admin

@@ -145,13 +145,13 @@ class PrintWorker:
         return output
 
     def _render_cashier_ticket(self, job: PrintJob, items: list[dict], payload: dict):
-        font_header = self.load_font(30)
-        font_regular = self.load_font(20)
+        font_header = self.load_font(36)
+        font_regular = self.load_font(28)
         header_line_height = self._line_height(font_header)
         line_height = self._line_height(font_regular)
 
         lines = [
-            ("Yonas Cher Cher", font_header, "center"),
+            ("Order Receipt", font_header, "center"),
             ("---- Non Fiscal ----", font_header, "center"),
             ("-" * 45, font_header, "center"),
             (f"ORDER #: {job.order_id}", font_regular, "left"),
@@ -216,8 +216,8 @@ class PrintWorker:
         return self._paste_logo(cropped, 10)
 
     def _render_station_ticket(self, job: PrintJob, items: list[dict], payload: dict):
-        font_regular = self.load_font(20)
-        font_bold = self.load_font(30)
+        font_regular = self.load_font(28)
+        font_bold = self.load_font(36)
         line_height = self._line_height(font_regular)
         bold_line_height = self._line_height(font_bold)
 
