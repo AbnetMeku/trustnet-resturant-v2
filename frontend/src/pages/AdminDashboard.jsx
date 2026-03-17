@@ -32,7 +32,6 @@ import OverView from "@/components/admin/OverView";
 import OrderTracker from "@/components/admin/OrderTracker";
 import PrintJobs from "@/components/admin/PrintJobs";
 import BrandingManagement from "@/components/admin/BrandingManagement";
-import CloudSettings from "@/components/admin/CloudSettings";
 import { useBranding } from "@/hooks/useBranding";
 
 export default function AdminDashboard() {
@@ -234,6 +233,7 @@ export default function AdminDashboard() {
                     key={item.id}
                     className={`admin-nav-item ${active === item.id ? "is-active" : ""}`}
                     onClick={() => handleSelect(item.id)}
+                    data-testid={`admin-nav-${item.id}`}
                   >
                     <item.icon className="admin-nav-icon" />
                     {sidebarOpen && (
@@ -288,68 +288,63 @@ export default function AdminDashboard() {
 
           <main className="admin-main">
             {active === "overview" && (
-              <Card className="admin-card p-5 md:p-6 w-full">
+              <Card className="admin-card p-5 md:p-6 w-full" data-testid="admin-panel-overview">
                 <OverView />
               </Card>
             )}
 
             {active === "users" && (
-              <Card className="admin-card p-5 md:p-6 w-full">
+              <Card className="admin-card p-5 md:p-6 w-full" data-testid="admin-panel-users">
                 <UserManagement />
               </Card>
             )}
 
             {active === "tables" && (
-              <Card className="admin-card p-5 md:p-6 w-full">
+              <Card className="admin-card p-5 md:p-6 w-full" data-testid="admin-panel-tables">
                 <TableManagement />
               </Card>
             )}
 
             {active === "stations" && (
-              <Card className="admin-card p-5 md:p-6 w-full">
+              <Card className="admin-card p-5 md:p-6 w-full" data-testid="admin-panel-stations">
                 <StationManagement />
               </Card>
             )}
 
             {active === "menu" && (
-              <Card className="admin-card p-5 md:p-6 w-full">
+              <Card className="admin-card p-5 md:p-6 w-full" data-testid="admin-panel-menu">
                 <MenuManagement />
               </Card>
             )}
 
             {active === "reports" && (
-              <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]">
+              <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]" data-testid="admin-panel-reports">
                 <SalesSummaryReport darkMode={darkMode} />
               </Card>
             )}
 
             {active === "waiter-summary" && (
-              <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]">
+              <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]" data-testid="admin-panel-waiter-summary">
                 <WaiterSummaryReport />
               </Card>
             )}
 
             {active === "order" && (
-              <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]">
+              <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]" data-testid="admin-panel-order">
                 <OrderTracker />
               </Card>
             )}
 
             {active === "print" && (
-              <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]">
+              <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]" data-testid="admin-panel-print">
                 <PrintJobs />
               </Card>
             )}
 
             {active === "settings" && (
-              <div className="flex flex-col gap-6">
-                <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]">
-                  <CloudSettings />
-                </Card>
-                <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]">
-                  <BrandingManagement />
-                </Card>
-              </div>
+              <Card className="admin-card p-5 md:p-6 w-full overflow-auto max-h-[82vh]">
+                <BrandingManagement />
+              </Card>
             )}
           </main>
         </div>

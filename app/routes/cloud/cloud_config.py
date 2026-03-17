@@ -5,6 +5,7 @@ from app.extensions import db
 from app.models.models import CloudLicenseState
 from app.services.cloud_sync import _ensure_instance_config
 from app.utils.decorators import roles_required
+from app.utils.timezone import eat_now_naive
 
 cloud_bp = Blueprint("cloud_bp", __name__, url_prefix="/cloud")
 
@@ -20,13 +21,42 @@ def _serialize_config(cfg):
         "license_key": cfg.license_key,
     }
 
+def _serialize_license_state(state):
+    if not state:
+        return {
+            "license_status": "unknown",
+            "license_is_valid": False,
+            "license_active": False,
+            "license_last_validated_at": None,
+            "license_expires_at": None,
+            "license_grace_until": None,
+            "license_last_error": None,
+        }
+
+    now = eat_now_naive()
+    in_grace = bool(state.grace_until and now <= state.grace_until)
+    active = bool(state.is_valid or in_grace)
+
+    return {
+        "license_status": state.status,
+        "license_is_valid": bool(state.is_valid),
+        "license_active": active,
+        "license_last_validated_at": state.last_validated_at.isoformat() if state.last_validated_at else None,
+        "license_expires_at": state.expires_at.isoformat() if state.expires_at else None,
+        "license_grace_until": state.grace_until.isoformat() if state.grace_until else None,
+        "license_last_error": state.last_error,
+    }
+
 
 @cloud_bp.route("/config", methods=["GET"])
 @jwt_required()
 @roles_required("admin", "manager")
 def get_cloud_config():
     cfg = _ensure_instance_config()
-    return jsonify(_serialize_config(cfg)), 200
+    state = db.session.get(CloudLicenseState, 1)
+    payload = _serialize_config(cfg)
+    payload.update(_serialize_license_state(state))
+    return jsonify(payload), 200
 
 
 @cloud_bp.route("/config", methods=["PUT"])
@@ -56,4 +86,7 @@ def update_cloud_config():
             state.last_error = None
             db.session.commit()
 
-    return jsonify(_serialize_config(cfg)), 200
+    state = db.session.get(CloudLicenseState, 1)
+    payload = _serialize_config(cfg)
+    payload.update(_serialize_license_state(state))
+    return jsonify(payload), 200

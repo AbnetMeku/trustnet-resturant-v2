@@ -7,6 +7,18 @@ This repository runs POS and Inventory as separate Flask services while keeping 
 - POS service: `run_pos.py` (default port `5000`)
 - Inventory service: `run_inventory.py` (default port `5001`)
 
+## Frontend (Vite)
+
+Run locally:
+
+```bash
+cd frontend
+npm install
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+The dev server proxies `/api/*` to the POS API and `/api/inventory/*` to the Inventory API via `frontend/vite.config.js`.
+
 ## Environment Variables
 
 Required existing DB/env vars:
@@ -88,6 +100,37 @@ Demo logins created:
 - Manager: `manager_demo` / `manager123`
 - Cashier: `cashier_demo` / `cashier123`
 - Waiters: `waiter_demo_1..8` / `waiter123` (PINs `1001..1008`)
+- Stations (PIN): `1234` (Hot Kitchen, Grill, Bar, Pastry)
+
+## Admin Settings UI
+
+Settings → tabs:
+
+- Branding
+- Operations
+- License (shows license status, device name, fingerprint, and key update)
+
+## E2E Tests (Playwright)
+
+Install browsers once:
+
+```bash
+cd frontend
+npx playwright install
+```
+
+Run tests (ensure backend/inventory are running and seeded demo data exists):
+
+```bash
+cd frontend
+E2E_BASE_URL=http://127.0.0.1:5173 npm run test:e2e -- --project=chromium
+```
+
+Optional overrides:
+
+- `E2E_ADMIN_USERNAME` / `E2E_ADMIN_PASSWORD`
+- `E2E_WAITER_PIN`
+- `E2E_STATION_PIN`
 
 ## Docker (4 Containers)
 

@@ -30,7 +30,10 @@ export default function MyTables() {
   }, [authToken, user]);
 
   return (
-    <div className="p-6 dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100">
+    <div
+      className="p-6 dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100"
+      data-testid="waiter-tables-view"
+    >
       <h1 className="text-3xl font-bold mb-6 text-center">ጠረጴዛዎች</h1>
 
       {loading ? (

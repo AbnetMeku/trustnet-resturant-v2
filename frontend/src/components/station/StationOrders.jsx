@@ -101,7 +101,7 @@ export default function StationOrders() {
 
   if (isLoading) {
     return (
-      <p className="text-center mt-10 text-gray-400 dark:text-gray-500">
+      <p className="text-center mt-10 text-gray-400 dark:text-gray-500" data-testid="kds-orders-root">
         Loading KDS orders...
       </p>
     );
@@ -109,14 +109,14 @@ export default function StationOrders() {
 
   if (!pendingOrders.length) {
     return (
-      <p className="text-center mt-10 text-gray-400 dark:text-gray-500">
+      <p className="text-center mt-10 text-gray-400 dark:text-gray-500" data-testid="kds-orders-root">
         ምንም ትዕዛዝ የለም በአሁን ጊዜ
       </p>
     );
   }
 
   return (
-    <div className="h-full p-4">
+    <div className="h-full p-4" data-testid="kds-orders-root">
       <div className="mb-4 flex items-center justify-end gap-2">
         {isRefreshing && (
           <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -126,6 +126,7 @@ export default function StationOrders() {
         <button
           type="button"
           onClick={() => fetchOrders()}
+          data-testid="kds-orders-refresh"
           className="px-3 py-1.5 text-sm rounded-md border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
         >
           Refresh

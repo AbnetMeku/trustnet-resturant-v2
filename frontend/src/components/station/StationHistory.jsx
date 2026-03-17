@@ -137,6 +137,7 @@ export default function StationHistory() {
           <select
             value={filterWaiter}
             onChange={(e) => setFilterWaiter(e.target.value)}
+            data-testid="kds-history-waiter-filter"
             className="p-2 rounded-lg border text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700"
           >
             <option value="">All Waiters</option>
@@ -156,6 +157,7 @@ export default function StationHistory() {
             value={filterTableNumber}
             onChange={(e) => setFilterTableNumber(e.target.value)}
             placeholder="All"
+            data-testid="kds-history-table-filter"
             className="p-2 rounded-lg border text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 w-28"
           />
         </div>
@@ -166,6 +168,7 @@ export default function StationHistory() {
             type="date"
             value={filterDate}
             onChange={(e) => setFilterDate(e.target.value)}
+            data-testid="kds-history-date-filter"
             className="p-2 rounded-lg border text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 w-52"
             max={today}
           />
@@ -198,6 +201,7 @@ export default function StationHistory() {
                 <button
                   className="text-blue-500 text-sm underline ml-2"
                   onClick={() => setShowItemsModal(true)}
+                  data-testid="kds-history-open-items"
                 >
                   ሙሉ ዝርዝር
                 </button>
@@ -272,11 +276,18 @@ export default function StationHistory() {
       )}
 
       {showItemsModal && (
-        <div className="fixed inset-0 bg-black/50 flex justify-center items-center p-4 z-50">
+        <div
+          className="fixed inset-0 bg-black/50 flex justify-center items-center p-4 z-50"
+          data-testid="kds-history-modal"
+        >
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl w-full max-w-lg overflow-y-auto max-h-[80vh]">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">አጠቃላይ የተሸጡ እቃዎች</h3>
-              <button className="text-red-500 font-bold" onClick={() => setShowItemsModal(false)}>
+              <button
+                className="text-red-500 font-bold"
+                onClick={() => setShowItemsModal(false)}
+                data-testid="kds-history-close-items"
+              >
                 ✕
               </button>
             </div>

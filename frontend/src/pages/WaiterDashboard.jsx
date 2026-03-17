@@ -116,6 +116,7 @@ export default function WaiterDashboard() {
                   key={section.id}
                   onClick={() => handleSelect(section.id)}
                   disabled={section.id === "orders" && isShiftClosedToday}
+                  data-testid={`waiter-tab-${section.id}`}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition ${
                     active === section.id
                       ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"

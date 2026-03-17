@@ -74,6 +74,7 @@ export default function Login() {
             onChange={(e) => setUsername(e.target.value)}
             placeholder="መለያ ቁጥር ወይም ስም"
             required
+            data-testid="login-username"
             className="w-full px-4 py-2 border border-white/30 rounded-lg bg-white/10 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
         </div>
@@ -86,12 +87,14 @@ export default function Login() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="ሚስጥር ቁጥር"
             required
+            data-testid="login-password"
             className="w-full px-4 py-2 border border-white/30 rounded-lg bg-white/10 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
         </div>
 
         <button
           type="submit"
+          data-testid="login-submit"
           className="w-full bg-blue-600/80 hover:bg-blue-700/80 text-white font-semibold py-2 rounded-lg transition-colors"
         >
           Login | ግባ

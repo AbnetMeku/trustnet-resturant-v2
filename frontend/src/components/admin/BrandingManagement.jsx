@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import CloudSettings from "@/components/admin/CloudSettings";
 import {
   Select,
   SelectContent,
@@ -322,15 +323,30 @@ export default function BrandingManagement() {
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="bg-white/15 text-white">
-                  <TabsTrigger value="branding" className="data-[state=active]:bg-white data-[state=active]:text-slate-950">
-                    Branding
-                  </TabsTrigger>
-                  <TabsTrigger value="operations" className="data-[state=active]:bg-white data-[state=active]:text-slate-950">
-                    Operations
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <TabsList className="bg-white/15 text-white">
+                <TabsTrigger
+                  value="branding"
+                  className="data-[state=active]:bg-white data-[state=active]:text-slate-950"
+                  data-testid="settings-tab-branding"
+                >
+                  Branding
+                </TabsTrigger>
+                <TabsTrigger
+                  value="operations"
+                  className="data-[state=active]:bg-white data-[state=active]:text-slate-950"
+                  data-testid="settings-tab-operations"
+                >
+                  Operations
+                </TabsTrigger>
+                <TabsTrigger
+                  value="license"
+                  className="data-[state=active]:bg-white data-[state=active]:text-slate-950"
+                  data-testid="settings-tab-license"
+                >
+                  License
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
               <Button
                 variant="outline"
                 onClick={handleResetDefaults}
@@ -608,6 +624,12 @@ export default function BrandingManagement() {
               </div>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="license" className="mt-0">
+          <Card className="admin-card p-4 space-y-4 backdrop-blur-sm">
+            <CloudSettings view="license" />
+          </Card>
         </TabsContent>
       </Tabs>
 

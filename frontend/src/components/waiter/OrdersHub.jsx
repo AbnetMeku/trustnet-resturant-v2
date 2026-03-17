@@ -43,6 +43,7 @@ export default function OrdersHub({ isShiftClosedToday = false }) {
             role="button"
             aria-disabled={isShiftClosedToday}
             aria-label="New Order"
+            data-testid="waiter-new-order-card"
             onKeyDown={(e) =>
               !isShiftClosedToday && (e.key === "Enter" || e.key === " ") && setView("new")
             }
@@ -61,6 +62,7 @@ export default function OrdersHub({ isShiftClosedToday = false }) {
             role="button"
             aria-disabled={isShiftClosedToday}
             aria-label="Active Orders"
+            data-testid="waiter-active-order-card"
             onKeyDown={(e) =>
               !isShiftClosedToday && (e.key === "Enter" || e.key === " ") && setView("active")
             }
