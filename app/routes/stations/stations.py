@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify, abort
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import jwt_required
 from app.extensions import db
-from app.services.cloud_sync import queue_cloud_sync_delete
+from app.services.cloud_sync import queue_cloud_sync_delete, queue_cloud_sync_upsert
 from app.models.models import Station
 from app.utils.decorators import roles_required
 
@@ -81,6 +81,7 @@ def create_station():
     if cashier_printer:
         Station.query.filter(Station.id != station.id).update({"cashier_printer": False})
     db.session.commit()
+    queue_cloud_sync_upsert("station", station)
 
     response = station_to_dict(station)
     response["message"] = f"Station '{station.name}' created successfully."
@@ -144,6 +145,7 @@ def update_station(station_id):
             Station.query.filter(Station.id != station.id).update({"cashier_printer": False})
 
     db.session.commit()
+    queue_cloud_sync_upsert("station", station)
     response = station_to_dict(station)
     response["message"] = f"Station '{station.name}' updated successfully."
     return jsonify(response), 200

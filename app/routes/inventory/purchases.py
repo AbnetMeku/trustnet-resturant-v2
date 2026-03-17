@@ -4,6 +4,7 @@ from app.extensions import db
 from app.models import InventoryItem, StoreStock, StockPurchase
 from app.services.inventory_service import update_store_snapshot_purchase
 from app.utils.timezone import eat_now_naive
+from app.services.cloud_sync import queue_cloud_sync_upsert
 
 inventory_purchase_bp = Blueprint("inventory_purchase_bp", __name__, url_prefix="/inventory/purchases")
 
@@ -60,6 +61,8 @@ def create_stock_purchase():
 
     update_store_snapshot_purchase(inventory_item_id, quantity, opening_quantity=opening_quantity)
     db.session.commit()
+    queue_cloud_sync_upsert("stock_purchase", purchase)
+    queue_cloud_sync_upsert("store_stock", store_stock)
 
     return jsonify({"msg": "Purchase recorded successfully", "purchase_id": purchase.id}), 201
 
@@ -123,6 +126,8 @@ def update_purchase(purchase_id):
     purchase.status = "Updated"
     update_store_snapshot_purchase(purchase.inventory_item_id, quantity_diff, opening_quantity=opening_quantity)
     db.session.commit()
+    queue_cloud_sync_upsert("stock_purchase", purchase)
+    queue_cloud_sync_upsert("store_stock", stock)
 
     return jsonify({"msg": "Purchase updated successfully"}), 200
 
@@ -152,5 +157,7 @@ def delete_purchase(purchase_id):
         opening_quantity=opening_quantity,
     )
     db.session.commit()
+    queue_cloud_sync_upsert("stock_purchase", purchase)
+    queue_cloud_sync_upsert("store_stock", stock)
 
     return jsonify({"msg": "Purchase deleted and store stock adjusted"}), 200

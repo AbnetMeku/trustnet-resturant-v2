@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, abort
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from app.extensions import db
 from app.models.models import Table, TableNumberCounter, User
-from app.services.cloud_sync import queue_cloud_sync_delete
+from app.services.cloud_sync import queue_cloud_sync_delete, queue_cloud_sync_upsert
 from app.services.waiter_profiles import waiter_can_access_table
 from app.services.table_numbers import ensure_table_number_counter
 from app.utils.decorators import roles_required
@@ -84,6 +84,7 @@ def create_table():
 
     db.session.add(table)
     db.session.commit()
+    queue_cloud_sync_upsert("table", table)
     return jsonify(table_to_dict(table)), 201
 
 # ---- GET SINGLE TABLE ----
@@ -122,6 +123,7 @@ def update_table(table_id):
         table.waiters = waiters
 
     db.session.commit()
+    queue_cloud_sync_upsert("table", table)
     return jsonify(table_to_dict(table)), 200
 
 # ---- DELETE TABLE ----

@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from app.services.inventory_integration import send_inventory_adjustment_or_queue
 from app.services.waiter_profiles import waiter_allowed_station_ids, waiter_can_access_table
 from app.utils.timezone import get_eat_today, eat_now_naive
-from app.services.cloud_sync import _upsert_outbox_event, _timestamp_suffix
+from app.services.cloud_sync import _upsert_outbox_event, _timestamp_suffix, queue_cloud_sync_upsert
 
 
 orders_bp = Blueprint("orders_bp", __name__, url_prefix="/orders")
@@ -322,6 +322,7 @@ def create_order():
     recalc_order_total(order)
     try:
         db.session.commit()
+        queue_cloud_sync_upsert("order", order)
         create_station_print_jobs(order, only_new_items=True, item_ids=created_item_ids)
         logger.info(f"Created order {order.id} for table {table_id} by user {user_id}")
     except IntegrityError:
@@ -424,6 +425,7 @@ def add_order_item(order_id):
     recalc_order_total(order)
     try:
         db.session.commit()
+        queue_cloud_sync_upsert("order", order)
         create_station_print_jobs(order, only_new_items=True, item_ids=created_item_ids)
         logger.info(f"Added items to order {order.id} by user {user_id}")
     except Exception as e:
@@ -469,6 +471,7 @@ def update_order(order_id):
 
     try:
         db.session.commit()
+        queue_cloud_sync_upsert("order", order)
         logger.info(f"Updated order {order_id} status to {status} by user {user_id}")
 
     except Exception as e:
@@ -644,6 +647,7 @@ def update_order_item(order_id, item_id):
     recalc_order_total(order)
     try:
         db.session.commit()
+        queue_cloud_sync_upsert("order", order)
         logger.info(
             f"Updated order item {item_id} in order {order_id} by user {user_id} ({roles})"
         )
@@ -671,6 +675,8 @@ def delete_order(order_id):
         event_id = f"order-{order_id}-delete-{_timestamp_suffix(eat_now_naive())}"
         payload = {"id": order_id, "order_id": order_id}
         _upsert_outbox_event(event_id, "order", str(order_id), "delete", payload)
+        OrderItem.query.filter_by(order_id=order_id).delete(synchronize_session=False)
+        PrintJob.query.filter_by(order_id=order_id).delete(synchronize_session=False)
         db.session.delete(order)
         db.session.commit()
         logger.info(f"Deleted order {order_id} by user {user_id}")
@@ -717,6 +723,7 @@ def void_order_item(order_id, item_id):
         recalc_order_total(order)
 
         db.session.commit()
+        queue_cloud_sync_upsert("order", order)
         logger.info(f"Voided order item {item_id} from order {order_id} by user {user_id}")
     except Exception as e:
         db.session.rollback()
@@ -764,5 +771,6 @@ def unvoid_order_item(order_id, item_id):
     # Keep order totals in sync after status changes.
     recalc_order_total(order)
     db.session.commit()
+    queue_cloud_sync_upsert("order", order)
     logger.info(f"Unvoided order item {item.id} in order {order_id}")
     return jsonify(order_to_dict(order)), 200

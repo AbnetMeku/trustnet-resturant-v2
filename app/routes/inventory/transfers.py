@@ -8,6 +8,7 @@ from app.services.inventory_service import (
     update_store_snapshot_transfer,
 )
 from app.utils.timezone import eat_now_naive
+from app.services.cloud_sync import queue_cloud_sync_upsert
 
 inventory_transfer_bp = Blueprint("inventory_transfer_bp", __name__, url_prefix="/inventory/transfers")
 
@@ -86,6 +87,9 @@ def create_transfer():
     )
     db.session.add(transfer)
     db.session.commit()
+    queue_cloud_sync_upsert("stock_transfer", transfer)
+    queue_cloud_sync_upsert("store_stock", store_stock)
+    queue_cloud_sync_upsert("station_stock", station_stock)
     return jsonify({"msg": "Stock transferred successfully", "transfer_id": transfer.id}), 201
 
 # --------------------- GET ALL TRANSFERS --------------------- #
@@ -190,6 +194,9 @@ def update_transfer(transfer_id):
     transfer.quantity = new_quantity
     transfer.status = "Updated"
     db.session.commit()
+    queue_cloud_sync_upsert("stock_transfer", transfer)
+    queue_cloud_sync_upsert("store_stock", store_stock)
+    queue_cloud_sync_upsert("station_stock", station_stock)
     return jsonify({"msg": "Transfer updated successfully"}), 200
 
 
@@ -232,4 +239,7 @@ def delete_transfer(transfer_id):
 
     transfer.status = "Deleted"
     db.session.commit()
+    queue_cloud_sync_upsert("stock_transfer", transfer)
+    queue_cloud_sync_upsert("store_stock", store_stock)
+    queue_cloud_sync_upsert("station_stock", station_stock)
     return jsonify({"msg": "Transfer deleted and stock quantities adjusted"}), 200

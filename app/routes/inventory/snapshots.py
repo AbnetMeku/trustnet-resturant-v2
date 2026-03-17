@@ -4,6 +4,7 @@ from app.extensions import db
 from app.models import StationStockSnapshot, StationStock, InventoryItem, Station
 from datetime import datetime
 from app.utils.timezone import get_eat_today
+from app.services.cloud_sync import queue_cloud_sync_delete, queue_cloud_sync_upsert
 
 inventory_snapshot_bp = Blueprint("inventory_snapshot_bp", __name__, url_prefix="/inventory/snapshots")
 
@@ -48,6 +49,7 @@ def create_snapshot():
     )
     db.session.add(snapshot)
     db.session.commit()
+    queue_cloud_sync_upsert("station_stock_snapshot", snapshot)
     return jsonify({"msg": "Snapshot created", "snapshot_id": snapshot.id}), 201
 
 
@@ -146,6 +148,7 @@ def update_snapshot(snapshot_id):
         snapshot.start_of_day_quantity + snapshot.added_quantity - snapshot.sold_quantity
     )
     db.session.commit()
+    queue_cloud_sync_upsert("station_stock_snapshot", snapshot)
     return jsonify({"msg": "Snapshot updated successfully"}), 200
 
 
@@ -158,6 +161,7 @@ def delete_snapshot(snapshot_id):
         return jsonify({"msg": "Snapshot not found"}), 404
 
     db.session.delete(snapshot)
+    queue_cloud_sync_delete("station_stock_snapshot", snapshot_id)
     db.session.commit()
     return jsonify({"msg": "Snapshot deleted"}), 200
 

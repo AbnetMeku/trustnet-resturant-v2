@@ -1213,6 +1213,11 @@ def queue_cloud_sync_upsert(entity_type: str, row) -> None:
         return
     event_id = f"{entity_type}-{entity_id}-{_timestamp_suffix(eat_now_naive())}"
     _upsert_outbox_event(event_id, entity_type, str(entity_id), "upsert", payload)
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        raise
 
 
 def queue_cloud_sync_delete(entity_type: str, entity_id: int | str) -> None:
@@ -1223,6 +1228,11 @@ def queue_cloud_sync_delete(entity_type: str, entity_id: int | str) -> None:
         payload["order_id"] = entity_id
     event_id = f"{entity_type}-{entity_id}-delete-{_timestamp_suffix(eat_now_naive())}"
     _upsert_outbox_event(event_id, entity_type, str(entity_id), "delete", payload)
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        raise
 
 
 def seed_cloud_sync_outbox() -> int:

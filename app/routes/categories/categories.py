@@ -3,7 +3,7 @@ from flask_jwt_extended import jwt_required
 from app.extensions import db
 from app.models.models import Category
 from app.utils.decorators import roles_required
-from app.services.cloud_sync import queue_cloud_sync_delete
+from app.services.cloud_sync import queue_cloud_sync_delete, queue_cloud_sync_upsert
 from decimal import Decimal
 
 categories_bp = Blueprint("categories_bp", __name__, url_prefix="/categories")
@@ -69,6 +69,7 @@ def create_category():
     category = Category(name=name, quantity_step=quantity_step)
     db.session.add(category)
     db.session.commit()
+    queue_cloud_sync_upsert("category", category)
     return jsonify(category_to_dict(category)), 201
 
 # ------------------ UPDATE ------------------
@@ -93,6 +94,7 @@ def update_category(cat_id):
         category.quantity_step = quantity_step
 
     db.session.commit()
+    queue_cloud_sync_upsert("category", category)
     return jsonify(category_to_dict(category)), 200
 
 # ------------------ DELETE ------------------

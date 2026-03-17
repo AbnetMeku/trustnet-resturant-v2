@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from app.extensions import db
 from app.models import InventoryItem, InventoryMenuLink, MenuItem
 from app.services.inventory_service import resolve_link_deduction_amount
+from app.services.cloud_sync import queue_cloud_sync_delete, queue_cloud_sync_upsert
 
 inventory_items_bp = Blueprint("inventory_items_bp", __name__, url_prefix="/inventory/items")
 
@@ -122,6 +123,7 @@ def create_inventory_item():
     )
     db.session.add(item)
     db.session.commit()
+    queue_cloud_sync_upsert("inventory_item", item)
 
     return jsonify({"msg": "Inventory item created successfully", "id": item.id}), 201
 
@@ -195,6 +197,7 @@ def update_inventory_item(item_id):
         item.is_active = bool(data.get("is_active"))
 
     db.session.commit()
+    queue_cloud_sync_upsert("inventory_item", item)
     return jsonify({"msg": "Inventory item updated successfully"}), 200
 
 
@@ -206,6 +209,7 @@ def delete_inventory_item(item_id):
         return jsonify({"msg": "Inventory item not found"}), 404
 
     db.session.delete(item)
+    queue_cloud_sync_delete("inventory_item", item_id)
     db.session.commit()
     return jsonify({"msg": "Inventory item deleted"}), 200
 
@@ -221,6 +225,7 @@ def create_inventory_links(inventory_item_id):
         return jsonify({"msg": "Inventory item not found"}), 404
 
     created_links = []
+    created_link_rows = []
     skipped_links = []
 
     for group in links:
@@ -257,8 +262,11 @@ def create_inventory_links(inventory_item_id):
             )
             db.session.add(new_link)
             created_links.append(menu_item_id)
+            created_link_rows.append(new_link)
 
     db.session.commit()
+    for link in created_link_rows:
+        queue_cloud_sync_upsert("inventory_menu_link", link)
     return jsonify({"msg": "Menu links processed", "created": created_links, "skipped": skipped_links}), 201
 
 
@@ -327,6 +335,7 @@ def update_inventory_link(link_id):
             db.session.add(link)
 
         db.session.commit()
+        queue_cloud_sync_upsert("inventory_menu_link", link)
         return jsonify({"msg": "Link updated successfully"}), 200
     except IntegrityError:
         db.session.rollback()
@@ -344,5 +353,6 @@ def delete_inventory_link(link_id):
         return jsonify({"msg": "Link not found"}), 404
 
     db.session.delete(link)
+    queue_cloud_sync_delete("inventory_menu_link", link_id)
     db.session.commit()
     return jsonify({"msg": "Link deleted"}), 200

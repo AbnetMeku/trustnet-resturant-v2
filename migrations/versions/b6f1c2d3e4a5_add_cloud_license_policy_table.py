@@ -9,6 +9,12 @@ from alembic import op
 import sqlalchemy as sa
 
 
+def _table_exists(table_name):
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    return inspector.has_table(table_name)
+
+
 # revision identifiers, used by Alembic.
 revision = "b6f1c2d3e4a5"
 down_revision = "f2a1c6d7e8f9"
@@ -17,17 +23,18 @@ depends_on = None
 
 
 def upgrade():
-    op.create_table(
-        "cloud_license_policy",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("validation_interval_days", sa.Integer(), nullable=False),
-        sa.Column("grace_period_days", sa.Integer(), nullable=False),
-        sa.Column("lock_mode", sa.String(length=20), nullable=False),
-        sa.Column("last_fetched_at", sa.DateTime(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.PrimaryKeyConstraint("id"),
-    )
+    if not _table_exists("cloud_license_policy"):
+        op.create_table(
+            "cloud_license_policy",
+            sa.Column("id", sa.Integer(), nullable=False),
+            sa.Column("validation_interval_days", sa.Integer(), nullable=False),
+            sa.Column("grace_period_days", sa.Integer(), nullable=False),
+            sa.Column("lock_mode", sa.String(length=20), nullable=False),
+            sa.Column("last_fetched_at", sa.DateTime(), nullable=True),
+            sa.Column("created_at", sa.DateTime(), nullable=False),
+            sa.Column("updated_at", sa.DateTime(), nullable=False),
+            sa.PrimaryKeyConstraint("id"),
+        )
 
 
 def downgrade():

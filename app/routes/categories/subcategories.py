@@ -3,7 +3,7 @@ from flask_jwt_extended import jwt_required
 from app.extensions import db
 from app.models.models import SubCategory, Category
 from app.utils.decorators import roles_required
-from app.services.cloud_sync import queue_cloud_sync_delete
+from app.services.cloud_sync import queue_cloud_sync_delete, queue_cloud_sync_upsert
 
 subcategories_bp = Blueprint("subcategories_bp", __name__, url_prefix="/subcategories")
 
@@ -63,6 +63,7 @@ def create_subcategory():
     sc = SubCategory(name=name, category_id=category_id)
     db.session.add(sc)
     db.session.commit()
+    queue_cloud_sync_upsert("subcategory", sc)
     return jsonify(subcategory_to_dict(sc)), 201
 
 # UPDATE
@@ -84,6 +85,7 @@ def update_subcategory(sc_id):
         sc.category_id = category.id
 
     db.session.commit()
+    queue_cloud_sync_upsert("subcategory", sc)
     return jsonify(subcategory_to_dict(sc)), 200
 
 # ------------------ DELETE ------------------

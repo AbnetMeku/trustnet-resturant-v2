@@ -3,7 +3,7 @@ from flask_jwt_extended import jwt_required
 
 from app.extensions import db
 from app.models import Station, User, WaiterProfile
-from app.services.cloud_sync import queue_cloud_sync_delete
+from app.services.cloud_sync import queue_cloud_sync_delete, queue_cloud_sync_upsert
 from app.services.waiter_profiles import auto_assign_tables_for_waiter
 from app.utils.decorators import roles_required
 
@@ -93,6 +93,7 @@ def create_waiter_profile():
 
     db.session.add(profile)
     db.session.commit()
+    queue_cloud_sync_upsert("waiter_profile", profile)
     return jsonify(_profile_to_dict(profile)), 201
 
 
@@ -149,6 +150,7 @@ def update_waiter_profile(profile_id: int):
             auto_assign_tables_for_waiter(waiter, replace_existing=True)
 
     db.session.commit()
+    queue_cloud_sync_upsert("waiter_profile", profile)
     return jsonify(_profile_to_dict(profile)), 200
 
 

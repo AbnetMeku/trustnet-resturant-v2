@@ -16,6 +16,7 @@ from app.models import (
     StoreStockSnapshot,
 )
 from app.utils.timezone import get_business_day_bounds, get_eat_today
+from app.services.cloud_sync import queue_cloud_sync_delete, queue_cloud_sync_upsert
 
 inventory_stock_bp = Blueprint("inventory_stock_bp", __name__, url_prefix="/inventory/stock")
 
@@ -72,11 +73,13 @@ def create_store_stock():
     if existing_stock:
         existing_stock.quantity = _as_float(existing_stock.quantity) + quantity
         db.session.commit()
+        queue_cloud_sync_upsert("store_stock", existing_stock)
         return jsonify({"msg": "Store stock updated", "quantity": existing_stock.quantity}), 200
 
     stock = StoreStock(inventory_item_id=inventory_item_id, quantity=quantity)
     db.session.add(stock)
     db.session.commit()
+    queue_cloud_sync_upsert("store_stock", stock)
     return jsonify({"msg": "Store stock created", "id": stock.id}), 201
 
 
@@ -97,6 +100,7 @@ def update_store_stock(stock_id):
     data = request.get_json() or {}
     stock.quantity = data.get("quantity", stock.quantity)
     db.session.commit()
+    queue_cloud_sync_upsert("store_stock", stock)
     return jsonify({"msg": "Store stock updated successfully"}), 200
 
 
@@ -108,6 +112,7 @@ def delete_store_stock(stock_id):
         return jsonify({"msg": "Store stock not found"}), 404
 
     db.session.delete(stock)
+    queue_cloud_sync_delete("store_stock", stock_id)
     db.session.commit()
     return jsonify({"msg": "Store stock deleted"}), 200
 
@@ -138,11 +143,13 @@ def create_station_stock():
     if existing_stock:
         existing_stock.quantity = _as_float(existing_stock.quantity) + quantity
         db.session.commit()
+        queue_cloud_sync_upsert("station_stock", existing_stock)
         return jsonify({"msg": "Station stock updated", "quantity": existing_stock.quantity}), 200
 
     stock = StationStock(inventory_item_id=inventory_item_id, station_id=station_id, quantity=quantity)
     db.session.add(stock)
     db.session.commit()
+    queue_cloud_sync_upsert("station_stock", stock)
     return jsonify({"msg": "Station stock created", "id": stock.id}), 201
 
 
@@ -167,6 +174,7 @@ def update_station_stock(stock_id):
     data = request.get_json() or {}
     stock.quantity = data.get("quantity", stock.quantity)
     db.session.commit()
+    queue_cloud_sync_upsert("station_stock", stock)
     return jsonify({"msg": "Station stock updated successfully"}), 200
 
 
@@ -178,6 +186,7 @@ def delete_station_stock(stock_id):
         return jsonify({"msg": "Station stock not found"}), 404
 
     db.session.delete(stock)
+    queue_cloud_sync_delete("station_stock", stock_id)
     db.session.commit()
     return jsonify({"msg": "Station stock deleted"}), 200
 

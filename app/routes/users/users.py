@@ -3,7 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.extensions import db
 from app.models.models import User, WaiterProfile
 from werkzeug.security import generate_password_hash
-from app.services.cloud_sync import queue_cloud_sync_delete
+from app.services.cloud_sync import queue_cloud_sync_delete, queue_cloud_sync_upsert
 from app.services.waiter_profiles import auto_assign_tables_for_waiter
 from app.utils.decorators import roles_required
 
@@ -96,6 +96,7 @@ def create_user():
         auto_assign_tables_for_waiter(user, replace_existing=True)
 
     db.session.commit()
+    queue_cloud_sync_upsert("user", user)
     return jsonify(user_to_dict(user)), 201
 
 
@@ -205,6 +206,7 @@ def update_user(user_id):
         abort(403, "Forbidden")
 
     db.session.commit()
+    queue_cloud_sync_upsert("user", user)
     return jsonify(user_to_dict(user)), 200
 
 

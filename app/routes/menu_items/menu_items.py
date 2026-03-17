@@ -9,7 +9,7 @@ from flask import Blueprint, current_app, jsonify, request, send_from_directory
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from app.extensions import db
 from app.models.models import MenuItem, Station, SubCategory, Category, User
-from app.services.cloud_sync import queue_cloud_sync_delete
+from app.services.cloud_sync import queue_cloud_sync_delete, queue_cloud_sync_upsert
 from app.services.waiter_profiles import waiter_allowed_station_ids
 from app.utils.decorators import roles_required, extract_roles_from_claims
 from sqlalchemy import func
@@ -319,6 +319,7 @@ def create_menu_item():
     db.session.add(item)
     try:
         db.session.commit()
+        queue_cloud_sync_upsert("menu_item", item)
         logger.info(f"Created menu item {item.id}: {item.name}")
         return jsonify(menu_item_to_dict(item)), 201
     except Exception as e:
@@ -455,6 +456,7 @@ def update_menu_item(item_id):
 
     try:
         db.session.commit()
+        queue_cloud_sync_upsert("menu_item", item)
         logger.info(f"Updated menu item {item_id}: {item.name}")
         return jsonify(menu_item_to_dict(item)), 200
     except Exception as e:
