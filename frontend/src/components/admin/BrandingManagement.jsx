@@ -361,7 +361,7 @@ export default function BrandingManagement() {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-0">
-        <TabsContent value="branding" className="mt-0">
+        <TabsContent value="branding" className="mt-0" data-testid="settings-content-branding">
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <Card className="admin-card p-4 space-y-4 backdrop-blur-sm">
               <div>
@@ -443,7 +443,7 @@ export default function BrandingManagement() {
           </div>
         </TabsContent>
 
-        <TabsContent value="operations" className="mt-0">
+        <TabsContent value="operations" className="mt-0" data-testid="settings-content-operations">
           <div className="space-y-4">
             {user?.role === "admin" && (
               <Card className="admin-card space-y-4 border border-red-200/80 p-4 backdrop-blur-sm dark:border-red-900/70">
@@ -626,7 +626,7 @@ export default function BrandingManagement() {
           </div>
         </TabsContent>
 
-        <TabsContent value="license" className="mt-0">
+        <TabsContent value="license" className="mt-0" data-testid="settings-content-license">
           <Card className="admin-card p-4 space-y-4 backdrop-blur-sm">
             <CloudSettings view="license" />
           </Card>

@@ -56,9 +56,9 @@ test.describe("Admin", () => {
     await expect(page.getByText("Settings", { exact: true })).toBeVisible();
 
     await page.getByTestId("settings-tab-operations").click();
-    await expect(page.getByText("Operations", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("settings-content-operations")).toBeVisible();
 
     await page.getByTestId("settings-tab-license").click();
-    await expect(page.getByText("License", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("settings-content-license")).toBeVisible();
   });
 });
