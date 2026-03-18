@@ -1,27 +1,40 @@
-# TrustNet Restaurant - POS / Inventory Split (Phase 1)
+# TrustNet Restaurant POS (Local) - POS + Inventory + Cloud Sync
 
-This repository runs POS and Inventory as separate Flask services while keeping the same database.
+This repository runs the local POS and Inventory services against the same database, with optional cloud sync to the TrustNet cloud backend.
 
-## Services
+**Quick Start**
 
-- POS service: `run_pos.py` (default port `5000`)
-- Inventory service: `run_inventory.py` (default port `5001`)
-
-## Frontend (Vite)
-
-Run locally:
+1. Copy env template and update values:
 
 ```bash
-cd frontend
-npm install
-npm run dev -- --host 127.0.0.1 --port 5173
+copy .env.example .env
 ```
 
-The dev server proxies `/api/*` to the POS API and `/api/inventory/*` to the Inventory API via `frontend/vite.config.js`.
+2. Build and run:
 
-## Environment Variables
+```bash
+docker compose up -d --build
+```
 
-Required existing DB/env vars:
+3. Open:
+- Frontend: `http://localhost:8080`
+- POS API: `http://localhost:5000`
+
+---
+
+**Architecture**
+
+- `backend` container: POS API + PrintWorker
+- `inventory` container: Inventory API
+- `cloud-sync-agent` container: background cloud sync runner
+- `postgres` container: database
+- `frontend` container: Nginx + built UI
+
+---
+
+**Environment Variables**
+
+Create `.env` based on `.env.example`. Required:
 
 - `SECRET_KEY`
 - `DB_USER`
@@ -30,40 +43,71 @@ Required existing DB/env vars:
 - `DB_PORT`
 - `DB_NAME`
 
-Optional default admin bootstrap vars (used by backend startup):
+Inventory integration:
 
-- `DEFAULT_ADMIN_ENSURE` (default: `true`)
-- `DEFAULT_ADMIN_USERNAME` (default: `admin`)
-- `DEFAULT_ADMIN_PASSWORD` (default: `admin`)
-- `DEFAULT_ADMIN_ROLE` (default: `admin`)
-- `DEFAULT_ADMIN_RESET_PASSWORD` (default: `false`)
+- `INVENTORY_BASE_URL` (default local `http://127.0.0.1:5001`)
+- `INVENTORY_SERVICE_KEY`
+- `INVENTORY_SYNC_TIMEOUT_SECONDS`
+- `INVENTORY_OUTBOX_BATCH_SIZE`
+- `INVENTORY_OUTBOX_RETRY_INTERVAL_SECONDS`
 
-Standardized runtime database:
+Cloud sync:
 
-- `DB_NAME=trustnet_pos`
+- `CLOUD_BASE_URL` (cloud backend URL)
+- `CLOUD_TENANT_ID`
+- `CLOUD_STORE_ID`
+- `CLOUD_LICENSE_KEY`
 
-New integration vars:
+Optional default admin bootstrap (backend startup):
 
-- `INVENTORY_BASE_URL` (default: `http://127.0.0.1:5001`)
-- `INVENTORY_SERVICE_KEY` (shared secret between services)
-- `INVENTORY_SYNC_TIMEOUT_SECONDS` (default: `2`)
-- `INVENTORY_OUTBOX_BATCH_SIZE` (default: `50`)
-- `INVENTORY_OUTBOX_RETRY_INTERVAL_SECONDS` (default: `10`)
+- `DEFAULT_ADMIN_ENSURE` (default `true`)
+- `DEFAULT_ADMIN_USERNAME` (default `admin`)
+- `DEFAULT_ADMIN_PASSWORD` (default `admin`)
+- `DEFAULT_ADMIN_ROLE` (default `admin`)
+- `DEFAULT_ADMIN_RESET_PASSWORD` (default `false`)
 
-## How POS-Inventory Communication Works
+---
 
-1. POS sends inventory adjustment to Inventory service over HTTP.
-2. If Inventory service is down/unreachable, POS writes the event into `inventory_outbox`.
-3. A background worker in POS retries pending outbox events.
+**Docker**
 
-This allows POS order/KDS flow to continue even if inventory is temporarily unavailable.
+Start all containers:
 
-## New Internal Inventory Endpoint
+```bash
+docker compose up -d --build
+```
+
+Stop:
+
+```bash
+docker compose down
+```
+
+Reset all local data:
+
+```bash
+docker compose down -v
+```
+
+Ports:
+- `8080`: Frontend
+- `5000`: POS API
+- `5001`: Inventory API (internal by default, not exposed to host)
+- `5432`: Postgres
+
+---
+
+**POS ⇄ Inventory Integration**
+
+Flow:
+1. POS calls Inventory API for stock adjustments.
+2. If Inventory is down, POS writes to `inventory_outbox`.
+3. Background worker retries until Inventory is reachable.
+
+Internal Inventory endpoint (POS → Inventory):
 
 - `POST /api/inventory/internal/adjust`
-- Required header: `X-Service-Key: <INVENTORY_SERVICE_KEY>`
-
-Payload:
+- Header: `X-Service-Key: <INVENTORY_SERVICE_KEY>`
+- Payload:
 
 ```json
 {
@@ -74,52 +118,86 @@ Payload:
 }
 ```
 
-## Demo Data Seed
+---
 
-Use the standardized bootstrap script to reset DB, apply migrations, and seed demo data in one command:
+**Cloud Sync**
+
+Cloud sync runs as a background worker (`cloud-sync-agent`). It:
+- Pushes local changes to cloud.
+- Pulls cloud changes to local.
+- Uses a durable outbox for retries.
+
+Recommended: keep both event-driven sync and timed sync (safety net).
+
+If sync stalls:
+1. Check `cloud_sync_outbox` for `pending` rows.
+2. Check cloud backend logs for rejected events.
+3. Ensure `CLOUD_*` config is correct.
+
+---
+
+**Demo Data Seed**
+
+Reset DB, run migrations, and seed demo data:
 
 ```bash
 python bootstrap_pos_db.py --db-name trustnet_pos --target-orders 500 --days 45 --seed 77
 ```
 
-If you only want reset + migrations (no seed):
+Migrations only (no seed):
 
 ```bash
 python bootstrap_pos_db.py --db-name trustnet_pos --skip-seed
 ```
 
-Legacy seed-only command (kept for reference):
+Legacy seed-only:
 
 ```bash
 python seed_demo_data.py --target-orders 500 --days 45 --seed 77
 ```
 
-Demo logins created:
-
+Demo logins:
 - Admin: `admin_demo` / `admin123`
 - Manager: `manager_demo` / `manager123`
 - Cashier: `cashier_demo` / `cashier123`
 - Waiters: `waiter_demo_1..8` / `waiter123` (PINs `1001..1008`)
 - Stations (PIN): `1234` (Hot Kitchen, Grill, Bar, Pastry)
 
-## Admin Settings UI
+---
+
+**Frontend (Vite) - Dev Mode**
+
+```bash
+cd frontend
+npm install
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+Vite proxy:
+- `/api/*` → POS API
+- `/api/inventory/*` → Inventory API
+
+---
+
+**Admin Settings UI**
 
 Settings → tabs:
-
 - Branding
 - Operations
-- License (shows license status, device name, fingerprint, and key update)
+- License (status, device name, fingerprint, key update)
 
-## E2E Tests (Playwright)
+---
 
-Install browsers once:
+**E2E Tests (Playwright)**
+
+Install browsers:
 
 ```bash
 cd frontend
 npx playwright install
 ```
 
-Run tests (ensure backend/inventory are running and seeded demo data exists):
+Run:
 
 ```bash
 cd frontend
@@ -127,34 +205,32 @@ E2E_BASE_URL=http://127.0.0.1:5173 npm run test:e2e -- --project=chromium
 ```
 
 Optional overrides:
-
-- `E2E_ADMIN_USERNAME` / `E2E_ADMIN_PASSWORD`
+- `E2E_ADMIN_USERNAME`
+- `E2E_ADMIN_PASSWORD`
 - `E2E_WAITER_PIN`
 - `E2E_STATION_PIN`
 
-## Docker (4 Containers)
+---
 
-This repo now includes a 4-container setup:
+**Troubleshooting**
 
-- `frontend` (Nginx + built React app)
-- `backend` (POS API + PrintWorker in same container)
-- `inventory` (Inventory API)
-- `postgres` (PostgreSQL)
+Print jobs stuck in `pending`:
+- Check `print_jobs.error_message` for unreachable printer.
+- Verify printer config in Stations.
 
-Run:
+Cloud sync not pushing:
+- Check `cloud_sync_outbox` for `pending` rows.
+- Ensure cloud accepts events (no unique constraint conflicts).
+- Check cloud backend logs for sync errors.
 
-```bash
-docker compose up -d --build
-```
+Inventory API errors:
+- Ensure `INVENTORY_SERVICE_KEY` matches.
+- Check Inventory container is healthy.
 
-App URLs:
+---
 
-- Frontend: `http://localhost:8080`
-- POS API: `http://localhost:5000`
-- Inventory API: `http://localhost:5001`
+**Production Notes**
 
-Notes:
-
-- Backend automatically runs `flask db upgrade` on startup.
-- Backend automatically runs default admin bootstrap on startup; set `DEFAULT_ADMIN_*` in `.env` for production.
-- Frontend proxies `/api/inventory/*` to inventory container and other `/api/*` routes to backend.
+- Keep Postgres volume persistent to avoid device fingerprint changes.
+- Keep timed sync enabled as a safety net.
+- Set strong `SECRET_KEY` and admin credentials.
