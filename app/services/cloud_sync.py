@@ -233,6 +233,12 @@ def reset_cloud_tenant() -> None:
         timeout=_timeout(),
     )
     response.raise_for_status()
+    # Clear local outbox so next sync re-queues everything.
+    CloudSyncOutbox.query.delete(synchronize_session=False)
+    state = _ensure_sync_state()
+    state.last_pulled_event_id = 0
+    state.last_sync_error = None
+    db.session.commit()
 
 
 def _policy_defaults() -> dict:
@@ -1723,6 +1729,8 @@ def run_cloud_sync_cycle() -> dict:
             state.last_pulled_event_id = 0
             state.last_full_replace_at = eat_now_naive()
             state.last_sync_error = None
+            # Clear local outbox so all entities are re-queued after a reset.
+            CloudSyncOutbox.query.delete(synchronize_session=False)
             db.session.commit()
             result["full_replaced"] = True
 

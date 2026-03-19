@@ -2,7 +2,20 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 
 from app.extensions import db
-from app.models.models import CloudLicenseState
+from app.models.models import (
+    BrandingSettings,
+    Category,
+    CloudLicenseState,
+    CloudSyncOutbox,
+    CloudSyncState,
+    MenuItem,
+    Station,
+    SubCategory,
+    Table,
+    User,
+    WaiterProfile,
+)
+from app.models.inventory_models import InventoryItem
 from app.services.cloud_sync import _ensure_instance_config
 from app.utils.decorators import roles_required
 from app.utils.timezone import eat_now_naive
@@ -48,6 +61,13 @@ def _serialize_license_state(state):
     }
 
 
+def _count(model) -> int:
+    try:
+        return db.session.query(model).count()
+    except Exception:
+        return 0
+
+
 @cloud_bp.route("/config", methods=["GET"])
 @jwt_required()
 @roles_required("admin", "manager")
@@ -89,4 +109,37 @@ def update_cloud_config():
     state = db.session.get(CloudLicenseState, 1)
     payload = _serialize_config(cfg)
     payload.update(_serialize_license_state(state))
+    return jsonify(payload), 200
+
+
+@cloud_bp.route("/sync/status", methods=["GET"])
+@jwt_required()
+@roles_required("admin", "manager")
+def get_cloud_sync_status():
+    state = db.session.get(CloudSyncState, 1)
+    pending_outbox = CloudSyncOutbox.query.filter_by(status="pending").count()
+    failed_outbox = CloudSyncOutbox.query.filter_by(status="failed").count()
+    payload = {
+        "sync_state": {
+            "last_pulled_event_id": state.last_pulled_event_id if state else 0,
+            "last_synced_at": state.last_synced_at.isoformat() if state and state.last_synced_at else None,
+            "last_full_replace_at": state.last_full_replace_at.isoformat() if state and state.last_full_replace_at else None,
+            "last_sync_error": state.last_sync_error if state else None,
+        },
+        "outbox": {
+            "pending": pending_outbox,
+            "failed": failed_outbox,
+        },
+        "local_counts": {
+            "users": _count(User),
+            "waiter_profiles": _count(WaiterProfile),
+            "stations": _count(Station),
+            "tables": _count(Table),
+            "categories": _count(Category),
+            "subcategories": _count(SubCategory),
+            "menu_items": _count(MenuItem),
+            "inventory_items": _count(InventoryItem),
+            "branding_settings": _count(BrandingSettings),
+        },
+    }
     return jsonify(payload), 200
