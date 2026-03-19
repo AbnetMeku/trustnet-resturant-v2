@@ -1,8 +1,11 @@
+import json
 from flask import Blueprint, request, jsonify, abort
+from sqlalchemy import text
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from app.extensions import db
-from app.models.models import Table, TableNumberCounter, User
-from app.services.cloud_sync import queue_cloud_sync_delete, queue_cloud_sync_upsert
+from app.models.models import Table, TableNumberCounter, User, waiter_table_assoc
+from app.services.cloud_sync import _timestamp_suffix, queue_cloud_sync_upsert
+from app.utils.timezone import eat_now_naive
 from app.services.waiter_profiles import waiter_can_access_table
 from app.services.table_numbers import ensure_table_number_counter
 from app.utils.decorators import roles_required
@@ -135,12 +138,42 @@ def update_table(table_id):
 @jwt_required()
 @roles_required("admin", "manager")
 def delete_table(table_id):
-    table = db.session.get(Table, table_id)
-    if not table:
-        abort(404)
-    # Soft-delete to preserve order history that references this table.
-    table.status = "deleted"
-    table.waiters = []
-    queue_cloud_sync_delete("table", table_id)
-    db.session.commit()
+    # Use a direct transaction to avoid ORM side effects on orders.
+    now = eat_now_naive()
+    payload = {"id": table_id}
+    event_id = f"table-{table_id}-delete-{_timestamp_suffix(now)}"
+    with db.engine.begin() as conn:
+        exists = conn.execute(
+            text("SELECT 1 FROM tables WHERE id = :table_id"),
+            {"table_id": table_id},
+        ).scalar()
+        if not exists:
+            abort(404)
+        # Soft-delete to preserve order history that references this table.
+        conn.execute(
+            text("DELETE FROM waiter_table_assoc WHERE table_id = :table_id"),
+            {"table_id": table_id},
+        )
+        conn.execute(
+            text("UPDATE tables SET status = 'deleted' WHERE id = :table_id"),
+            {"table_id": table_id},
+        )
+        conn.execute(
+            text(
+                """
+                INSERT INTO cloud_sync_outbox
+                    (event_id, entity_type, entity_id, operation, payload, status, retry_count, created_at, updated_at)
+                VALUES
+                    (:event_id, 'table', :entity_id, 'delete', CAST(:payload AS JSON), 'pending', 0, :now, :now)
+                ON CONFLICT (event_id)
+                DO UPDATE SET payload = EXCLUDED.payload, updated_at = EXCLUDED.updated_at
+                """
+            ),
+            {
+                "event_id": event_id,
+                "entity_id": str(table_id),
+                "payload": json.dumps(payload),
+                "now": now,
+            },
+        )
     return jsonify({"message": "Table deleted"}), 200
