@@ -427,9 +427,12 @@ def _ensure_inventory_item_for_cloud_id(cloud_id: str | int | None, name: str | 
         return db.session.get(InventoryItem, local_id)
     item = _find_inventory_item_by_name(name) if name else None
     if item is None:
-        fallback_name = name or f"Item-{cloud_id}"
+        # If we don't have a name, do not create placeholder inventory items.
+        # This avoids Item-<id> rows when stock/menu link events arrive before the item payload.
+        if not name:
+            return None
         item = InventoryItem(
-            name=fallback_name,
+            name=name,
             unit="Bottle",
             serving_unit="unit",
             servings_per_unit=1.0,
