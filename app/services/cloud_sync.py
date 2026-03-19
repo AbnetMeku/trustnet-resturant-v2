@@ -835,7 +835,11 @@ def _apply_cloud_event(entity_type: str, operation: str, payload: dict) -> None:
             else:
                 row = None
             if row is not None:
-                db.session.delete(row)
+                if entity_type == "table":
+                    row.status = "deleted"
+                    row.waiters = []
+                else:
+                    db.session.delete(row)
         _delete_mapping(entity_type, cloud_id)
         return
 

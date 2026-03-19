@@ -57,9 +57,13 @@ def get_tables():
 
     if "waiter" in roles:
         user = db.session.get(User, int(get_jwt_identity()))
-        tables = [table for table in user.tables if waiter_can_access_table(user, table)]
+        tables = [
+            table
+            for table in user.tables
+            if waiter_can_access_table(user, table) and table.status != "deleted"
+        ]
     else:
-        tables = Table.query.all()
+        tables = Table.query.filter(Table.status != "deleted").all()
     return jsonify([table_to_dict(t) for t in tables]), 200
 
 # ---- CREATE TABLE ----
@@ -134,7 +138,9 @@ def delete_table(table_id):
     table = db.session.get(Table, table_id)
     if not table:
         abort(404)
-    db.session.delete(table)
+    # Soft-delete to preserve order history that references this table.
+    table.status = "deleted"
+    table.waiters = []
     queue_cloud_sync_delete("table", table_id)
     db.session.commit()
     return jsonify({"message": "Table deleted"}), 200

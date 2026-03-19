@@ -227,7 +227,7 @@ class PrintWorker:
             lines.append(prep_tag)
 
         lines.append(f"Order ID: {job.order_id}")
-        lines.append(f"Time: {eat_now().strftime('%H:%M:%S')}")
+        lines.append(f"Date: {eat_now().strftime('%Y-%m-%d %H:%M:%S')}")
         lines.append(f"Waiter: {payload.get('waiter', 'Unknown')}  Table: {payload.get('table', 'N/A')}")
         lines.append("." * 32)
 
