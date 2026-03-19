@@ -1213,6 +1213,8 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
             "total_amount": float(row.total_amount or 0),
             "table_number": row.table.number if row.table else None,
             "user_name": row.user.username if row.user else None,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "updated_at": row.updated_at.isoformat() if row.updated_at else None,
             "items": items_payload,
         }
     return None
@@ -1531,6 +1533,8 @@ def seed_cloud_sync_outbox() -> int:
                           "total_amount": float(row.total_amount or 0),
                           "table_number": row.table.number if row.table else None,
                           "user_name": row.user.username if row.user else None,
+                          "created_at": row.created_at.isoformat() if row.created_at else None,
+                          "updated_at": row.updated_at.isoformat() if row.updated_at else None,
                           "items": [
                               {
                                   "id": item.id,
