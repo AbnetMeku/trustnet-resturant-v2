@@ -1,11 +1,14 @@
+import json
 from flask import Blueprint, jsonify, request
+from sqlalchemy import text
 from flask_jwt_extended import jwt_required
 from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.models import InventoryItem, InventoryMenuLink, MenuItem
 from app.services.inventory_service import resolve_link_deduction_amount
-from app.services.cloud_sync import queue_cloud_sync_delete, queue_cloud_sync_upsert
+from app.services.cloud_sync import _timestamp_suffix, queue_cloud_sync_upsert
+from app.utils.timezone import eat_now_naive
 
 inventory_items_bp = Blueprint("inventory_items_bp", __name__, url_prefix="/inventory/items")
 
@@ -204,13 +207,72 @@ def update_inventory_item(item_id):
 @inventory_items_bp.route("/<int:item_id>", methods=["DELETE"])
 @jwt_required()
 def delete_inventory_item(item_id):
-    item = InventoryItem.query.get(item_id)
-    if not item:
-        return jsonify({"msg": "Inventory item not found"}), 404
+    # Hard-delete inventory item and its history safely via direct SQL.
+    now = eat_now_naive()
+    payload = {"id": item_id}
+    event_id = f"inventory_item-{item_id}-delete-{_timestamp_suffix(now)}"
+    with db.engine.begin() as conn:
+        exists = conn.execute(
+            text("SELECT 1 FROM inventory_items WHERE id = :item_id"),
+            {"item_id": item_id},
+        ).scalar()
+        if not exists:
+            return jsonify({"msg": "Inventory item not found"}), 404
 
-    db.session.delete(item)
-    queue_cloud_sync_delete("inventory_item", item_id)
-    db.session.commit()
+        # Remove dependent rows first.
+        conn.execute(
+            text("DELETE FROM inventory_menu_links WHERE inventory_item_id = :item_id"),
+            {"item_id": item_id},
+        )
+        conn.execute(
+            text("DELETE FROM station_stock WHERE inventory_item_id = :item_id"),
+            {"item_id": item_id},
+        )
+        conn.execute(
+            text("DELETE FROM store_stock WHERE inventory_item_id = :item_id"),
+            {"item_id": item_id},
+        )
+        conn.execute(
+            text("DELETE FROM stock_purchases WHERE inventory_item_id = :item_id"),
+            {"item_id": item_id},
+        )
+        conn.execute(
+            text("DELETE FROM stock_transfers WHERE inventory_item_id = :item_id"),
+            {"item_id": item_id},
+        )
+        conn.execute(
+            text("DELETE FROM station_stock_snapshots WHERE inventory_item_id = :item_id"),
+            {"item_id": item_id},
+        )
+        conn.execute(
+            text("DELETE FROM store_stock_snapshots WHERE inventory_item_id = :item_id"),
+            {"item_id": item_id},
+        )
+
+        conn.execute(
+            text("DELETE FROM inventory_items WHERE id = :item_id"),
+            {"item_id": item_id},
+        )
+
+        # Enqueue cloud sync delete directly to avoid ORM side effects.
+        conn.execute(
+            text(
+                """
+                INSERT INTO cloud_sync_outbox
+                    (event_id, entity_type, entity_id, operation, payload, status, retry_count, created_at, updated_at)
+                VALUES
+                    (:event_id, 'inventory_item', :entity_id, 'delete', CAST(:payload AS JSON), 'pending', 0, :now, :now)
+                ON CONFLICT (event_id)
+                DO UPDATE SET payload = EXCLUDED.payload, updated_at = EXCLUDED.updated_at
+                """
+            ),
+            {
+                "event_id": event_id,
+                "entity_id": str(item_id),
+                "payload": json.dumps(payload),
+                "now": now,
+            },
+        )
     return jsonify({"msg": "Inventory item deleted"}), 200
 
 
