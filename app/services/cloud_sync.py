@@ -1194,12 +1194,26 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
             "closing_quantity": row.closing_quantity,
         }
     if entity_type == "order":
+        items_payload = []
+        for item in (row.items or []):
+            menu_name = item.menu_item.name if item.menu_item else None
+            items_payload.append(
+                {
+                    "id": item.id,
+                    "menu_item_id": item.menu_item_id,
+                    "name": menu_name,
+                    "quantity": float(item.quantity or 0),
+                    "price": float(item.price or 0),
+                    "status": item.status,
+                }
+            )
         return {
             "order_id": row.id,
             "status": row.status,
             "total_amount": float(row.total_amount or 0),
             "table_number": row.table.number if row.table else None,
             "user_name": row.user.username if row.user else None,
+            "items": items_payload,
         }
     return None
 
@@ -1507,21 +1521,32 @@ def seed_cloud_sync_outbox() -> int:
         ),
         (
             "order",
-            (
-                (
-                    row.id,
-                    row.updated_at,
-                    {
-                        "order_id": row.id,
-                        "status": row.status,
-                        "total_amount": float(row.total_amount or 0),
-                        "table_number": row.table.number if row.table else None,
-                        "user_name": row.user.username if row.user else None,
-                    },
-                )
-                for row in Order.query.order_by(Order.id.asc()).all()
-            ),
-        ),
+              (
+                  (
+                      row.id,
+                      row.updated_at,
+                      {
+                          "order_id": row.id,
+                          "status": row.status,
+                          "total_amount": float(row.total_amount or 0),
+                          "table_number": row.table.number if row.table else None,
+                          "user_name": row.user.username if row.user else None,
+                          "items": [
+                              {
+                                  "id": item.id,
+                                  "menu_item_id": item.menu_item_id,
+                                  "name": item.menu_item.name if item.menu_item else None,
+                                  "quantity": float(item.quantity or 0),
+                                  "price": float(item.price or 0),
+                                  "status": item.status,
+                              }
+                              for item in (row.items or [])
+                          ],
+                      },
+                  )
+                 for row in Order.query.order_by(Order.id.asc()).all()
+              ),
+          ),
     )
 
     try:
