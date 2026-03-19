@@ -1196,12 +1196,19 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
     if entity_type == "order":
         items_payload = []
         for item in (row.items or []):
-            menu_name = item.menu_item.name if item.menu_item else None
+            menu_item = item.menu_item
+            menu_name = menu_item.name if menu_item else None
+            subcategory = menu_item.subcategory if menu_item else None
+            category = subcategory.category if subcategory else None
+            vip_status = "VIP" if (row.table and row.table.is_vip) else "Normal"
             items_payload.append(
                 {
                     "id": item.id,
                     "menu_item_id": item.menu_item_id,
                     "name": menu_name,
+                    "category_name": category.name if category else None,
+                    "subcategory_name": subcategory.name if subcategory else None,
+                    "vip_status": vip_status,
                     "quantity": float(item.quantity or 0),
                     "price": float(item.price or 0),
                     "status": item.status,
@@ -1540,6 +1547,9 @@ def seed_cloud_sync_outbox() -> int:
                                   "id": item.id,
                                   "menu_item_id": item.menu_item_id,
                                   "name": item.menu_item.name if item.menu_item else None,
+                                  "category_name": (item.menu_item.subcategory.category.name if item.menu_item and item.menu_item.subcategory and item.menu_item.subcategory.category else None),
+                                  "subcategory_name": (item.menu_item.subcategory.name if item.menu_item and item.menu_item.subcategory else None),
+                                  "vip_status": ("VIP" if (row.table and row.table.is_vip) else "Normal"),
                                   "quantity": float(item.quantity or 0),
                                   "price": float(item.price or 0),
                                   "status": item.status,
