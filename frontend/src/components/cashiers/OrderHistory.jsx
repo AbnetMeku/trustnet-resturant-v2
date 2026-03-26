@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { getSalesSummary } from "@/api/reportApi";
+import { getSalesSummary, reopenWaiterDay } from "@/api/reportApi";
+import { closeWaiterDayForWaiter, fetchWaiterDayCloseStatusForWaiter } from "@/api/order_history";
 import { getUsers } from "@/api/users";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -30,6 +31,9 @@ export default function SalesSummaryReport({ darkMode }) {
   const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [waiterDayStatus, setWaiterDayStatus] = useState(null);
+  const [waiterDayLoading, setWaiterDayLoading] = useState(false);
+  const [waiterDayError, setWaiterDayError] = useState(null);
 
   // ✅ Adjusted “today” based on EAT–UTC difference
   const adjustedToday = new Date(`${eatBusinessDateISO()}T12:00:00`);
@@ -41,6 +45,19 @@ export default function SalesSummaryReport({ darkMode }) {
   const [endDate, setEndDate] = useState(adjustedToday);
 
   const reportRef = useRef(null);
+  const authToken = localStorage.getItem("auth_token");
+  const selectedWaiter = waiters.find((w) => String(w.id) === String(waiterId));
+  const selectedWaiterName = selectedWaiter?.username || selectedWaiter?.name || "Waiter";
+  const waiterStatusLabel = waiterDayStatus
+    ? waiterDayStatus.isClosedForToday
+      ? "Closed"
+      : "Open"
+    : "Loading...";
+  const waiterStatusClass = waiterDayStatus
+    ? waiterDayStatus.isClosedForToday
+      ? "text-rose-600"
+      : "text-emerald-600"
+    : "text-gray-500";
 
 
 
@@ -56,6 +73,61 @@ export default function SalesSummaryReport({ darkMode }) {
     }
     fetchWaiters();
   }, []);
+
+  const refreshWaiterDayStatus = async (targetWaiterId) => {
+    if (!authToken || !targetWaiterId) {
+      setWaiterDayStatus(null);
+      return;
+    }
+    setWaiterDayLoading(true);
+    setWaiterDayError(null);
+    try {
+      const status = await fetchWaiterDayCloseStatusForWaiter(authToken, targetWaiterId);
+      setWaiterDayStatus(status);
+    } catch (err) {
+      setWaiterDayError(err?.message || "Failed to load waiter shift status.");
+      setWaiterDayStatus(null);
+    } finally {
+      setWaiterDayLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!waiterId) {
+      setWaiterDayStatus(null);
+      setWaiterDayError(null);
+      return;
+    }
+    refreshWaiterDayStatus(waiterId);
+  }, [waiterId, authToken]);
+
+  const handleCloseWaiterDay = async () => {
+    if (!authToken || !waiterId) return;
+    setWaiterDayLoading(true);
+    setWaiterDayError(null);
+    try {
+      await closeWaiterDayForWaiter(authToken, waiterId);
+      await refreshWaiterDayStatus(waiterId);
+    } catch (err) {
+      setWaiterDayError(err?.response?.data?.error || err?.message || "Failed to close waiter day.");
+    } finally {
+      setWaiterDayLoading(false);
+    }
+  };
+
+  const handleReopenWaiterDay = async () => {
+    if (!waiterId) return;
+    setWaiterDayLoading(true);
+    setWaiterDayError(null);
+    try {
+      await reopenWaiterDay(waiterId);
+      await refreshWaiterDayStatus(waiterId);
+    } catch (err) {
+      setWaiterDayError(err?.response?.data?.error || err?.message || "Failed to reopen waiter day.");
+    } finally {
+      setWaiterDayLoading(false);
+    }
+  };
 
   // Fetch report data dynamically
   useEffect(() => {
@@ -516,6 +588,70 @@ export default function SalesSummaryReport({ darkMode }) {
           >
             Export Excel
           </button>
+        </div>
+      </div>
+
+      <div className="mb-8 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              Waiter Shift Control
+            </h3>
+            {waiterDayLoading && (
+              <span className="text-sm text-gray-500 dark:text-gray-400">Updating...</span>
+            )}
+          </div>
+
+          {!waiterId ? (
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Select a waiter above to close or reopen their shift.
+            </p>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="bg-slate-50 dark:bg-gray-900/40 rounded-lg p-3 border border-slate-200/80 dark:border-gray-700">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Waiter</p>
+                  <p className="text-sm font-semibold">{selectedWaiterName}</p>
+                </div>
+                <div className="bg-slate-50 dark:bg-gray-900/40 rounded-lg p-3 border border-slate-200/80 dark:border-gray-700">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Status</p>
+                  <p className={`text-sm font-semibold ${waiterStatusClass}`}>
+                    {waiterStatusLabel}
+                  </p>
+                </div>
+                <div className="bg-slate-50 dark:bg-gray-900/40 rounded-lg p-3 border border-slate-200/80 dark:border-gray-700">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Open Orders</p>
+                  <p className="text-sm font-semibold">{waiterDayStatus?.openOrdersCount ?? "—"}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleCloseWaiterDay}
+                  disabled={!waiterDayStatus?.canCloseForToday || waiterDayLoading}
+                  className="bg-rose-600 text-white px-4 py-2 rounded-lg hover:bg-rose-700 disabled:opacity-50"
+                >
+                  Close Waiter Day
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReopenWaiterDay}
+                  disabled={waiterDayLoading}
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  Reopen Waiter Day
+                </button>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  Reopens automatically on the next business day.
+                </span>
+              </div>
+            </>
+          )}
+
+          {waiterDayError && (
+            <p className="text-sm text-rose-600 dark:text-rose-400">{waiterDayError}</p>
+          )}
         </div>
       </div>
 

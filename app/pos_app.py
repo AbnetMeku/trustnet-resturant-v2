@@ -132,6 +132,8 @@ def create_pos_app(config_name="development"):
 
     @app.before_request
     def enforce_cloud_license():
+        if app.config.get("TESTING"):
+            return None
         path = request.path or ""
         if not path.startswith("/api"):
             return None

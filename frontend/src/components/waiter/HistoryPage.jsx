@@ -5,7 +5,6 @@ import {
   fetchOrderHistory,
   fetchOrderSummary,
   fetchWaiterDayCloseStatus,
-  closeWaiterDay,
 } from "@/api/order_history";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,7 +22,6 @@ export default function HistoryPage({ onDayCloseChange }) {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showSummarySidebar, setShowSummarySidebar] = useState(false);
   const [dayCloseStatus, setDayCloseStatus] = useState(null);
-  const [closingDay, setClosingDay] = useState(false);
 
   useEffect(() => {
     if (!authToken || !user) {
@@ -68,23 +66,8 @@ export default function HistoryPage({ onDayCloseChange }) {
     }
   };
 
-  const handleCloseForDay = async () => {
-    if (!authToken) return;
-    setClosingDay(true);
-    try {
-      const result = await closeWaiterDay(authToken);
-      toast.success(result?.message || "Shift closed for today");
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, "Failed to close shift for today."));
-    } finally {
-      await refreshDayCloseStatus();
-      setClosingDay(false);
-    }
-  };
-
   const isClosedForToday = Boolean(dayCloseStatus?.isClosedForToday);
   const openOrdersCount = Number(dayCloseStatus?.openOrdersCount || 0);
-  const canCloseForToday = Boolean(dayCloseStatus?.canCloseForToday);
   const isViewingToday = selectedDate === todayISO;
 
   return (
@@ -93,14 +76,10 @@ export default function HistoryPage({ onDayCloseChange }) {
         <div className="flex flex-col gap-3 mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h1 className="text-3xl font-bold mb-0">የቀኑ የተዘጉ እና የተከፈሉ ትዕዛዞች</h1>
-            {isViewingToday && (
-              <Button
-                variant={isClosedForToday ? "outline" : "default"}
-                onClick={handleCloseForDay}
-                disabled={loading || closingDay || !canCloseForToday}
-              >
-                {isClosedForToday ? "ዛሬ ተዘግቷል" : closingDay ? "በመዝጋት ላይ..." : "ቀኑን ዝጋ"}
-              </Button>
+            {isViewingToday && isClosedForToday && (
+              <span className="text-sm font-semibold text-green-700 dark:text-green-300">
+                ዛሬ ተዘግቷል
+              </span>
             )}
           </div>
           <div className="flex items-center gap-3">
@@ -214,8 +193,8 @@ export default function HistoryPage({ onDayCloseChange }) {
       </div>
 
       {showSummarySidebar && summary && (
-        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px]">
-          <div className="absolute right-0 top-0 h-full w-full max-w-md bg-white dark:bg-gray-800 border-l border-slate-200 dark:border-slate-700 shadow-2xl p-5 overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px] flex items-center justify-center p-4 md:justify-end md:items-stretch">
+          <div className="w-full max-w-md bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 shadow-2xl p-5 overflow-y-auto rounded-2xl md:rounded-none md:h-full md:border-l md:ml-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">አጠቃላይ ዛሬ የተሸጡ</h2>
               <Button variant="outline" size="sm" onClick={() => setShowSummarySidebar(false)}>

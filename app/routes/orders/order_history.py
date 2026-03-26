@@ -38,6 +38,15 @@ def _parse_history_range(start_date_str, end_date_str):
     _, end_dt = get_business_day_bounds(end_date)
     return start_dt, end_dt, None
 
+
+def _waiter_day_status(waiter: User):
+    today = get_eat_today()
+    open_orders_count = (
+        Order.query.filter(Order.user_id == waiter.id, Order.status == "open").count()
+    )
+    is_closed_for_today = waiter.waiter_day_closed_on == today
+    return today, open_orders_count, is_closed_for_today
+
 # ---------------------- GET /order-history ---------------------- #
 @order_history_bp.route("/", methods=["GET"])
 @jwt_required()
@@ -84,14 +93,31 @@ def waiter_day_close_status():
     if not waiter:
         return error_response("Invalid token identity.", 401)
 
-    today = get_eat_today()
-    open_orders_count = (
-        Order.query.filter(Order.user_id == waiter.id, Order.status == "open").count()
-    )
-    is_closed_for_today = waiter.waiter_day_closed_on == today
+    today, open_orders_count, is_closed_for_today = _waiter_day_status(waiter)
 
     return jsonify(
         {
+            "date": today.isoformat(),
+            "isClosedForToday": is_closed_for_today,
+            "openOrdersCount": open_orders_count,
+            "canCloseForToday": (open_orders_count == 0 and not is_closed_for_today),
+        }
+    ), 200
+
+
+@order_history_bp.route("/waiter/<int:waiter_id>/day-close-status", methods=["GET"])
+@jwt_required()
+@roles_required("admin", "manager", "cashier")
+def cashier_waiter_day_close_status(waiter_id):
+    waiter = db.session.get(User, waiter_id)
+    if not waiter or waiter.role != "waiter":
+        return error_response("Waiter not found.", 404)
+
+    today, open_orders_count, is_closed_for_today = _waiter_day_status(waiter)
+
+    return jsonify(
+        {
+            "waiter_id": waiter.id,
             "date": today.isoformat(),
             "isClosedForToday": is_closed_for_today,
             "openOrdersCount": open_orders_count,
@@ -108,8 +134,8 @@ def waiter_close_day():
     if not waiter:
         return error_response("Invalid token identity.", 401)
 
-    today = get_eat_today()
-    if waiter.waiter_day_closed_on == today:
+    today, open_orders_count, is_closed_for_today = _waiter_day_status(waiter)
+    if is_closed_for_today:
         return jsonify(
             {
                 "message": "Shift already closed for today.",
@@ -118,9 +144,6 @@ def waiter_close_day():
             }
         ), 200
 
-    open_orders_count = (
-        Order.query.filter(Order.user_id == waiter.id, Order.status == "open").count()
-    )
     if open_orders_count > 0:
         return error_response(
             f"You still have {open_orders_count} open order(s). Close them before ending your day.",
@@ -133,6 +156,44 @@ def waiter_close_day():
     return jsonify(
         {
             "message": "Shift closed for today.",
+            "date": today.isoformat(),
+            "isClosedForToday": True,
+        }
+    ), 200
+
+
+@order_history_bp.route("/waiter/<int:waiter_id>/close-day", methods=["POST"])
+@jwt_required()
+@roles_required("admin", "manager", "cashier")
+def cashier_close_waiter_day(waiter_id):
+    waiter = db.session.get(User, waiter_id)
+    if not waiter or waiter.role != "waiter":
+        return error_response("Waiter not found.", 404)
+
+    today, open_orders_count, is_closed_for_today = _waiter_day_status(waiter)
+    if is_closed_for_today:
+        return jsonify(
+            {
+                "message": "Shift already closed for today.",
+                "waiter_id": waiter.id,
+                "date": today.isoformat(),
+                "isClosedForToday": True,
+            }
+        ), 200
+
+    if open_orders_count > 0:
+        return error_response(
+            f"Waiter still has {open_orders_count} open order(s). Close them before ending the day.",
+            409,
+        )
+
+    waiter.waiter_day_closed_on = today
+    db.session.commit()
+
+    return jsonify(
+        {
+            "message": "Waiter shift closed for today.",
+            "waiter_id": waiter.id,
             "date": today.isoformat(),
             "isClosedForToday": True,
         }

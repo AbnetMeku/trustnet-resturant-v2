@@ -304,8 +304,8 @@ export default function ActiveMenuSelection({
           )}
         </button>
         {cartOpenMobile && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40">
-            <div className="fixed bottom-4 right-4 w-72 max-h-[70vh] bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-xl overflow-y-auto border border-slate-200 dark:border-slate-700">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4">
+            <div className="w-full max-w-sm max-h-[80vh] bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-xl overflow-y-auto border border-slate-200 dark:border-slate-700">
               <div className="flex justify-between items-center mb-2">
                 <h3 className="text-lg font-semibold dark:text-white">የተመረጡ ትዕዛዞች</h3>
                 <button

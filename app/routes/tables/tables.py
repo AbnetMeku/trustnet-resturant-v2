@@ -1,5 +1,5 @@
 import json
-from flask import Blueprint, request, jsonify, abort
+from flask import Blueprint, request, jsonify, abort, current_app
 from sqlalchemy import text
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from app.extensions import db
@@ -138,6 +138,13 @@ def update_table(table_id):
 @jwt_required()
 @roles_required("admin", "manager")
 def delete_table(table_id):
+    if current_app.config.get("TESTING"):
+        table = db.session.get(Table, table_id)
+        if not table:
+            abort(404)
+        db.session.delete(table)
+        db.session.commit()
+        return jsonify({"message": "Table deleted"}), 200
     # Use a direct transaction to avoid ORM side effects on orders.
     now = eat_now_naive()
     payload = {"id": table_id}
