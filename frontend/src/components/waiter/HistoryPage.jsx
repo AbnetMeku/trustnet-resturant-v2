@@ -193,8 +193,8 @@ export default function HistoryPage({ onDayCloseChange }) {
       </div>
 
       {showSummarySidebar && summary && (
-        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px] flex items-center justify-center p-4 md:justify-end md:items-stretch">
-          <div className="w-full max-w-md bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 shadow-2xl p-5 overflow-y-auto rounded-2xl md:rounded-none md:h-full md:border-l md:ml-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
+          <div className="w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">አጠቃላይ ዛሬ የተሸጡ</h2>
               <Button variant="outline" size="sm" onClick={() => setShowSummarySidebar(false)}>
@@ -221,8 +221,8 @@ export default function HistoryPage({ onDayCloseChange }) {
       )}
 
       {selectedOrder && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-[2px] z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-full max-w-2xl border border-slate-200 dark:border-slate-700">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
+          <div className="w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
             <h3 className="text-xl font-bold mb-4">
               Table {selectedOrder.table?.number || "N/A"} - ትዕዛዝ #{selectedOrder.id}
             </h3>

@@ -222,8 +222,8 @@ export default function ActiveOrders({ goBack }) {
       )}
 
       {confirmCloseId && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-[2px] z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 w-full max-w-md border border-slate-200 dark:border-slate-700">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
+          <div className="w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">እርግጠኛ ነዎት ይህ ትዕዛዝ ይዘጋ?</h3>
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setConfirmCloseId(null)}>
@@ -238,8 +238,8 @@ export default function ActiveOrders({ goBack }) {
       )}
 
       {detailsOrder && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-[2px] z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-5 md:p-6 w-full max-w-2xl border border-slate-200 dark:border-slate-700">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
+          <div className="w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
             <h3 className="text-xl font-bold mb-4">
               Table {detailsOrder.table.number} - Order #{detailsOrder.id}
             </h3>
