@@ -440,7 +440,7 @@ export default function AdminOrders() {
         <Card className="admin-card p-3">
           <div className="flex items-center justify-between">
             <span className="text-sm text-slate-600 dark:text-slate-300">
-              Page {pagination.page} / {pagination.total_pages} â€¢ Showing {filteredOrders.length} of {pagination.total}
+              Page {pagination.page} / {pagination.total_pages} • Showing {filteredOrders.length} of {pagination.total}
             </span>
             <div className="flex gap-2">
               <Button

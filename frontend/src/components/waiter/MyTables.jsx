@@ -34,12 +34,12 @@ export default function MyTables() {
       className="p-4 md:p-6 dark:bg-gray-900 min-h-[70vh] text-gray-900 dark:text-gray-100"
       data-testid="waiter-tables-view"
     >
-      <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-center">áŒ áˆ¨áŒ´á‹›á‹Žá‰½</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-center">ጠረጴዛዎች</h1>
 
       {loading ? (
-        <div className="text-center text-lg">á‹¨á‰°áˆ˜á‹°á‰¡ áŒ áˆ¨áŒ´á‹›á‹Žá‰½ á‰ áˆ˜áŒ«áŠ• áˆ‹á‹­...</div>
+        <div className="text-center text-lg">የተመደቡ ጠረጴዛዎች በመጫን ላይ...</div>
       ) : assignedTables.length === 0 ? (
-        <p className="text-center text-gray-500 dark:text-gray-400">áˆáŠ•áˆ áŒ áˆ¨áŒ´á‹› áŠ áˆá‰°áˆ˜á‹°á‰ áˆ</p>
+        <p className="text-center text-gray-500 dark:text-gray-400">ምንም ጠረጴዛ አልተመደበም</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
           {assignedTables.map((table) => (
@@ -70,7 +70,7 @@ export default function MyTables() {
               </CardHeader>
 
               <CardContent className="pt-2 flex flex-col gap-2">
-                <p className="text-sm font-medium">á‹¨á‰°áˆ˜á‹°á‰  áŠ áˆµá‰°áŠ“áŒ‹áŒ…</p>
+                <p className="text-sm font-medium">የተመደበ አስተናጋጅ</p>
                 <div className="flex flex-wrap gap-1">
                   {table.waiters.length ? (
                     table.waiters.map((w) => (

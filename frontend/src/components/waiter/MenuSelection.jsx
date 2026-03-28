@@ -187,13 +187,13 @@ export default function MenuSelection({
             onBack();
           }}
         >
-          {"\u2190"} á‰°áˆ˜áˆˆáˆµ
+          {"\u2190"} ተመለስ
         </Button>
       </nav>
 
       <div className="flex flex-1 overflow-hidden">
         <aside className="hidden md:flex md:flex-col w-36 border-r border-gray-200 dark:border-gray-700 p-2 overflow-y-auto">
-          <h3 className="text-sm font-semibold mb-2 dark:text-white">áŠ•á‹‘áˆµ áˆá‹µá‰¦á‰½</h3>
+          <h3 className="text-sm font-semibold mb-2 dark:text-white">ንዑስ ምድቦች</h3>
           {visibleSubcategories.map((sub) => (
             <button
               key={sub.id}
@@ -267,14 +267,14 @@ export default function MenuSelection({
               ))}
             </div>
           ) : (
-            <p className="text-center text-gray-500 dark:text-gray-400 mt-10">áˆáŠ•áˆ á‹áˆ­á‹áˆ­ á‹¨áˆˆáˆ</p>
+            <p className="text-center text-gray-500 dark:text-gray-400 mt-10">ምንም ዝርዝር የለም</p>
           )}
         </section>
 
         <aside className="hidden md:flex md:flex-col w-60 border-l border-gray-200 dark:border-gray-700 p-3">
-          <h3 className="text-base font-semibold mb-3 dark:text-white">á‹¨á‰°áˆ˜áˆ¨áŒ¡ á‰µá‹•á‹›á‹žá‰½</h3>
+          <h3 className="text-base font-semibold mb-3 dark:text-white">የተመረጡ ትዕዛዞች</h3>
           {orderItems.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-sm">áˆáŠ•áˆ áŠ áˆá‰°áˆ˜áˆ¨áŒ áˆ</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">ምንም አልተመረጠም</p>
           ) : (
             <div className="flex-1 overflow-y-auto">
               {orderItems.map((item) => (
@@ -300,9 +300,9 @@ export default function MenuSelection({
             </div>
           )}
           <div className="mt-3 border-t pt-2">
-            <p className="text-base font-semibold dark:text-white">áŠ áŒ á‰ƒáˆ‹á‹­ á‹µáˆáˆ­: ${subtotal}</p>
+            <p className="text-base font-semibold dark:text-white">አጠቃላይ ድምር: ${subtotal}</p>
             <Button className="w-full mt-2 text-sm" disabled={orderItems.length === 0} onClick={onNext}>
-              á‰µá‹•á‹›á‹ áŠ áˆ¨áŒ‹áŒáŒ¥ {"\u2192"}
+              ትዕዛዝ አረጋግጥ {"\u2192"}
             </Button>
           </div>
         </aside>
@@ -314,7 +314,7 @@ export default function MenuSelection({
           className="bg-blue-600 text-white p-3 rounded-full shadow-lg relative"
           aria-label={`Toggle cart (${orderItems.length} items)`}
         >
-          <span>ðŸ›’</span>
+          <span>🛒</span>
           {orderItems.length > 0 && (
             <span className="absolute top-0 right-0 bg-red-500 rounded-full text-xs w-4 h-4 flex items-center justify-center">
               {orderItems.length}
@@ -326,7 +326,7 @@ export default function MenuSelection({
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
               <div className="w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 sm:p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
                 <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-base sm:text-lg font-semibold dark:text-white">á‹¨á‰°áˆ˜áˆ¨áŒ¡ á‰µá‹•á‹›á‹žá‰½</h3>
+                  <h3 className="text-base sm:text-lg font-semibold dark:text-white">የተመረጡ ትዕዛዞች</h3>
                   <button
                     className="bg-gray-200 text-black text-xs py-1 px-2 rounded hover:bg-gray-300"
                     onClick={() => setCartOpenMobile(false)}
@@ -336,7 +336,7 @@ export default function MenuSelection({
                   </button>
                 </div>
                 {orderItems.length === 0 ? (
-                  <p className="text-gray-500 dark:text-gray-400 text-sm">áˆáŠ•áˆ áŠ áˆá‰°áˆ˜áˆ¨áŒ áˆ</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm">ምንም አልተመረጠም</p>
                 ) : (
                   orderItems.map((item) => (
                     <div key={item.id} className="flex items-center justify-between mb-2 text-xs dark:text-white">
@@ -356,9 +356,9 @@ export default function MenuSelection({
                   ))
                 )}
                 <div className="mt-2 border-t pt-2">
-                  <p className="text-base sm:text-lg font-semibold dark:text-white">áŠ áŒ á‰ƒáˆ‹á‹­ á‹µáˆáˆ­: ${subtotal}</p>
+                  <p className="text-base sm:text-lg font-semibold dark:text-white">አጠቃላይ ድምር: ${subtotal}</p>
                   <Button className="w-full mt-2 text-sm" disabled={orderItems.length === 0} onClick={onNext}>
-                    á‰µá‹•á‹›á‹ áŠ áˆ¨áŒ‹áŒáŒ¥ {"\u2192"}
+                    ትዕዛዝ አረጋግጥ {"\u2192"}
                   </Button>
                 </div>
               </div>

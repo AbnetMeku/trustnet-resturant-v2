@@ -110,7 +110,7 @@ export default function StationOrders() {
   if (!pendingOrders.length) {
     return (
       <p className="text-center mt-10 text-gray-400 dark:text-gray-500" data-testid="kds-orders-root">
-        áˆáŠ•áˆ á‰µá‹•á‹›á‹ á‹¨áˆˆáˆ á‰ áŠ áˆáŠ• áŒŠá‹œ
+        ምንም ትዕዛዝ የለም በአሁን ጊዜ
       </p>
     );
   }
@@ -141,12 +141,12 @@ export default function StationOrders() {
           >
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-xl sm:text-2xl font-bold">á‰µá‹•á‹›á‹ #{order.order_id}</h2>
+                <h2 className="text-xl sm:text-2xl font-bold">ትዕዛዝ #{order.order_id}</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-300">
-                  áŒ áˆ¨áŒ´á‹› á‰áŒ¥áˆ­: {order.table_number || "N/A"} | áŠ áˆµá‰°áŠ“áŒ‹áŒ…: {order.waiter_name || "N/A"}
+                  ጠረጴዛ ቁጥር: {order.table_number || "N/A"} | አስተናጋጅ: {order.waiter_name || "N/A"}
                 </p>
                 <p className="text-xs text-gray-400 dark:text-gray-500">
-                  á‰µá‹•á‹›á‹ áˆ°á‹á‰µ:{" "}
+                  ትዕዛዝ ሰዐት:{" "}
                   {formatEatTime(order.order_created_at, {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -154,7 +154,7 @@ export default function StationOrders() {
                 </p>
               </div>
               <span className="px-3 py-1 rounded-full text-slate-900 font-semibold bg-gray-100 text-sm">
-                {order.items.length} á‰µá‹•á‹›á‹
+                {order.items.length} ትዕዛዝ
               </span>
             </div>
 
@@ -190,7 +190,7 @@ export default function StationOrders() {
                           disabled={Boolean(updatingItems[item.item_id])}
                           className="w-full sm:w-auto px-4 py-2 rounded-full font-semibold text-white bg-rose-900 hover:bg-rose-600 disabled:opacity-60"
                         >
-                          {updatingItems[item.item_id] ? "..." : "á‹ˆá‰·áˆ"}
+                          {updatingItems[item.item_id] ? "..." : "ወቷል"}
                         </button>
                         {allowMarkUnavailable && (
                           <button
@@ -198,7 +198,7 @@ export default function StationOrders() {
                             disabled={Boolean(updatingItems[item.item_id])}
                             className="w-full sm:w-auto px-4 py-2 rounded-full font-semibold text-white bg-gray-500 hover:bg-gray-400 disabled:opacity-60"
                           >
-                            á‹¨áˆˆáˆ
+                            የለም
                           </button>
                         )}
                       </>

@@ -193,32 +193,32 @@ export default function StationHistory() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow">
-              <p className="text-gray-600 dark:text-gray-300">áŠ áŒ á‰ƒáˆ‹á‹­ á‰µá‹•á‹›á‹</p>
+              <p className="text-gray-600 dark:text-gray-300">አጠቃላይ ትዕዛዝ</p>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{totalOrders}</h2>
             </div>
 
             <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow">
               <p className="text-gray-600 dark:text-gray-300 flex justify-between items-center">
-                áŠ áŒ á‰ƒáˆ‹á‹­ á‹¨á‰°áˆ¸áŒ¡
+                አጠቃላይ የተሸጡ
                 <button
                   className="text-blue-500 text-sm underline ml-2"
                   onClick={() => setShowItemsModal(true)}
                   data-testid="kds-history-open-items"
                 >
-                  áˆ™áˆ‰ á‹áˆ­á‹áˆ­
+                  ሙሉ ዝርዝር
                 </button>
               </p>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{totalItems}</h2>
             </div>
 
             <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow">
-              <p className="text-gray-600 dark:text-gray-300">áŠ áŒ á‰ƒáˆ‹á‹­ áˆ½á‹­áŒ­</p>
+              <p className="text-gray-600 dark:text-gray-300">አጠቃላይ ሽይጭ</p>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">${totalSales.toFixed(2)}</h2>
             </div>
           </div>
 
           {historyOrders.length === 0 ? (
-            <p className="text-center mt-10 text-gray-500 dark:text-gray-400">á‹¨á‰°á‹˜áŒ‹á‰£ áŠ¥á‰ƒá‹Žá‰½ á‹¨áˆ‰áˆ</p>
+            <p className="text-center mt-10 text-gray-500 dark:text-gray-400">የተዘጋባ እቃዎች የሉም</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {historyOrders.map((order) => (
@@ -226,20 +226,20 @@ export default function StationHistory() {
                   <div className="flex justify-between items-center mb-3">
                     <div>
                       <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                        á‰µá‹•á‹›á‹ #{order.order_id}
+                        ትዕዛዝ #{order.order_id}
                       </h2>
                       <p className="text-sm text-gray-700 dark:text-gray-300">
-                        áŠ áˆµá‰°áŠ“áŒ‹áŒ…: {order.waiter_name || "N/A"}
+                        አስተናጋጅ: {order.waiter_name || "N/A"}
                       </p>
                       <p className="text-sm text-gray-700 dark:text-gray-300">
-                        á‰°á‹˜áŒ‹áŒ…á‰·áˆ:{" "}
+                        ተዘጋጅቷል:{" "}
                         {formatEatDateTime(
                           order.items?.[0]?.created_at || order.order_updated_at || order.order_created_at
                         )}
                       </p>
                     </div>
                     <span className="px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                      {order.items.length} áŠ¥á‰ƒ
+                      {order.items.length} እቃ
                     </span>
                   </div>
 
@@ -265,7 +265,7 @@ export default function StationHistory() {
                             item.status === "ready" ? "bg-green-500" : "bg-red-500"
                           }`}
                         >
-                          {item.status === "ready" ? "á‹ˆá‰·áˆ" : "á‰°áˆ°áˆ­á‹Ÿáˆ"}
+                          {item.status === "ready" ? "ወቷል" : "ተሰርዟል"}
                         </span>
                       </li>
                     ))}

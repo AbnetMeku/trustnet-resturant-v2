@@ -15,7 +15,7 @@ function getAdjustedEATDate() {
   const now = new Date();
   const utcHour = now.getUTCHours(); // UTC time hour
 
-  // EAT = UTC +3 â†’ So between UTC 0â€“2 means before local 3AM â†’ still show previous day
+  // EAT = UTC +3 → So between UTC 0–2 means before local 3AM → still show previous day
   if (utcHour < 3) {
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
@@ -35,10 +35,10 @@ export default function SalesSummaryReport({ darkMode }) {
   const [waiterDayLoading, setWaiterDayLoading] = useState(false);
   const [waiterDayError, setWaiterDayError] = useState(null);
 
-  // âœ… Adjusted â€œtodayâ€ based on EATâ€“UTC difference
+  // ✅ Adjusted “today” based on EAT–UTC difference
   const adjustedToday = new Date(`${eatBusinessDateISO()}T12:00:00`);
 
-  // âœ… Make sure these are defined before they are used
+  // ✅ Make sure these are defined before they are used
   const [waiterId, setWaiterId] = useState("");
   const [vipOnly, setVipOnly] = useState("all");
   const [startDate, setStartDate] = useState(adjustedToday);
@@ -632,7 +632,7 @@ export default function SalesSummaryReport({ darkMode }) {
                 </div>
                 <div className="bg-slate-50 dark:bg-gray-900/40 rounded-lg p-3 border border-slate-200/80 dark:border-gray-700">
                   <p className="text-xs text-gray-500 dark:text-gray-400">Open Orders</p>
-                  <p className="text-sm font-semibold">{waiterDayStatus?.openOrdersCount ?? "â€”"}</p>
+                  <p className="text-sm font-semibold">{waiterDayStatus?.openOrdersCount ?? "—"}</p>
                 </div>
               </div>
 
