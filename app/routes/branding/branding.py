@@ -57,6 +57,7 @@ def _serialize_branding(settings):
         ),
         "print_preview_enabled": bool(settings.print_preview_enabled) if settings else False,
         "kds_mark_unavailable_enabled": bool(settings.kds_mark_unavailable_enabled) if settings else False,
+        "low_power_mode_enabled": bool(settings.low_power_mode_enabled) if settings else True,
         "kitchen_tag_category_id": settings.kitchen_tag_category_id if settings else None,
         "kitchen_tag_subcategory_id": settings.kitchen_tag_subcategory_id if settings else None,
         "kitchen_tag_subcategory_ids": kitchen_tag_subcategory_ids,
@@ -104,6 +105,12 @@ def _normalize_kds_mark_unavailable_enabled(value):
     if isinstance(value, bool):
         return value
     raise ValueError("kds_mark_unavailable_enabled must be a boolean")
+
+
+def _normalize_low_power_mode_enabled(value):
+    if isinstance(value, bool):
+        return value
+    raise ValueError("low_power_mode_enabled must be a boolean")
 
 
 def _normalize_nullable_fk(value, field_name, model_cls):
@@ -225,13 +232,14 @@ def update_branding():
         and "business_day_start_time" not in data
         and "print_preview_enabled" not in data
         and "kds_mark_unavailable_enabled" not in data
+        and "low_power_mode_enabled" not in data
         and "kitchen_tag_category_id" not in data
         and "kitchen_tag_subcategory_id" not in data
         and "kitchen_tag_subcategory_ids" not in data
     ):
         return jsonify(
             {
-                "error": "Provide logo_url, background_url, business_day_start_time, print_preview_enabled, kds_mark_unavailable_enabled, kitchen_tag_category_id, kitchen_tag_subcategory_id, and/or kitchen_tag_subcategory_ids"
+                "error": "Provide logo_url, background_url, business_day_start_time, print_preview_enabled, kds_mark_unavailable_enabled, low_power_mode_enabled, kitchen_tag_category_id, kitchen_tag_subcategory_id, and/or kitchen_tag_subcategory_ids"
             }
         ), 400
 
@@ -258,6 +266,10 @@ def update_branding():
         if "kds_mark_unavailable_enabled" in data:
             settings.kds_mark_unavailable_enabled = _normalize_kds_mark_unavailable_enabled(
                 data.get("kds_mark_unavailable_enabled")
+            )
+        if "low_power_mode_enabled" in data:
+            settings.low_power_mode_enabled = _normalize_low_power_mode_enabled(
+                data.get("low_power_mode_enabled")
             )
         if "kitchen_tag_category_id" in data:
             settings.kitchen_tag_category_id = _normalize_nullable_fk(

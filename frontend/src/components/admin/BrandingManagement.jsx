@@ -43,6 +43,7 @@ const DEFAULT_FORM = {
   business_day_start_time: "06:00",
   print_preview_enabled: false,
   kds_mark_unavailable_enabled: false,
+  low_power_mode_enabled: true,
   kitchen_tag_subcategory_ids: [],
 };
 
@@ -85,6 +86,7 @@ export default function BrandingManagement() {
           business_day_start_time: settings.business_day_start_time || "06:00",
           print_preview_enabled: Boolean(settings.print_preview_enabled),
           kds_mark_unavailable_enabled: Boolean(settings.kds_mark_unavailable_enabled),
+          low_power_mode_enabled: settings.low_power_mode_enabled !== false,
           kitchen_tag_subcategory_ids: selectedIds,
         });
         setKitchenTagEnabled(selectedIds.length > 0);
@@ -179,6 +181,7 @@ export default function BrandingManagement() {
       business_day_start_time: data.business_day_start_time || "06:00",
       print_preview_enabled: Boolean(data.print_preview_enabled),
       kds_mark_unavailable_enabled: Boolean(data.kds_mark_unavailable_enabled),
+      low_power_mode_enabled: data.low_power_mode_enabled !== false,
       kitchen_tag_subcategory_ids: nextIds,
     });
     setKitchenTagEnabled(nextIds.length > 0);
@@ -194,6 +197,7 @@ export default function BrandingManagement() {
         business_day_start_time: form.business_day_start_time,
         print_preview_enabled: Boolean(form.print_preview_enabled),
         kds_mark_unavailable_enabled: Boolean(form.kds_mark_unavailable_enabled),
+        low_power_mode_enabled: Boolean(form.low_power_mode_enabled),
         kitchen_tag_category_id: null,
         kitchen_tag_subcategory_id: null,
         kitchen_tag_subcategory_ids: kitchenTagEnabled ? form.kitchen_tag_subcategory_ids : [],
@@ -216,6 +220,7 @@ export default function BrandingManagement() {
         business_day_start_time: "06:00",
         print_preview_enabled: false,
         kds_mark_unavailable_enabled: false,
+        low_power_mode_enabled: true,
         kitchen_tag_category_id: null,
         kitchen_tag_subcategory_id: null,
         kitchen_tag_subcategory_ids: [],
@@ -518,6 +523,28 @@ export default function BrandingManagement() {
                 />
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Defines when a new business day starts in East Africa Time.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="branding-low-power">Low-Power Mode (Waiter/KDS)</Label>
+                <div className="flex items-center gap-2 rounded-md border border-slate-200 p-3 dark:border-slate-700">
+                  <Checkbox
+                    id="branding-low-power"
+                    checked={form.low_power_mode_enabled}
+                    onCheckedChange={(value) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        low_power_mode_enabled: Boolean(value),
+                      }))
+                    }
+                  />
+                  <span className="text-sm text-slate-700 dark:text-slate-200">
+                    Use the lightweight UI for waiter and KDS screens to improve performance on older tablets.
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Default is ON. Disable if you want full animations and visual effects on those screens.
                 </p>
               </div>
 

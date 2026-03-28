@@ -13,6 +13,46 @@
   animation: fade-in 0.5s ease-out forwards;
 }
 
+.low-power .backdrop-blur,
+.low-power .backdrop-blur-sm,
+.low-power .backdrop-blur-md,
+.low-power .backdrop-blur-lg,
+.low-power .backdrop-blur-xl,
+.low-power .backdrop-blur-2xl {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.low-power .shadow,
+.low-power .shadow-sm,
+.low-power .shadow-md,
+.low-power .shadow-lg,
+.low-power .shadow-xl,
+.low-power .shadow-2xl {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12) !important;
+}
+
+.low-power .animate-spin,
+.low-power .animate-pulse,
+.low-power .animate-bounce,
+.low-power .animate-fade-in {
+  animation: none !important;
+}
+
+.low-power .transition,
+.low-power .transition-all,
+.low-power .transition-transform,
+.low-power .transition-colors,
+.low-power .transition-opacity {
+  transition: none !important;
+}
+
+.low-power .hover\:scale-105:hover,
+.low-power .hover\:scale-\[1\.02\]:hover,
+.low-power .hover\:-translate-y-0\.5:hover {
+  transform: none !important;
+}
+
 
 
 @layer base {

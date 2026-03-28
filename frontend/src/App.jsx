@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
 import ManagerDashboard from './pages/ManagerDashboard';
@@ -10,6 +10,7 @@ import StationLogin from './pages/StationLogin';
 import KDS from './pages/KDS';
 import InventoryDashboard from './pages/InventoryDashboard';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { useBranding } from './hooks/useBranding';
 import { Toaster } from "react-hot-toast";
 // ----------------- Protected Route for normal users ----------------- //
 function ProtectedRoute({ children, roles }) {
@@ -34,16 +35,40 @@ function WaiterProtectedRoute({ children }) {
   return children;
 }
 
+
+function LowPowerModeToggle() {
+  const location = useLocation();
+  const branding = useBranding();
+
+  useEffect(() => {
+    const lowPowerRoutes = ["/waiter", "/waiter-login", "/kds", "/station-login"];
+    const isLowPower = lowPowerRoutes.some((route) => location.pathname.startsWith(route));
+    const isEnabled = branding?.low_power_mode_enabled !== false;
+    const root = document.documentElement;
+
+    if (isLowPower && isEnabled) {
+      root.classList.add("low-power");
+    } else {
+      root.classList.remove("low-power");
+    }
+
+    return () => root.classList.remove("low-power");
+  }, [location.pathname, branding?.low_power_mode_enabled]);
+
+  return null;
+}
+
 // ----------------- App Component ----------------- //
 function App() {
   return (
     <AuthProvider>
       <Router>
+        <LowPowerModeToggle />
         {/* ----------------- Toaster for global toast notifications ----------------- */}
-      <Toaster
-        position="top-center"   // position doesn’t matter for custom, but good practice
-        containerStyle={{ top: 0, left: 0, right: 0, bottom: 0 }} // ensure full screen
-      />
+        <Toaster
+          position="top-center" // position does not matter for custom, but good practice
+          containerStyle={{ top: 0, left: 0, right: 0, bottom: 0 }} // ensure full screen
+        />
         <Routes>
           {/* ----------------- Login Pages ----------------- */}
           <Route path="/login" element={<Login />} />

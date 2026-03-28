@@ -10,7 +10,7 @@ export default defineConfig({
   plugins: [
     react(),
     legacy({
-      targets: ['ios >= 12']
+      targets: ["ios >= 11", "android >= 8"]
     }),
 
     // ✅ Added PWA plugin

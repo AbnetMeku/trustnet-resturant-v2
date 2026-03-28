@@ -215,6 +215,7 @@ class BrandingSettings(db.Model):
     business_day_start_time = db.Column(db.String(5), nullable=False, default="06:00")
     print_preview_enabled = db.Column(db.Boolean, nullable=False, default=False)
     kds_mark_unavailable_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    low_power_mode_enabled = db.Column(db.Boolean, nullable=False, default=True)
     kitchen_tag_category_id = db.Column(
         db.Integer,
         db.ForeignKey("categories.id", ondelete="SET NULL"),

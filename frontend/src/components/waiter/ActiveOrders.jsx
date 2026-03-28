@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
 import { fetchOrders, addOrderItems, updateOrderStatus } from "@/api/orders";
@@ -17,6 +17,7 @@ export default function ActiveOrders({ goBack }) {
   const [orderItems, setOrderItems] = useState([]);
   const [confirmCloseId, setConfirmCloseId] = useState(null);
   const [detailsOrder, setDetailsOrder] = useState(null);
+  const savingRef = useRef(false);
 
   useEffect(() => {
     if (!authToken || !user) return;
@@ -84,7 +85,9 @@ export default function ActiveOrders({ goBack }) {
   };
 
   const handleSave = async () => {
+    if (savingRef.current) return;
     if (!authToken || !selectedOrder || orderItems.length === 0) return;
+    savingRef.current = true;
 
     const itemsToSend = orderItems.map((i) => ({
       menu_item_id: i.menu_item_id,
@@ -92,11 +95,15 @@ export default function ActiveOrders({ goBack }) {
       notes: i.notes || "",
     }));
 
-    await addOrderItems(authToken, selectedOrder.id, itemsToSend);
-    setOrderItems([]);
-    await refreshOrders();
-    setSelectedOrder(null);
-    setStep("list");
+    try {
+      await addOrderItems(authToken, selectedOrder.id, itemsToSend);
+      setOrderItems([]);
+      await refreshOrders();
+      setSelectedOrder(null);
+      setStep("list");
+    } finally {
+      savingRef.current = false;
+    }
   };
 
   const handleCloseOrder = async (orderId) => {

@@ -639,6 +639,8 @@ def _upsert_branding(payload: dict) -> None:
         row.print_preview_enabled = bool(payload.get("print_preview_enabled", row.print_preview_enabled))
     if "kds_mark_unavailable_enabled" in payload:
         row.kds_mark_unavailable_enabled = bool(payload.get("kds_mark_unavailable_enabled", row.kds_mark_unavailable_enabled))
+    if "low_power_mode_enabled" in payload:
+        row.low_power_mode_enabled = bool(payload.get("low_power_mode_enabled", row.low_power_mode_enabled))
     db.session.flush()
 
 
@@ -1132,6 +1134,7 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
             "business_day_start_time": row.business_day_start_time,
             "print_preview_enabled": row.print_preview_enabled,
             "kds_mark_unavailable_enabled": row.kds_mark_unavailable_enabled,
+            "low_power_mode_enabled": row.low_power_mode_enabled,
         }
     if entity_type == "inventory_item":
         return {
@@ -1532,11 +1535,12 @@ def seed_cloud_sync_outbox() -> int:
                 (
                     row.id,
                     row.updated_at,
-                    {
-                        "business_day_start_time": row.business_day_start_time,
-                        "print_preview_enabled": row.print_preview_enabled,
-                        "kds_mark_unavailable_enabled": row.kds_mark_unavailable_enabled,
-                    },
+                        {
+                            "business_day_start_time": row.business_day_start_time,
+                            "print_preview_enabled": row.print_preview_enabled,
+                            "kds_mark_unavailable_enabled": row.kds_mark_unavailable_enabled,
+                            "low_power_mode_enabled": row.low_power_mode_enabled,
+                        },
                 )
                 for row in BrandingSettings.query.order_by(BrandingSettings.id.asc()).all()
             ),

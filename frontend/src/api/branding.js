@@ -10,6 +10,7 @@ export const DEFAULT_BRANDING = {
   business_day_start_time: "06:00",
   print_preview_enabled: false,
   kds_mark_unavailable_enabled: false,
+  low_power_mode_enabled: true,
   kitchen_tag_category_id: null,
   kitchen_tag_subcategory_id: null,
   kitchen_tag_subcategory_ids: [],
