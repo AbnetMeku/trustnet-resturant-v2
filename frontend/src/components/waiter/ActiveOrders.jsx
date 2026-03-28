@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
 import { fetchOrders, addOrderItems, updateOrderStatus } from "@/api/orders";
@@ -148,26 +148,26 @@ export default function ActiveOrders({ goBack }) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold">የተከፈተ ትዕዛዝ</h2>
-          {!loading && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{openOrders.length} ትዕዛዝ</p>}
+          <h2 className="text-xl sm:text-2xl font-bold">á‹¨á‰°áŠ¨áˆá‰° á‰µá‹•á‹›á‹</h2>
+          {!loading && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{openOrders.length} á‰µá‹•á‹›á‹</p>}
         </div>
         <Button variant="outline" onClick={goBack}>
-          {"\u2190"} ተመለስ
+          {"\u2190"} á‰°áˆ˜áˆˆáˆµ
         </Button>
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map((k) => (
             <div key={k} className="h-44 rounded-2xl border bg-white/60 dark:bg-gray-800/60 animate-pulse" />
           ))}
         </div>
       ) : openOrders.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-10 text-center">
-          <p className="text-gray-500">ምንም የተከፈተ ትዕዛዝ የለም</p>
+          <p className="text-gray-500">áˆáŠ•áˆ á‹¨á‰°áŠ¨áˆá‰° á‰µá‹•á‹›á‹ á‹¨áˆˆáˆ</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {openOrders.map((order) => (
             <div
               key={order.id}
@@ -180,17 +180,17 @@ export default function ActiveOrders({ goBack }) {
                   selectOrder(order);
                 }
               }}
-              className="relative cursor-pointer bg-white/85 dark:bg-gray-800/85 backdrop-blur-md border border-slate-200/70 dark:border-slate-700 rounded-2xl p-5 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all flex flex-col justify-between"
+              className="relative cursor-pointer bg-white/85 dark:bg-gray-800/85 backdrop-blur-md border border-slate-200/70 dark:border-slate-700 rounded-2xl p-4 sm:p-5 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all flex flex-col justify-between"
             >
               <div>
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="font-bold text-xl text-gray-900 dark:text-white">Table {order.table.number}</h3>
+                  <h3 className="font-bold text-lg sm:text-xl text-gray-900 dark:text-white">Table {order.table.number}</h3>
                   <span className="inline-block px-2.5 py-1 text-[11px] font-semibold bg-slate-100 text-slate-700 rounded-full dark:bg-slate-700 dark:text-slate-100">
                     #{order.id}
                   </span>
                 </div>
-                <span className="inline-block mt-3 px-3 py-1 text-sm font-semibold bg-blue-100 text-blue-700 rounded-full dark:bg-blue-900 dark:text-blue-200">
-                  ጠቅላላ ዋጋ: ${order.total_amount.toFixed(2)}
+                <span className="inline-block mt-3 px-3 py-1 text-xs sm:text-sm font-semibold bg-blue-100 text-blue-700 rounded-full dark:bg-blue-900 dark:text-blue-200">
+                  áŒ á‰…áˆ‹áˆ‹ á‹‹áŒ‹: ${order.total_amount.toFixed(2)}
                 </span>
               </div>
 
@@ -203,7 +203,7 @@ export default function ActiveOrders({ goBack }) {
                   }}
                   onKeyDown={(e) => e.stopPropagation()}
                 >
-                  ዝርዝር ይመልከቱ
+                  á‹áˆ­á‹áˆ­ á‹­áˆ˜áˆáŠ¨á‰±
                 </Button>
                 <Button
                   variant="destructive"
@@ -213,7 +213,7 @@ export default function ActiveOrders({ goBack }) {
                   }}
                   onKeyDown={(e) => e.stopPropagation()}
                 >
-                  ትዕዛዝ ዝጋ
+                  á‰µá‹•á‹›á‹ á‹áŒ‹
                 </Button>
               </div>
             </div>
@@ -224,13 +224,13 @@ export default function ActiveOrders({ goBack }) {
       {confirmCloseId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
           <div className="w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">እርግጠኛ ነዎት ይህ ትዕዛዝ ይዘጋ?</h3>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">áŠ¥áˆ­áŒáŒ áŠ› áŠá‹Žá‰µ á‹­áˆ… á‰µá‹•á‹›á‹ á‹­á‹˜áŒ‹?</h3>
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setConfirmCloseId(null)}>
-                አይ
+                áŠ á‹­
               </Button>
               <Button variant="destructive" onClick={() => handleCloseOrder(confirmCloseId)}>
-                አዎ ዝጋ
+                áŠ á‹Ž á‹áŒ‹
               </Button>
             </div>
           </div>
@@ -243,14 +243,14 @@ export default function ActiveOrders({ goBack }) {
             <h3 className="text-xl font-bold mb-4">
               Table {detailsOrder.table.number} - Order #{detailsOrder.id}
             </h3>
-            <div className="max-h-[55vh] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
-              <table className="w-full text-left border-collapse">
+            <div className="max-h-[55vh] overflow-auto rounded-lg border border-slate-200 dark:border-slate-700">
+              <table className="min-w-[520px] w-full text-left border-collapse">
                 <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900/90">
                   <tr className="border-b dark:border-gray-600">
-                    <th className="px-3 py-2">ትዕዛዝ</th>
-                    <th className="px-3 py-2">ብዛት</th>
-                    <th className="px-3 py-2">ዋጋ</th>
-                    <th className="px-3 py-2">አጠቃላይ ዋጋ</th>
+                    <th className="px-3 py-2">á‰µá‹•á‹›á‹</th>
+                    <th className="px-3 py-2">á‰¥á‹›á‰µ</th>
+                    <th className="px-3 py-2">á‹‹áŒ‹</th>
+                    <th className="px-3 py-2">áŠ áŒ á‰ƒáˆ‹á‹­ á‹‹áŒ‹</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -273,7 +273,7 @@ export default function ActiveOrders({ goBack }) {
                 </tbody>
               </table>
             </div>
-            <p className="mt-4 font-bold text-right text-lg">አጠቃላይ: ${detailsOrder.total_amount.toFixed(2)}</p>
+            <p className="mt-4 font-bold text-right text-lg">áŠ áŒ á‰ƒáˆ‹á‹­: ${detailsOrder.total_amount.toFixed(2)}</p>
             <div className="flex justify-end mt-4">
               <Button onClick={() => setDetailsOrder(null)}>Close</Button>
             </div>
@@ -283,3 +283,4 @@ export default function ActiveOrders({ goBack }) {
     </div>
   );
 }
+

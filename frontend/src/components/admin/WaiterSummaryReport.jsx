@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { getWaiterSummary, getWaiterDetails, reopenWaiterDay } from "@/api/reportApi";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -242,7 +242,7 @@ export default function WaiterSummaryReport() {
       )}
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
           <Card className="admin-card w-full max-w-5xl overflow-hidden shadow-xl">
             <div className="admin-hero p-4 md:p-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -333,4 +333,5 @@ export default function WaiterSummaryReport() {
     </div>
   );
 }
+
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchOrders } from "@/api/orders";
 import { getUsers } from "@/api/users";
@@ -198,7 +198,7 @@ export default function PaidOrders() {
       )}
 
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
           <Card className="admin-card w-full max-w-3xl overflow-hidden shadow-xl">
             <div className="admin-hero p-4 md:p-5">
               <div className="flex items-start justify-between gap-4">
@@ -260,7 +260,7 @@ export default function PaidOrders() {
       )}
 
       {confirmPrint && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
           <Card className="admin-card w-full max-w-sm p-6">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Confirm Print</h3>
             <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
@@ -285,3 +285,4 @@ export default function PaidOrders() {
     </div>
   );
 }
+

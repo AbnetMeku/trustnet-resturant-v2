@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
 import { eatDateISO, formatEatDateTime } from "@/lib/timezone";
 
@@ -114,7 +114,7 @@ export default function PrintFailures() {
       </Card>
 
       <Card className="admin-card overflow-x-auto">
-        <table className="min-w-full text-sm">
+        <table className="min-w-[900px] w-full text-sm">
           <thead>
             <tr className="bg-slate-100 dark:bg-slate-800/70 text-left">
               <th className="px-4 py-3 font-medium">Status</th>
@@ -189,3 +189,4 @@ export default function PrintFailures() {
     </div>
   );
 }
+

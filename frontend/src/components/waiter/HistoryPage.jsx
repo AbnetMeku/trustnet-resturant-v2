@@ -71,11 +71,11 @@ export default function HistoryPage({ onDayCloseChange }) {
   const isViewingToday = selectedDate === todayISO;
 
   return (
-    <div className="p-4 dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 flex">
+    <div className="p-4 md:p-6 dark:bg-gray-900 min-h-[70vh] text-gray-900 dark:text-gray-100 flex">
       <div className="flex-1">
         <div className="flex flex-col gap-3 mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <h1 className="text-3xl font-bold mb-0">የቀኑ የተዘጉ እና የተከፈሉ ትዕዛዞች</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-0">የቀኑ የተዘጉ እና የተከፈሉ ትዕዛዞች</h1>
             {isViewingToday && isClosedForToday && (
               <span className="text-sm font-semibold text-green-700 dark:text-green-300">
                 ዛሬ ተዘግቷል
@@ -92,7 +92,7 @@ export default function HistoryPage({ onDayCloseChange }) {
               value={selectedDate}
               max={todayISO}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+              className="w-full sm:w-auto h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
             />
           </div>
         </div>
@@ -226,8 +226,8 @@ export default function HistoryPage({ onDayCloseChange }) {
             <h3 className="text-xl font-bold mb-4">
               Table {selectedOrder.table?.number || "N/A"} - ትዕዛዝ #{selectedOrder.id}
             </h3>
-            <div className="max-h-[55vh] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
-              <table className="w-full text-left border-collapse">
+            <div className="max-h-[55vh] overflow-auto rounded-lg border border-slate-200 dark:border-slate-700">
+              <table className="min-w-[560px] w-full text-left border-collapse">
                 <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900/90">
                   <tr className="border-b dark:border-gray-600">
                     <th className="px-3 py-2">ትዕዛዝ</th>
@@ -266,3 +266,5 @@ export default function HistoryPage({ onDayCloseChange }) {
     </div>
   );
 }
+
+

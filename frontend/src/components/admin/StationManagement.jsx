@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -302,7 +302,7 @@ export default function StationManagement() {
       )}
 
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
           <Card className="admin-card w-full max-w-lg overflow-hidden shadow-xl">
             <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/50">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{currentStation ? "Edit Station" : "Add Station"}</h2>
@@ -387,3 +387,4 @@ export default function StationManagement() {
     </div>
   );
 }
+

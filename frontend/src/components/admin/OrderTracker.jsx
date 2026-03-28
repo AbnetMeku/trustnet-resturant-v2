@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchOrderHistoryRaw } from "@/api/order_history";
 import { updateOrderItem, voidOrderItem, unvoidOrderItem, deleteOrder } from "@/api/orders";
@@ -439,7 +439,7 @@ export default function AdminOrders() {
         <Card className="admin-card p-3">
           <div className="flex items-center justify-between">
             <span className="text-sm text-slate-600 dark:text-slate-300">
-              Page {pagination.page} / {pagination.total_pages} • Showing {filteredOrders.length} of {pagination.total}
+              Page {pagination.page} / {pagination.total_pages} â€¢ Showing {filteredOrders.length} of {pagination.total}
             </span>
             <div className="flex gap-2">
               <Button
@@ -464,7 +464,7 @@ export default function AdminOrders() {
       )}
 
       {selectedOrder && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-slate-950/65 flex items-center justify-center p-2 backdrop-blur-sm z-50">
           <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-xl w-full max-w-3xl max-h-[85vh] text-slate-900 dark:text-slate-100 flex flex-col overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80">
               <div className="flex items-start justify-between gap-3">
@@ -584,7 +584,7 @@ export default function AdminOrders() {
       )}
 
       {itemToVoid && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-slate-950/65 flex items-center justify-center p-2 backdrop-blur-sm z-50">
           <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 shadow-xl text-slate-900 dark:text-slate-100 w-full max-w-md">
             <p className="text-lg font-semibold">Confirm Void</p>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
@@ -601,7 +601,7 @@ export default function AdminOrders() {
       )}
 
       {orderToDelete && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-slate-950/65 flex items-center justify-center p-2 backdrop-blur-sm z-50">
           <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 shadow-xl text-slate-900 dark:text-slate-100 w-full max-w-md">
             <p className="text-lg font-semibold">Delete Order</p>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
@@ -619,4 +619,5 @@ export default function AdminOrders() {
     </div>
   );
 }
+
 

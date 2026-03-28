@@ -30,36 +30,66 @@ export default function OrderSummary({
       {orderItems.length === 0 ? (
         <p className="text-gray-500">ምንም እቃ አልተመረጠም።</p>
       ) : (
-        <div className="flex-1 overflow-y-auto mb-4 rounded-lg border border-slate-200 dark:border-slate-600">
-          <table className="w-full table-auto border-collapse">
-            <thead>
-              <tr className="bg-gray-200 dark:bg-gray-600">
-                <th className="px-2 py-1 text-left">ትዕዛዝ</th>
-                <th className="px-2 py-1 text-center">ብዛት</th>
-                <th className="px-2 py-1 text-left">ማስታወሻ</th>
-                <th className="px-2 py-1 text-right">ዋጋ</th>
-                <th className="px-2 py-1 text-right">አጠቃላይ ዋጋ</th>
-                <th className="px-2 py-1 text-center">ቀንስ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orderItems.map((item) => (
-                <tr key={item.id} className="border-b border-gray-300 dark:border-gray-600">
-                  <td className="px-2 py-1">{item.name}</td>
-                  <td className="px-2 py-1 text-center">{item.quantity}</td>
-                  <td className="px-2 py-1">{item.notes || "ምንም"}</td>
-                  <td className="px-2 py-1 text-right">${(item.price || 0).toFixed(2)}</td>
-                  <td className="px-2 py-1 text-right">${((item.price || 0) * item.quantity).toFixed(2)}</td>
-                  <td className="px-2 py-1 text-center">
-                    <Button variant="destructive" size="sm" onClick={() => removeItem(item.id)}>
-                      ቀንስ
-                    </Button>
-                  </td>
+        <>
+          <div className="space-y-3 md:hidden">
+            {orderItems.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-gray-800"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{item.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {item.notes || "ምንም"}
+                    </p>
+                  </div>
+                  <Button variant="destructive" size="sm" onClick={() => removeItem(item.id)}>
+                    ቀንስ
+                  </Button>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-600 dark:text-gray-300">
+                  <span>ብዛት: {item.quantity}</span>
+                  <span>ዋጋ: ${(item.price || 0).toFixed(2)}</span>
+                  <span>አጠቃላይ: ${((item.price || 0) * item.quantity).toFixed(2)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden md:block flex-1 overflow-auto mb-4 rounded-lg border border-slate-200 dark:border-slate-600">
+            <table className="min-w-[640px] w-full table-auto border-collapse">
+              <thead>
+                <tr className="bg-gray-200 dark:bg-gray-600">
+                  <th className="px-2 py-1 text-left">ትዕዛዝ</th>
+                  <th className="px-2 py-1 text-center">ብዛት</th>
+                  <th className="px-2 py-1 text-left">ማስታወሻ</th>
+                  <th className="px-2 py-1 text-right">ዋጋ</th>
+                  <th className="px-2 py-1 text-right">አጠቃላይ ዋጋ</th>
+                  <th className="px-2 py-1 text-center">ቀንስ</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {orderItems.map((item) => (
+                  <tr key={item.id} className="border-b border-gray-300 dark:border-gray-600">
+                    <td className="px-2 py-1">{item.name}</td>
+                    <td className="px-2 py-1 text-center">{item.quantity}</td>
+                    <td className="px-2 py-1">{item.notes || "ምንም"}</td>
+                    <td className="px-2 py-1 text-right">${(item.price || 0).toFixed(2)}</td>
+                    <td className="px-2 py-1 text-right">
+                      ${((item.price || 0) * item.quantity).toFixed(2)}
+                    </td>
+                    <td className="px-2 py-1 text-center">
+                      <Button variant="destructive" size="sm" onClick={() => removeItem(item.id)}>
+                        ቀንስ
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       <div className="flex justify-between items-center mt-4">

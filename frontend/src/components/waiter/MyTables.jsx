@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/context/AuthContext";
 import { getTables } from "@/api/tables";
@@ -31,17 +31,17 @@ export default function MyTables() {
 
   return (
     <div
-      className="p-6 dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100"
+      className="p-4 md:p-6 dark:bg-gray-900 min-h-[70vh] text-gray-900 dark:text-gray-100"
       data-testid="waiter-tables-view"
     >
-      <h1 className="text-3xl font-bold mb-6 text-center">ጠረጴዛዎች</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-center">áŒ áˆ¨áŒ´á‹›á‹Žá‰½</h1>
 
       {loading ? (
-        <div className="text-center text-lg">የተመደቡ ጠረጴዛዎች በመጫን ላይ...</div>
+        <div className="text-center text-lg">á‹¨á‰°áˆ˜á‹°á‰¡ áŒ áˆ¨áŒ´á‹›á‹Žá‰½ á‰ áˆ˜áŒ«áŠ• áˆ‹á‹­...</div>
       ) : assignedTables.length === 0 ? (
-        <p className="text-center text-gray-500 dark:text-gray-400">ምንም ጠረጴዛ አልተመደበም</p>
+        <p className="text-center text-gray-500 dark:text-gray-400">áˆáŠ•áˆ áŒ áˆ¨áŒ´á‹› áŠ áˆá‰°áˆ˜á‹°á‰ áˆ</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
           {assignedTables.map((table) => (
             <Card
               key={table.id}
@@ -70,7 +70,7 @@ export default function MyTables() {
               </CardHeader>
 
               <CardContent className="pt-2 flex flex-col gap-2">
-                <p className="text-sm font-medium">የተመደበ አስተናጋጅ</p>
+                <p className="text-sm font-medium">á‹¨á‰°áˆ˜á‹°á‰  áŠ áˆµá‰°áŠ“áŒ‹áŒ…</p>
                 <div className="flex flex-wrap gap-1">
                   {table.waiters.length ? (
                     table.waiters.map((w) => (
@@ -93,3 +93,4 @@ export default function MyTables() {
     </div>
   );
 }
+

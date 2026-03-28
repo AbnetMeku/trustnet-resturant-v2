@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { fetchReadyOrdersHistory } from "@/api/kds";
 import { eatBusinessDateISO, formatEatDateTime } from "@/lib/timezone";
 import { toast } from "react-hot-toast";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { Button } from "@/components/ui/button";
 
 export default function StationHistory() {
   const { stationToken, logoutStation } = useAuth();
@@ -138,7 +139,7 @@ export default function StationHistory() {
             value={filterWaiter}
             onChange={(e) => setFilterWaiter(e.target.value)}
             data-testid="kds-history-waiter-filter"
-            className="p-2 rounded-lg border text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700"
+            className="w-full sm:w-44 p-2 rounded-lg border text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700"
           >
             <option value="">All Waiters</option>
             {waiters.map((w) => (
@@ -158,7 +159,7 @@ export default function StationHistory() {
             onChange={(e) => setFilterTableNumber(e.target.value)}
             placeholder="All"
             data-testid="kds-history-table-filter"
-            className="p-2 rounded-lg border text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 w-28"
+            className="w-full sm:w-28 p-2 rounded-lg border text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700"
           />
         </div>
 
@@ -169,7 +170,7 @@ export default function StationHistory() {
             value={filterDate}
             onChange={(e) => setFilterDate(e.target.value)}
             data-testid="kds-history-date-filter"
-            className="p-2 rounded-lg border text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 w-52"
+            className="w-full sm:w-52 p-2 rounded-lg border text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700"
             max={today}
           />
         </div>
@@ -177,7 +178,7 @@ export default function StationHistory() {
         <button
           type="button"
           onClick={() => fetchOrders()}
-          className="px-3 py-2 text-sm rounded-md border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
+          className="w-full sm:w-auto px-3 py-2 text-sm rounded-md border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
         >
           Refresh
         </button>
@@ -191,32 +192,32 @@ export default function StationHistory() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow">
-              <p className="text-gray-600 dark:text-gray-300">አጠቃላይ ትዕዛዝ</p>
+              <p className="text-gray-600 dark:text-gray-300">áŠ áŒ á‰ƒáˆ‹á‹­ á‰µá‹•á‹›á‹</p>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{totalOrders}</h2>
             </div>
 
             <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow">
               <p className="text-gray-600 dark:text-gray-300 flex justify-between items-center">
-                አጠቃላይ የተሸጡ
+                áŠ áŒ á‰ƒáˆ‹á‹­ á‹¨á‰°áˆ¸áŒ¡
                 <button
                   className="text-blue-500 text-sm underline ml-2"
                   onClick={() => setShowItemsModal(true)}
                   data-testid="kds-history-open-items"
                 >
-                  ሙሉ ዝርዝር
+                  áˆ™áˆ‰ á‹áˆ­á‹áˆ­
                 </button>
               </p>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{totalItems}</h2>
             </div>
 
             <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow">
-              <p className="text-gray-600 dark:text-gray-300">አጠቃላይ ሽይጭ</p>
+              <p className="text-gray-600 dark:text-gray-300">áŠ áŒ á‰ƒáˆ‹á‹­ áˆ½á‹­áŒ­</p>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">${totalSales.toFixed(2)}</h2>
             </div>
           </div>
 
           {historyOrders.length === 0 ? (
-            <p className="text-center mt-10 text-gray-500 dark:text-gray-400">የተዘጋባ እቃዎች የሉም</p>
+            <p className="text-center mt-10 text-gray-500 dark:text-gray-400">á‹¨á‰°á‹˜áŒ‹á‰£ áŠ¥á‰ƒá‹Žá‰½ á‹¨áˆ‰áˆ</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {historyOrders.map((order) => (
@@ -224,20 +225,20 @@ export default function StationHistory() {
                   <div className="flex justify-between items-center mb-3">
                     <div>
                       <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                        ትዕዛዝ #{order.order_id}
+                        á‰µá‹•á‹›á‹ #{order.order_id}
                       </h2>
                       <p className="text-sm text-gray-700 dark:text-gray-300">
-                        አስተናጋጅ: {order.waiter_name || "N/A"}
+                        áŠ áˆµá‰°áŠ“áŒ‹áŒ…: {order.waiter_name || "N/A"}
                       </p>
                       <p className="text-sm text-gray-700 dark:text-gray-300">
-                        ተዘጋጅቷል:{" "}
+                        á‰°á‹˜áŒ‹áŒ…á‰·áˆ:{" "}
                         {formatEatDateTime(
                           order.items?.[0]?.created_at || order.order_updated_at || order.order_created_at
                         )}
                       </p>
                     </div>
                     <span className="px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                      {order.items.length} እቃ
+                      {order.items.length} áŠ¥á‰ƒ
                     </span>
                   </div>
 
@@ -263,7 +264,7 @@ export default function StationHistory() {
                             item.status === "ready" ? "bg-green-500" : "bg-red-500"
                           }`}
                         >
-                          {item.status === "ready" ? "ወቷል" : "ተሰርዟል"}
+                          {item.status === "ready" ? "á‹ˆá‰·áˆ" : "á‰°áˆ°áˆ­á‹Ÿáˆ"}
                         </span>
                       </li>
                     ))}
@@ -277,41 +278,47 @@ export default function StationHistory() {
 
       {showItemsModal && (
         <div
-          className="fixed inset-0 bg-black/50 flex justify-center items-center p-4 z-50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm"
           data-testid="kds-history-modal"
         >
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl w-full max-w-lg overflow-y-auto max-h-[80vh]">
+          <div className="w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">አጠቃላይ የተሸጡ እቃዎች</h3>
-              <button
-                className="text-red-500 font-bold"
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setShowItemsModal(false)}
                 data-testid="kds-history-close-items"
               >
-                ✕
-              </button>
+                Close
+              </Button>
             </div>
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="py-2">እቃ</th>
-                  <th className="py-2">ብዛት</th>
-                  <th className="py-2">አጠቃላይ ዋጋ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {aggregatedItemsArray.map((item, idx) => (
-                  <tr key={idx} className="border-b border-gray-200 dark:border-gray-700">
-                    <td className="py-2">{item.name}</td>
-                    <td className="py-2">{item.totalQuantity}</td>
-                    <td className="py-2">${item.subtotal.toFixed(2)}</td>
+            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+              <table className="min-w-[420px] w-full text-left">
+                <thead className="bg-slate-100 dark:bg-slate-900/90">
+                  <tr className="border-b border-gray-200 dark:border-gray-700">
+                    <th className="py-2 px-3">እቃ</th>
+                    <th className="py-2 px-3">ብዛት</th>
+                    <th className="py-2 px-3">አጠቃላይ ዋጋ</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {aggregatedItemsArray.map((item, idx) => (
+                    <tr key={idx} className="border-b border-gray-200 dark:border-gray-700">
+                      <td className="py-2 px-3">{item.name}</td>
+                      <td className="py-2 px-3">{item.totalQuantity}</td>
+                      <td className="py-2 px-3">${item.subtotal.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
     </div>
   );
 }
+
+
+

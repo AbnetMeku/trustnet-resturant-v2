@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+﻿import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { fetchKDSOrders, updateOrderItemStatus } from "@/api/kds";
@@ -110,7 +110,7 @@ export default function StationOrders() {
   if (!pendingOrders.length) {
     return (
       <p className="text-center mt-10 text-gray-400 dark:text-gray-500" data-testid="kds-orders-root">
-        ምንም ትዕዛዝ የለም በአሁን ጊዜ
+        áˆáŠ•áˆ á‰µá‹•á‹›á‹ á‹¨áˆˆáˆ á‰ áŠ áˆáŠ• áŒŠá‹œ
       </p>
     );
   }
@@ -133,20 +133,20 @@ export default function StationOrders() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {pendingOrders.map((order) => (
           <div
             key={order.order_id}
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 flex flex-col space-y-4 transform hover:scale-[1.02] transition-transform duration-200"
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-6 flex flex-col space-y-4 transform hover:scale-[1.02] transition-transform duration-200"
           >
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-2xl font-bold">ትዕዛዝ #{order.order_id}</h2>
+                <h2 className="text-xl sm:text-2xl font-bold">á‰µá‹•á‹›á‹ #{order.order_id}</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-300">
-                  ጠረጴዛ ቁጥር: {order.table_number || "N/A"} | አስተናጋጅ: {order.waiter_name || "N/A"}
+                  áŒ áˆ¨áŒ´á‹› á‰áŒ¥áˆ­: {order.table_number || "N/A"} | áŠ áˆµá‰°áŠ“áŒ‹áŒ…: {order.waiter_name || "N/A"}
                 </p>
                 <p className="text-xs text-gray-400 dark:text-gray-500">
-                  ትዕዛዝ ሰዐት:{" "}
+                  á‰µá‹•á‹›á‹ áˆ°á‹á‰µ:{" "}
                   {formatEatTime(order.order_created_at, {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -154,7 +154,7 @@ export default function StationOrders() {
                 </p>
               </div>
               <span className="px-3 py-1 rounded-full text-slate-900 font-semibold bg-gray-100 text-sm">
-                {order.items.length} ትዕዛዝ
+                {order.items.length} á‰µá‹•á‹›á‹
               </span>
             </div>
 
@@ -162,7 +162,7 @@ export default function StationOrders() {
               {order.items.map((item) => (
                 <li
                   key={item.item_id}
-                  className={`flex justify-between items-center p-4 rounded-lg shadow-sm ${
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg shadow-sm ${
                     item.status === "void"
                       ? "bg-gray-300 dark:bg-gray-600 line-through"
                       : "bg-gray-100 dark:bg-gray-700"
@@ -182,23 +182,23 @@ export default function StationOrders() {
                     )}
                   </div>
 
-                  <div className="flex space-x-2">
+                  <div className="flex flex-wrap gap-2 sm:justify-end">
                     {item.status === "pending" && (
                       <>
                         <button
                           onClick={() => updateStatus(item.item_id, "ready")}
                           disabled={Boolean(updatingItems[item.item_id])}
-                          className="px-4 py-2 rounded-full font-semibold text-white bg-rose-900 hover:bg-rose-600 disabled:opacity-60"
+                          className="w-full sm:w-auto px-4 py-2 rounded-full font-semibold text-white bg-rose-900 hover:bg-rose-600 disabled:opacity-60"
                         >
-                          {updatingItems[item.item_id] ? "..." : "ወቷል"}
+                          {updatingItems[item.item_id] ? "..." : "á‹ˆá‰·áˆ"}
                         </button>
                         {allowMarkUnavailable && (
                           <button
                             onClick={() => updateStatus(item.item_id, "void")}
                             disabled={Boolean(updatingItems[item.item_id])}
-                            className="px-4 py-2 rounded-full font-semibold text-white bg-gray-500 hover:bg-gray-400 disabled:opacity-60"
+                            className="w-full sm:w-auto px-4 py-2 rounded-full font-semibold text-white bg-gray-500 hover:bg-gray-400 disabled:opacity-60"
                           >
-                            የለም
+                            á‹¨áˆˆáˆ
                           </button>
                         )}
                       </>
@@ -223,3 +223,4 @@ export default function StationOrders() {
     </div>
   );
 }
+

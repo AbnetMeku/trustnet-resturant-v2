@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -305,7 +305,7 @@ export default function TableManagement() {
       )}
 
       {selectedGroup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
           <Card className="w-full max-w-5xl overflow-hidden border-slate-200 shadow-xl dark:border-slate-800">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/50">
               <div>
@@ -394,7 +394,7 @@ export default function TableManagement() {
       )}
 
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
           <Card className="admin-card w-full max-w-md overflow-hidden shadow-xl">
             <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/50">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{currentTable ? "Edit Table" : "Add Table"}</h2>
@@ -497,3 +497,4 @@ export default function TableManagement() {
     </div>
   );
 }
+

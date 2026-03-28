@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchOrders } from "@/api/orders";
 import { getUsers } from "@/api/users";
@@ -177,7 +177,7 @@ export default function OpenOrders() {
       )}
 
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
           <Card className="admin-card w-full max-w-3xl overflow-hidden shadow-xl">
             <div className="admin-hero p-4 md:p-5">
               <div className="flex items-start justify-between gap-4">
@@ -240,3 +240,4 @@ export default function OpenOrders() {
     </div>
   );
 }
+
