@@ -6,6 +6,7 @@ import ActiveMenuSelection from "./ActiveMenuSelection";
 import ActiveOrderSummary from "./ActiveOrderSummary";
 import { Button } from "@/components/ui/button";
 import { getApiErrorMessage } from "@/lib/apiError";
+import ModalPortal from "@/components/ui/ModalPortal";
 
 export default function ActiveOrders({ goBack }) {
   const { authToken, user } = useAuth();
@@ -222,63 +223,67 @@ export default function ActiveOrders({ goBack }) {
       )}
 
       {confirmCloseId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">áŠ¥áˆ­áŒáŒ áŠ› áŠá‹Žá‰µ á‹­áˆ… á‰µá‹•á‹›á‹ á‹­á‹˜áŒ‹?</h3>
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setConfirmCloseId(null)}>
-                áŠ á‹­
-              </Button>
-              <Button variant="destructive" onClick={() => handleCloseOrder(confirmCloseId)}>
-                áŠ á‹Ž á‹áŒ‹
-              </Button>
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
+            <div className="w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">áŠ¥áˆ­áŒáŒ áŠ› áŠá‹Žá‰µ á‹­áˆ… á‰µá‹•á‹›á‹ á‹­á‹˜áŒ‹?</h3>
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setConfirmCloseId(null)}>
+                  áŠ á‹­
+                </Button>
+                <Button variant="destructive" onClick={() => handleCloseOrder(confirmCloseId)}>
+                  áŠ á‹Ž á‹áŒ‹
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {detailsOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
-          <div className="w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
-            <h3 className="text-xl font-bold mb-4">
-              Table {detailsOrder.table.number} - Order #{detailsOrder.id}
-            </h3>
-            <div className="max-h-[55vh] overflow-auto rounded-lg border border-slate-200 dark:border-slate-700">
-              <table className="min-w-[520px] w-full text-left border-collapse">
-                <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900/90">
-                  <tr className="border-b dark:border-gray-600">
-                    <th className="px-3 py-2">á‰µá‹•á‹›á‹</th>
-                    <th className="px-3 py-2">á‰¥á‹›á‰µ</th>
-                    <th className="px-3 py-2">á‹‹áŒ‹</th>
-                    <th className="px-3 py-2">áŠ áŒ á‰ƒáˆ‹á‹­ á‹‹áŒ‹</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...(detailsOrder.active_items || []), ...(detailsOrder.voided_items || [])].map((item) => {
-                    const isVoided = item.status?.includes("void");
-                    return (
-                      <tr
-                        key={item.id}
-                        className={`border-b dark:border-gray-700 ${
-                          isVoided ? "bg-red-100 dark:bg-red-800/50 line-through text-gray-500 dark:text-gray-300" : ""
-                        }`}
-                      >
-                        <td className="px-3 py-2">{item.name}</td>
-                        <td className="px-3 py-2">{item.quantity}</td>
-                        <td className="px-3 py-2">${item.price.toFixed(2)}</td>
-                        <td className="px-3 py-2">${(item.price * item.quantity).toFixed(2)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <p className="mt-4 font-bold text-right text-lg">áŠ áŒ á‰ƒáˆ‹á‹­: ${detailsOrder.total_amount.toFixed(2)}</p>
-            <div className="flex justify-end mt-4">
-              <Button onClick={() => setDetailsOrder(null)}>Close</Button>
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
+            <div className="w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
+              <h3 className="text-xl font-bold mb-4">
+                Table {detailsOrder.table.number} - Order #{detailsOrder.id}
+              </h3>
+              <div className="max-h-[55vh] overflow-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                <table className="min-w-[520px] w-full text-left border-collapse">
+                  <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900/90">
+                    <tr className="border-b dark:border-gray-600">
+                      <th className="px-3 py-2">á‰µá‹•á‹›á‹</th>
+                      <th className="px-3 py-2">á‰¥á‹›á‰µ</th>
+                      <th className="px-3 py-2">á‹‹áŒ‹</th>
+                      <th className="px-3 py-2">áŠ áŒ á‰ƒáˆ‹á‹­ á‹‹áŒ‹</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...(detailsOrder.active_items || []), ...(detailsOrder.voided_items || [])].map((item) => {
+                      const isVoided = item.status?.includes("void");
+                      return (
+                        <tr
+                          key={item.id}
+                          className={`border-b dark:border-gray-700 ${
+                            isVoided ? "bg-red-100 dark:bg-red-800/50 line-through text-gray-500 dark:text-gray-300" : ""
+                          }`}
+                        >
+                          <td className="px-3 py-2">{item.name}</td>
+                          <td className="px-3 py-2">{item.quantity}</td>
+                          <td className="px-3 py-2">${item.price.toFixed(2)}</td>
+                          <td className="px-3 py-2">${(item.price * item.quantity).toFixed(2)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-4 font-bold text-right text-lg">áŠ áŒ á‰ƒáˆ‹á‹­: ${detailsOrder.total_amount.toFixed(2)}</p>
+              <div className="flex justify-end mt-4">
+                <Button onClick={() => setDetailsOrder(null)}>Close</Button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

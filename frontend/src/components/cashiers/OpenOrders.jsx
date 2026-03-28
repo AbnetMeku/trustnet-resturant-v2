@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { eatBusinessDateISO, formatEatTime } from "@/lib/timezone";
 import toast from "react-hot-toast";
 import { getApiErrorMessage } from "@/lib/apiError";
+import ModalPortal from "@/components/ui/ModalPortal";
 
 export default function OpenOrders() {
   const { authToken } = useAuth();
@@ -177,65 +178,67 @@ export default function OpenOrders() {
       )}
 
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
-          <Card className="admin-card w-full max-w-3xl overflow-hidden shadow-xl">
-            <div className="admin-hero p-4 md:p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-200">Order Details</p>
-                  <h3 className="text-lg font-semibold">
-                    Table {selectedOrder.table?.number ?? "-"} | Order #{selectedOrder.id}
-                  </h3>
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
+            <Card className="admin-card w-full max-w-3xl overflow-hidden shadow-xl">
+              <div className="admin-hero p-4 md:p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-slate-200">Order Details</p>
+                    <h3 className="text-lg font-semibold">
+                      Table {selectedOrder.table?.number ?? "-"} | Order #{selectedOrder.id}
+                    </h3>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="border-white/40 bg-white/10 text-white hover:bg-white/20"
+                    onClick={() => setSelectedOrder(null)}
+                  >
+                    Close
+                  </Button>
                 </div>
-                <Button
-                  variant="outline"
-                  className="border-white/40 bg-white/10 text-white hover:bg-white/20"
-                  onClick={() => setSelectedOrder(null)}
-                >
-                  Close
-                </Button>
               </div>
-            </div>
-            <div className="max-h-[65vh] overflow-auto p-4 md:p-5">
-              <table className="w-full text-left text-sm">
-                <thead className="text-slate-600 dark:text-slate-300">
-                  <tr className="border-b border-slate-200 dark:border-slate-700">
-                    <th className="pb-2">Item</th>
-                    <th className="pb-2">Qty</th>
-                    <th className="pb-2">Price</th>
-                    <th className="pb-2">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...(selectedOrder.active_items || []), ...(selectedOrder.voided_items || [])].map((item) => {
-                    const isVoided = item.status?.includes("void");
-                    return (
-                      <tr
-                        key={item.id}
-                        className={`border-b border-slate-200 dark:border-slate-700 ${
-                          isVoided
-                            ? "bg-red-100/70 line-through text-slate-500 dark:bg-red-900/20 dark:text-slate-300"
-                            : ""
-                        }`}
-                      >
-                        <td className="py-2">{item.name}</td>
-                        <td className="py-2">{item.quantity}</td>
-                        <td className="py-2">${Number(item.price || 0).toFixed(2)}</td>
-                        <td className="py-2">${(Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              <p className="mt-4 text-right text-sm font-semibold text-slate-900 dark:text-slate-100">
-                Total: $
-                {(selectedOrder.active_items || [])
-                  .reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0)
-                  .toFixed(2)}
-              </p>
-            </div>
-          </Card>
-        </div>
+              <div className="max-h-[65vh] overflow-auto p-4 md:p-5">
+                <table className="w-full text-left text-sm">
+                  <thead className="text-slate-600 dark:text-slate-300">
+                    <tr className="border-b border-slate-200 dark:border-slate-700">
+                      <th className="pb-2">Item</th>
+                      <th className="pb-2">Qty</th>
+                      <th className="pb-2">Price</th>
+                      <th className="pb-2">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...(selectedOrder.active_items || []), ...(selectedOrder.voided_items || [])].map((item) => {
+                      const isVoided = item.status?.includes("void");
+                      return (
+                        <tr
+                          key={item.id}
+                          className={`border-b border-slate-200 dark:border-slate-700 ${
+                            isVoided
+                              ? "bg-red-100/70 line-through text-slate-500 dark:bg-red-900/20 dark:text-slate-300"
+                              : ""
+                          }`}
+                        >
+                          <td className="py-2">{item.name}</td>
+                          <td className="py-2">{item.quantity}</td>
+                          <td className="py-2">${Number(item.price || 0).toFixed(2)}</td>
+                          <td className="py-2">${(Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p className="mt-4 text-right text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  Total: $
+                  {(selectedOrder.active_items || [])
+                    .reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0)
+                    .toFixed(2)}
+                </p>
+              </div>
+            </Card>
+          </div>
+        </ModalPortal>
       )}
     </div>
   );

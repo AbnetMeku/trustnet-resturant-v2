@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
 import { eatBusinessDateISO, msUntilNextBusinessStart } from "@/lib/timezone";
 import { getApiErrorMessage } from "@/lib/apiError";
+import ModalPortal from "@/components/ui/ModalPortal";
 
 export default function WaiterSummaryReport() {
   const today = eatBusinessDateISO();
@@ -242,8 +243,9 @@ export default function WaiterSummaryReport() {
       )}
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
-          <Card className="admin-card w-full max-w-5xl overflow-hidden shadow-xl">
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
+            <Card className="admin-card w-full max-w-5xl overflow-hidden shadow-xl">
             <div className="admin-hero p-4 md:p-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -327,8 +329,9 @@ export default function WaiterSummaryReport() {
                 </div>
               )}
             </div>
-          </Card>
-        </div>
+            </Card>
+          </div>
+        </ModalPortal>
       )}
     </div>
   );

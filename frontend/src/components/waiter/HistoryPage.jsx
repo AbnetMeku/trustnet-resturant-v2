@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { eatBusinessDateISO, formatEatTime } from "@/lib/timezone";
 import { getApiErrorMessage } from "@/lib/apiError";
+import ModalPortal from "@/components/ui/ModalPortal";
 
 export default function HistoryPage({ onDayCloseChange }) {
   const { authToken, user } = useAuth();
@@ -193,75 +194,79 @@ export default function HistoryPage({ onDayCloseChange }) {
       </div>
 
       {showSummarySidebar && summary && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">አጠቃላይ ዛሬ የተሸጡ</h2>
-              <Button variant="outline" size="sm" onClick={() => setShowSummarySidebar(false)}>
-                Close
-              </Button>
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
+            <div className="w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">አጠቃላይ ዛሬ የተሸጡ</h2>
+                <Button variant="outline" size="sm" onClick={() => setShowSummarySidebar(false)}>
+                  Close
+                </Button>
+              </div>
+              {summary.dailyItemsSummary?.length === 0 ? (
+                <p className="text-sm">ዛሬ የተሸጠ የለም</p>
+              ) : (
+                <ul className="space-y-2">
+                  {summary.dailyItemsSummary?.map((item) => (
+                    <li
+                      key={item.name}
+                      className="flex justify-between bg-slate-100 dark:bg-gray-700 px-3 py-2 rounded-lg border border-slate-200/80 dark:border-slate-600"
+                    >
+                      <span>{item.name}</span>
+                      <span className="font-semibold">{item.quantity}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-            {summary.dailyItemsSummary?.length === 0 ? (
-              <p className="text-sm">ዛሬ የተሸጠ የለም</p>
-            ) : (
-              <ul className="space-y-2">
-                {summary.dailyItemsSummary?.map((item) => (
-                  <li
-                    key={item.name}
-                    className="flex justify-between bg-slate-100 dark:bg-gray-700 px-3 py-2 rounded-lg border border-slate-200/80 dark:border-slate-600"
-                  >
-                    <span>{item.name}</span>
-                    <span className="font-semibold">{item.quantity}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
-          <div className="w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
-            <h3 className="text-xl font-bold mb-4">
-              Table {selectedOrder.table?.number || "N/A"} - ትዕዛዝ #{selectedOrder.id}
-            </h3>
-            <div className="max-h-[55vh] overflow-auto rounded-lg border border-slate-200 dark:border-slate-700">
-              <table className="min-w-[560px] w-full text-left border-collapse">
-                <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900/90">
-                  <tr className="border-b dark:border-gray-600">
-                    <th className="px-3 py-2">ትዕዛዝ</th>
-                    <th className="px-3 py-2">ብዛት</th>
-                    <th className="px-3 py-2">ዋጋ</th>
-                    <th className="px-3 py-2">አጠቃላይ ዋጋ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...(selectedOrder.active_items || []), ...(selectedOrder.voided_items || [])].map((item) => {
-                    const isVoided = item.status?.includes("void");
-                    return (
-                      <tr
-                        key={item.id}
-                        className={`border-b dark:border-gray-700 ${
-                          isVoided ? "bg-red-100 dark:bg-red-800/50 line-through text-gray-500 dark:text-gray-300" : ""
-                        }`}
-                      >
-                        <td className="px-3 py-2">{item.name}</td>
-                        <td className="px-3 py-2">{item.quantity}</td>
-                        <td className="px-3 py-2">${item.price.toFixed(2)}</td>
-                        <td className="px-3 py-2">${(item.price * item.quantity).toFixed(2)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <p className="mt-4 font-bold text-right">አጠቃላይ: ${selectedOrder.total_amount.toFixed(2)}</p>
-            <div className="flex justify-end mt-4">
-              <Button onClick={() => setSelectedOrder(null)}>Close</Button>
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
+            <div className="w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
+              <h3 className="text-xl font-bold mb-4">
+                Table {selectedOrder.table?.number || "N/A"} - ትዕዛዝ #{selectedOrder.id}
+              </h3>
+              <div className="max-h-[55vh] overflow-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                <table className="min-w-[560px] w-full text-left border-collapse">
+                  <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900/90">
+                    <tr className="border-b dark:border-gray-600">
+                      <th className="px-3 py-2">ትዕዛዝ</th>
+                      <th className="px-3 py-2">ብዛት</th>
+                      <th className="px-3 py-2">ዋጋ</th>
+                      <th className="px-3 py-2">አጠቃላይ ዋጋ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...(selectedOrder.active_items || []), ...(selectedOrder.voided_items || [])].map((item) => {
+                      const isVoided = item.status?.includes("void");
+                      return (
+                        <tr
+                          key={item.id}
+                          className={`border-b dark:border-gray-700 ${
+                            isVoided ? "bg-red-100 dark:bg-red-800/50 line-through text-gray-500 dark:text-gray-300" : ""
+                          }`}
+                        >
+                          <td className="px-3 py-2">{item.name}</td>
+                          <td className="px-3 py-2">{item.quantity}</td>
+                          <td className="px-3 py-2">${item.price.toFixed(2)}</td>
+                          <td className="px-3 py-2">${(item.price * item.quantity).toFixed(2)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-4 font-bold text-right">አጠቃላይ: ${selectedOrder.total_amount.toFixed(2)}</p>
+              <div className="flex justify-end mt-4">
+                <Button onClick={() => setSelectedOrder(null)}>Close</Button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

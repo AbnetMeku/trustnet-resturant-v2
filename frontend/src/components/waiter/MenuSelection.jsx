@@ -4,6 +4,7 @@ import { getSubcategories } from "@/api/subcategories";
 import { getMenuItems } from "@/api/menu_item";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import ModalPortal from "@/components/ui/ModalPortal";
 
 export default function MenuSelection({
   selectedTable,
@@ -321,46 +322,48 @@ export default function MenuSelection({
           )}
         </button>
         {cartOpenMobile && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
-            <div className="w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 sm:p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-base sm:text-lg font-semibold dark:text-white">á‹¨á‰°áˆ˜áˆ¨áŒ¡ á‰µá‹•á‹›á‹žá‰½</h3>
-                <button
-                  className="bg-gray-200 text-black text-xs py-1 px-2 rounded hover:bg-gray-300"
-                  onClick={() => setCartOpenMobile(false)}
-                  aria-label="Close cart"
-                >
-                  x
-                </button>
-              </div>
-              {orderItems.length === 0 ? (
-                <p className="text-gray-500 dark:text-gray-400 text-sm">áˆáŠ•áˆ áŠ áˆá‰°áˆ˜áˆ¨áŒ áˆ</p>
-              ) : (
-                orderItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between mb-2 text-xs dark:text-white">
-                    <div className="flex flex-col max-w-xs truncate">
-                      <span className="font-semibold truncate">{item.name}</span>
-                      <span className="text-gray-600 dark:text-gray-400 truncate">
-                        ${Number(item.price).toFixed(2)} x {item.quantity}
-                      </span>
+          <ModalPortal>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
+              <div className="w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 sm:p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-base sm:text-lg font-semibold dark:text-white">á‹¨á‰°áˆ˜áˆ¨áŒ¡ á‰µá‹•á‹›á‹žá‰½</h3>
+                  <button
+                    className="bg-gray-200 text-black text-xs py-1 px-2 rounded hover:bg-gray-300"
+                    onClick={() => setCartOpenMobile(false)}
+                    aria-label="Close cart"
+                  >
+                    x
+                  </button>
+                </div>
+                {orderItems.length === 0 ? (
+                  <p className="text-gray-500 dark:text-gray-400 text-sm">áˆáŠ•áˆ áŠ áˆá‰°áˆ˜áˆ¨áŒ áˆ</p>
+                ) : (
+                  orderItems.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between mb-2 text-xs dark:text-white">
+                      <div className="flex flex-col max-w-xs truncate">
+                        <span className="font-semibold truncate">{item.name}</span>
+                        <span className="text-gray-600 dark:text-gray-400 truncate">
+                          ${Number(item.price).toFixed(2)} x {item.quantity}
+                        </span>
+                      </div>
+                      <button
+                        className="bg-red-500 text-white text-xs py-1 px-2 rounded hover:bg-red-600"
+                        onClick={() => removeItem(item.id)}
+                      >
+                        x
+                      </button>
                     </div>
-                    <button
-                      className="bg-red-500 text-white text-xs py-1 px-2 rounded hover:bg-red-600"
-                      onClick={() => removeItem(item.id)}
-                    >
-                      x
-                    </button>
-                  </div>
-                ))
-              )}
-              <div className="mt-2 border-t pt-2">
-                <p className="text-base sm:text-lg font-semibold dark:text-white">áŠ áŒ á‰ƒáˆ‹á‹­ á‹µáˆáˆ­: ${subtotal}</p>
-                <Button className="w-full mt-2 text-sm" disabled={orderItems.length === 0} onClick={onNext}>
-                  á‰µá‹•á‹›á‹ áŠ áˆ¨áŒ‹áŒáŒ¥ {"\u2192"}
-                </Button>
+                  ))
+                )}
+                <div className="mt-2 border-t pt-2">
+                  <p className="text-base sm:text-lg font-semibold dark:text-white">áŠ áŒ á‰ƒáˆ‹á‹­ á‹µáˆáˆ­: ${subtotal}</p>
+                  <Button className="w-full mt-2 text-sm" disabled={orderItems.length === 0} onClick={onNext}>
+                    á‰µá‹•á‹›á‹ áŠ áˆ¨áŒ‹áŒáŒ¥ {"\u2192"}
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
+          </ModalPortal>
         )}
       </div>
     </div>

@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import { FaEye, FaPrint } from "react-icons/fa";
 import { eatBusinessDateISO, formatEatTime } from "@/lib/timezone";
 import { getApiErrorMessage } from "@/lib/apiError";
+import ModalPortal from "@/components/ui/ModalPortal";
 
 export default function PaidOrders() {
   const { authToken } = useAuth();
@@ -198,8 +199,9 @@ export default function PaidOrders() {
       )}
 
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
-          <Card className="admin-card w-full max-w-3xl overflow-hidden shadow-xl">
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
+            <Card className="admin-card w-full max-w-3xl overflow-hidden shadow-xl">
             <div className="admin-hero p-4 md:p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -255,13 +257,15 @@ export default function PaidOrders() {
                   .toFixed(2)}
               </p>
             </div>
-          </Card>
-        </div>
+            </Card>
+          </div>
+        </ModalPortal>
       )}
 
       {confirmPrint && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
-          <Card className="admin-card w-full max-w-sm p-6">
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm">
+            <Card className="admin-card w-full max-w-sm p-6">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Confirm Print</h3>
             <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
               Print receipt copy for table {confirmPrint.table?.number ?? "-"} (Order #{confirmPrint.id})?
@@ -279,8 +283,9 @@ export default function PaidOrders() {
                 Print
               </Button>
             </div>
-          </Card>
-        </div>
+            </Card>
+          </div>
+        </ModalPortal>
       )}
     </div>
   );

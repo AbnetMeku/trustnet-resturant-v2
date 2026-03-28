@@ -6,6 +6,7 @@ import { eatBusinessDateISO, formatEatDateTime } from "@/lib/timezone";
 import { toast } from "react-hot-toast";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { Button } from "@/components/ui/button";
+import ModalPortal from "@/components/ui/ModalPortal";
 
 export default function StationHistory() {
   const { stationToken, logoutStation } = useAuth();
@@ -277,44 +278,46 @@ export default function StationHistory() {
       )}
 
       {showItemsModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm"
-          data-testid="kds-history-modal"
-        >
-          <div className="w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">አጠቃላይ የተሸጡ እቃዎች</h3>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowItemsModal(false)}
-                data-testid="kds-history-close-items"
-              >
-                Close
-              </Button>
-            </div>
-            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
-              <table className="min-w-[420px] w-full text-left">
-                <thead className="bg-slate-100 dark:bg-slate-900/90">
-                  <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <th className="py-2 px-3">እቃ</th>
-                    <th className="py-2 px-3">ብዛት</th>
-                    <th className="py-2 px-3">አጠቃላይ ዋጋ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {aggregatedItemsArray.map((item, idx) => (
-                    <tr key={idx} className="border-b border-gray-200 dark:border-gray-700">
-                      <td className="py-2 px-3">{item.name}</td>
-                      <td className="py-2 px-3">{item.totalQuantity}</td>
-                      <td className="py-2 px-3">${item.subtotal.toFixed(2)}</td>
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm"
+            data-testid="kds-history-modal"
+          >
+            <div className="w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-2rem)]">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">አጠቃላይ የተሸጡ እቃዎች</h3>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowItemsModal(false)}
+                  data-testid="kds-history-close-items"
+                >
+                  Close
+                </Button>
+              </div>
+              <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                <table className="min-w-[420px] w-full text-left">
+                  <thead className="bg-slate-100 dark:bg-slate-900/90">
+                    <tr className="border-b border-gray-200 dark:border-gray-700">
+                      <th className="py-2 px-3">እቃ</th>
+                      <th className="py-2 px-3">ብዛት</th>
+                      <th className="py-2 px-3">አጠቃላይ ዋጋ</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {aggregatedItemsArray.map((item, idx) => (
+                      <tr key={idx} className="border-b border-gray-200 dark:border-gray-700">
+                        <td className="py-2 px-3">{item.name}</td>
+                        <td className="py-2 px-3">{item.totalQuantity}</td>
+                        <td className="py-2 px-3">${item.subtotal.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );
