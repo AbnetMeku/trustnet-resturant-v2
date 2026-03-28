@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { getWaiterSummary, getWaiterDetails, reopenWaiterDay } from "@/api/reportApi";
+import { closeWaiterDayForWaiter } from "@/api/order_history";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
@@ -19,6 +20,7 @@ export default function WaiterSummaryReport() {
   const [modalWaiter, setModalWaiter] = useState("");
   const [modalItems, setModalItems] = useState([]);
   const [modalLoading, setModalLoading] = useState(false);
+  const isReportToday = endDate === today;
 
   const fetchReport = async () => {
     if (!startDate || !endDate) return;
@@ -92,6 +94,17 @@ export default function WaiterSummaryReport() {
       await fetchReport();
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Failed to reopen waiter shift."));
+    }
+  };
+
+  const handleCloseShift = async (waiterId) => {
+    try {
+      const authToken = localStorage.getItem("auth_token");
+      const data = await closeWaiterDayForWaiter(authToken, waiterId);
+      toast.success(data?.message || "Shift closed");
+      await fetchReport();
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to close waiter shift."));
     }
   };
 
@@ -219,9 +232,19 @@ export default function WaiterSummaryReport() {
                       <Button size="sm" onClick={() => viewDetails(waiter)}>
                         View Details
                       </Button>
-                      {waiter.is_shift_closed && (
+                      {waiter.is_shift_closed ? (
                         <Button size="sm" variant="outline" onClick={() => handleReopenShift(waiter.waiter_id)}>
                           Reopen Shift
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleCloseShift(waiter.waiter_id)}
+                          disabled={!isReportToday}
+                          title={!isReportToday ? "Close is only available for today's business day." : undefined}
+                        >
+                          Close Shift
                         </Button>
                       )}
                     </div>
