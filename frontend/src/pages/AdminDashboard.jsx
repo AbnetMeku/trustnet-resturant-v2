@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import {
   FaTable,
   FaStore,
@@ -251,7 +251,7 @@ export default function AdminDashboard() {
 
         {isMobile && sidebarOpen && (
           <div
-            className="fixed inset-0 bg-black/50 z-20 md:hidden"
+            className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm z-20 md:hidden"
             onClick={toggleSidebar}
           />
         )}
@@ -352,3 +352,4 @@ export default function AdminDashboard() {
     </div>
   );
 }
+

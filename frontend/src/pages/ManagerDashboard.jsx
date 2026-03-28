@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import {
   FaUserPlus,
   FaTable,
@@ -151,7 +151,7 @@ export default function ManagerDashboard() {
         </aside>
 
         {isMobile && sidebarOpen && (
-          <div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={toggleSidebar} />
+          <div className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm z-20 md:hidden" onClick={toggleSidebar} />
         )}
 
         <div className="min-w-0 flex-1 flex flex-col overflow-hidden">
@@ -210,3 +210,4 @@ export default function ManagerDashboard() {
     </div>
   );
 }
+
