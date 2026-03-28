@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import { getSalesSummary, reopenWaiterDay } from "@/api/reportApi";
-import { closeWaiterDayForWaiter, fetchWaiterDayCloseStatusForWaiter } from "@/api/order_history";
+import { fetchWaiterDayCloseStatusForWaiter } from "@/api/order_history";
 import { getUsers } from "@/api/users";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -15,7 +15,7 @@ function getAdjustedEATDate() {
   const now = new Date();
   const utcHour = now.getUTCHours(); // UTC time hour
 
-  // EAT = UTC +3 → So between UTC 0–2 means before local 3AM → still show previous day
+  // EAT = UTC +3 â†’ So between UTC 0â€“2 means before local 3AM â†’ still show previous day
   if (utcHour < 3) {
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
@@ -35,10 +35,10 @@ export default function SalesSummaryReport({ darkMode }) {
   const [waiterDayLoading, setWaiterDayLoading] = useState(false);
   const [waiterDayError, setWaiterDayError] = useState(null);
 
-  // ✅ Adjusted “today” based on EAT–UTC difference
+  // âœ… Adjusted â€œtodayâ€ based on EATâ€“UTC difference
   const adjustedToday = new Date(`${eatBusinessDateISO()}T12:00:00`);
 
-  // ✅ Make sure these are defined before they are used
+  // âœ… Make sure these are defined before they are used
   const [waiterId, setWaiterId] = useState("");
   const [vipOnly, setVipOnly] = useState("all");
   const [startDate, setStartDate] = useState(adjustedToday);
@@ -126,21 +126,7 @@ export default function SalesSummaryReport({ darkMode }) {
     };
   }, [authToken, waiterId]);
 
-  const handleCloseWaiterDay = async () => {
-    if (!authToken || !waiterId) return;
-    setWaiterDayLoading(true);
-    setWaiterDayError(null);
-    try {
-      await closeWaiterDayForWaiter(authToken, waiterId);
-      await refreshWaiterDayStatus(waiterId);
-    } catch (err) {
-      setWaiterDayError(err?.response?.data?.error || err?.message || "Failed to close waiter day.");
-    } finally {
-      setWaiterDayLoading(false);
-    }
-  };
-
-  const handleReopenWaiterDay = async () => {
+    const handleReopenWaiterDay = async () => {
     if (!waiterId) return;
     setWaiterDayLoading(true);
     setWaiterDayError(null);
@@ -646,19 +632,11 @@ export default function SalesSummaryReport({ darkMode }) {
                 </div>
                 <div className="bg-slate-50 dark:bg-gray-900/40 rounded-lg p-3 border border-slate-200/80 dark:border-gray-700">
                   <p className="text-xs text-gray-500 dark:text-gray-400">Open Orders</p>
-                  <p className="text-sm font-semibold">{waiterDayStatus?.openOrdersCount ?? "—"}</p>
+                  <p className="text-sm font-semibold">{waiterDayStatus?.openOrdersCount ?? "â€”"}</p>
                 </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleCloseWaiterDay}
-                  disabled={!waiterDayStatus?.canCloseForToday || waiterDayLoading}
-                  className="bg-rose-600 text-white px-4 py-2 rounded-lg hover:bg-rose-700 disabled:opacity-50"
-                >
-                  Close Waiter Day
-                </button>
                 <button
                   type="button"
                   onClick={handleReopenWaiterDay}
@@ -782,4 +760,10 @@ export default function SalesSummaryReport({ darkMode }) {
     </div>
   );
 }
+
+
+
+
+
+
 
