@@ -212,6 +212,59 @@ Optional overrides:
 
 ---
 
+**Load Testing (k6)**
+
+Load test script (waiter + KDS flows, includes create order and add item):
+- `scripts/k6/waiter_kds_load.js`
+
+Prereqs:
+1. Start the Docker stack.
+2. Ensure demo PINs or your real PINs are available.
+
+Run against the backend API (recommended for pure API performance):
+
+```bash
+# Linux/Ubuntu
+docker run --rm -i --network host \
+  -v "$(pwd)/scripts/k6:/scripts" \
+  -e BASE_URL=http://127.0.0.1:5000 \
+  -e WAITER_PIN=1001 -e STATION_PIN=1234 \
+  grafana/k6 run /scripts/waiter_kds_load.js
+```
+
+Run against the frontend (Nginx proxy):
+
+```bash
+# Linux/Ubuntu
+docker run --rm -i --network host \
+  -v "$(pwd)/scripts/k6:/scripts" \
+  -e BASE_URL=http://127.0.0.1:8080 \
+  -e WAITER_PIN=1001 -e STATION_PIN=1234 \
+  grafana/k6 run /scripts/waiter_kds_load.js
+```
+
+Report generation (summary JSON + time-series JSON):
+
+```bash
+mkdir -p scripts/k6/reports
+docker run --rm -i --network host \
+  -v "$(pwd)/scripts/k6:/scripts" \
+  -e BASE_URL=http://127.0.0.1:5000 \
+  -e WAITER_PIN=1001 -e STATION_PIN=1234 \
+  grafana/k6 run \
+    --summary-export /scripts/reports/waiter_kds_summary.json \
+    --out json=/scripts/reports/waiter_kds_timeseries.json \
+    /scripts/waiter_kds_load.js
+```
+
+Tuning (env vars):
+- `TARGET_LOW`, `TARGET_HIGH` (default 20/50 VUs)
+- `RAMP`, `HOLD`, `HOLD_HIGH` (default 30s/2m/2m)
+- `LOGIN_EVERY` (default 5 iterations)
+- `WAITER_PIN`, `STATION_PIN`, `BASE_URL`
+
+---
+
 **Troubleshooting**
 
 Print jobs stuck in `pending`:
