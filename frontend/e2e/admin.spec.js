@@ -53,7 +53,7 @@ test.describe("Admin", () => {
     await expect(page.getByTestId("admin-panel-print")).toBeVisible();
 
     await clickNav(page, "admin-nav-settings");
-    await expect(page.getByText("Settings", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("settings-tab-operations")).toBeVisible();
 
     await page.getByTestId("settings-tab-operations").click();
     await expect(page.getByTestId("settings-content-operations")).toBeVisible();

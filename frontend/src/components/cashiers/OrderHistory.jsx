@@ -9,7 +9,7 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { Loader2 } from "lucide-react";
-import { eatBusinessDateISO, eatDateISO } from "@/lib/timezone";
+import { eatBusinessDateISO, eatDateISO, msUntilNextBusinessStart } from "@/lib/timezone";
 
 function getAdjustedEATDate() {
   const now = new Date();
@@ -100,6 +100,31 @@ export default function SalesSummaryReport({ darkMode }) {
     }
     refreshWaiterDayStatus(waiterId);
   }, [waiterId, authToken]);
+
+  useEffect(() => {
+    if (!authToken || !waiterId) return;
+    let timerId;
+    let cancelled = false;
+
+    const scheduleNextRefresh = () => {
+      if (cancelled) return;
+      const delay = msUntilNextBusinessStart();
+      timerId = setTimeout(async () => {
+        if (cancelled) return;
+        await refreshWaiterDayStatus(waiterId);
+        scheduleNextRefresh();
+      }, delay);
+    };
+
+    scheduleNextRefresh();
+
+    return () => {
+      cancelled = true;
+      if (timerId) {
+        clearTimeout(timerId);
+      }
+    };
+  }, [authToken, waiterId]);
 
   const handleCloseWaiterDay = async () => {
     if (!authToken || !waiterId) return;

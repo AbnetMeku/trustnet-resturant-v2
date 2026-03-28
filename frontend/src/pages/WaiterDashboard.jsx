@@ -11,6 +11,7 @@ import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useBranding } from "@/hooks/useBranding";
 import { fetchWaiterDayCloseStatus } from "@/api/order_history";
+import { msUntilNextBusinessStart } from "@/lib/timezone";
 
 import OrdersHub from "@/components/waiter/OrdersHub";
 import HistoryPage from "@/components/waiter/HistoryPage";
@@ -31,6 +32,9 @@ export default function WaiterDashboard() {
   useEffect(() => {
     if (!authToken || user?.role !== "waiter") return;
 
+    let timerId;
+    let cancelled = false;
+
     const loadShiftStatus = async () => {
       try {
         const status = await fetchWaiterDayCloseStatus(authToken);
@@ -44,8 +48,26 @@ export default function WaiterDashboard() {
       }
     };
 
+    const scheduleNextRefresh = () => {
+      if (cancelled) return;
+      const delay = msUntilNextBusinessStart(branding?.business_day_start_time);
+      timerId = setTimeout(async () => {
+        if (cancelled) return;
+        await loadShiftStatus();
+        scheduleNextRefresh();
+      }, delay);
+    };
+
     loadShiftStatus();
-  }, [authToken, user]);
+    scheduleNextRefresh();
+
+    return () => {
+      cancelled = true;
+      if (timerId) {
+        clearTimeout(timerId);
+      }
+    };
+  }, [authToken, user, branding?.business_day_start_time]);
 
   const handleShiftStatusChange = (status) => {
     const closed = Boolean(status?.isClosedForToday);

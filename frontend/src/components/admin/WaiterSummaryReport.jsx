@@ -3,7 +3,7 @@ import { getWaiterSummary, getWaiterDetails, reopenWaiterDay } from "@/api/repor
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
-import { eatBusinessDateISO } from "@/lib/timezone";
+import { eatBusinessDateISO, msUntilNextBusinessStart } from "@/lib/timezone";
 import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function WaiterSummaryReport() {
@@ -41,6 +41,31 @@ export default function WaiterSummaryReport() {
 
   useEffect(() => {
     fetchReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, endDate]);
+
+  useEffect(() => {
+    let timerId;
+    let cancelled = false;
+
+    const scheduleNextRefresh = () => {
+      if (cancelled) return;
+      const delay = msUntilNextBusinessStart();
+      timerId = setTimeout(async () => {
+        if (cancelled) return;
+        await fetchReport();
+        scheduleNextRefresh();
+      }, delay);
+    };
+
+    scheduleNextRefresh();
+
+    return () => {
+      cancelled = true;
+      if (timerId) {
+        clearTimeout(timerId);
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate]);
 
