@@ -58,7 +58,7 @@ const selectStyles = {
   }),
 };
 
-const UNIT_OPTIONS = ["Bottle", "Can", "Pack", "Box", "Piece", "Kg", "L", "Unit"];
+const UNIT_OPTIONS = ["Bottle", "Other"];
 const DEFAULT_SHOTS_PER_BOTTLE = 15;
 
 const buildDefaultForm = () => ({
@@ -441,19 +441,19 @@ export default function InventoryItemsTab() {
                   <label className="mb-1 block text-sm font-medium">Stock Unit</label>
                   <select
                     value={form.unit}
-                      onChange={(e) => {
-                        const nextUnit = e.target.value;
-                        setForm((prev) => ({
-                          ...prev,
-                          unit: nextUnit,
-                          has_shots: nextUnit === "Bottle",
-                          shots_per_bottle:
-                            nextUnit === "Bottle"
-                              ? prev.shots_per_bottle || String(DEFAULT_SHOTS_PER_BOTTLE)
-                              : "",
-                        }));
-                      }}
-                    className={`flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm ${
+                    onChange={(e) => {
+                      const nextUnit = e.target.value;
+                      setForm((prev) => ({
+                        ...prev,
+                        unit: nextUnit,
+                        has_shots: nextUnit === "Bottle",
+                        shots_per_bottle:
+                          nextUnit === "Bottle"
+                            ? prev.shots_per_bottle || String(DEFAULT_SHOTS_PER_BOTTLE)
+                            : "",
+                      }));
+                    }}
+                    className={`flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-base text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm ${
                       errors.unit ? "ring-2 ring-destructive" : ""
                     }`}
                     disabled={submitting}
@@ -480,7 +480,7 @@ export default function InventoryItemsTab() {
                           shots_per_bottle: enabled ? prev.shots_per_bottle || String(DEFAULT_SHOTS_PER_BOTTLE) : "",
                         }));
                       }}
-                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-base text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                       disabled={submitting}
                     >
                       <option value="yes">Yes</option>

@@ -53,6 +53,26 @@ function StatusBadge({ status }) {
   return <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${styles}`}>{status}</span>;
 }
 
+function formatQuantityDisplay(quantity, item) {
+  const total = Number(quantity || 0);
+  const perBottle = Number(item?.shots_per_bottle || 0);
+  const isBottle = String(item?.unit || "").toLowerCase() === "bottle";
+  if (isBottle && perBottle > 0) {
+    let bottles = Math.floor(total / perBottle);
+    let shots = Math.round(total - bottles * perBottle);
+    if (shots >= perBottle) {
+      bottles += 1;
+      shots = 0;
+    }
+    const parts = [];
+    if (bottles > 0) parts.push(`${bottles} bottle${bottles === 1 ? "" : "s"}`);
+    if (shots > 0 || parts.length === 0) parts.push(`${shots} shot${shots === 1 ? "" : "s"}`);
+    return parts.join(" ");
+  }
+  const unitLabel = item?.unit?.toLowerCase() || "units";
+  return `${Number(total).toFixed(3)} ${unitLabel}`;
+}
+
 export default function TransferManagement() {
   const { token, user } = useAuth();
   const [activeTab, setActiveTab] = useState("entry");
@@ -273,23 +293,6 @@ export default function TransferManagement() {
         </TabsList>
 
         <TabsContent value="entry" className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card className="border-border/70 p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Stations</p>
-              <p className="mt-2 text-2xl font-semibold">{stations.length}</p>
-            </Card>
-            <Card className="border-border/70 p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Active Transfers</p>
-              <p className="mt-2 text-2xl font-semibold">{transfers.filter((row) => row.status !== "Deleted").length}</p>
-            </Card>
-            <Card className="border-border/70 p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Store Stock Available</p>
-              <p className="mt-2 text-2xl font-semibold">
-                {stocks.reduce((sum, row) => sum + Number(row.quantity || 0), 0).toFixed(3)}
-              </p>
-            </Card>
-          </div>
-
           <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
             <Card className="inventory-panel p-5">
               <div className="mb-4">
@@ -427,10 +430,10 @@ export default function TransferManagement() {
                           <p className="font-medium">{transfer.inventory_item_name}</p>
                           <p className="text-sm text-muted-foreground">To {transfer.station_name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {transfer.quantity}{" "}
-                            {(items.find((item) => item.id === transfer.inventory_item_id)?.shots_per_bottle || 0) > 0
-                              ? "shots"
-                              : items.find((item) => item.id === transfer.inventory_item_id)?.unit?.toLowerCase() || "units"}{" "}
+                            {formatQuantityDisplay(
+                              transfer.quantity,
+                              items.find((item) => item.id === transfer.inventory_item_id)
+                            )}{" "}
                             | {formatEatDateTime(transfer.created_at)}
                           </p>
                         </div>
@@ -492,10 +495,10 @@ export default function TransferManagement() {
                         <td className="px-4 py-3 font-medium">{transfer.inventory_item_name}</td>
                         <td className="px-4 py-3">{transfer.station_name}</td>
                         <td className="px-4 py-3">
-                          {transfer.quantity}{" "}
-                          {(items.find((item) => item.id === transfer.inventory_item_id)?.shots_per_bottle || 0) > 0
-                            ? "shots"
-                            : items.find((item) => item.id === transfer.inventory_item_id)?.unit?.toLowerCase() || "units"}
+                          {formatQuantityDisplay(
+                            transfer.quantity,
+                            items.find((item) => item.id === transfer.inventory_item_id)
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <StatusBadge status={transfer.status} />

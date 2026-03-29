@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from app.extensions import db
 from app.models import InventoryItem, InventoryMenuLink, MenuItem
 from app.services.inventory_service import resolve_link_deduction_amount
-from app.services.cloud_sync import _timestamp_suffix, queue_cloud_sync_upsert
+from app.services.cloud_sync import _timestamp_suffix, queue_cloud_sync_upsert, queue_cloud_sync_delete
 from app.utils.timezone import eat_now_naive
 
 inventory_items_bp = Blueprint("inventory_items_bp", __name__, url_prefix="/inventory/items")
