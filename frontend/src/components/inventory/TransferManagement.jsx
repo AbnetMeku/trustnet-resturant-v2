@@ -366,7 +366,7 @@ export default function TransferManagement() {
                       />
                     </div>
                     <div>
-                      <label className="mb-2 block text-sm font-medium">Loose Shots</label>
+                      <label className="mb-2 block text-sm font-medium">Shots To Transfer</label>
                       <Input
                         type="number"
                         step="1"
