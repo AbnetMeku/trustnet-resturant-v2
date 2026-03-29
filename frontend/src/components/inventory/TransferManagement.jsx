@@ -72,6 +72,8 @@ export default function TransferManagement() {
     inventory_item_id: "",
     station_id: "",
     quantity: "",
+    bottles: "",
+    loose_shots: "",
   });
 
   const loadData = async () => {
@@ -105,6 +107,8 @@ export default function TransferManagement() {
     () => stations.find((station) => station.id === Number(form.station_id)),
     [stations, form.station_id]
   );
+  const shotsPerBottle = Number(selectedItem?.shots_per_bottle || 0);
+  const isShotTracked = String(selectedItem?.unit || "").toLowerCase() === "bottle" && shotsPerBottle > 0;
 
   const currentStoreStock = useMemo(() => {
     const row = stocks.find((stock) => stock.inventory_item_id === Number(form.inventory_item_id));
@@ -125,19 +129,25 @@ export default function TransferManagement() {
   );
 
   const parsedQuantity = Number(form.quantity || 0);
+  const parsedBottles = Number(form.bottles || 0);
+  const parsedLooseShots = Number(form.loose_shots || 0);
+  const totalShots = isShotTracked
+    ? (Number.isFinite(parsedBottles) ? parsedBottles : 0) * shotsPerBottle +
+      (Number.isFinite(parsedLooseShots) ? parsedLooseShots : 0)
+    : parsedQuantity;
   const originalQuantity = Number(originalTransfer?.quantity || 0);
   const availableForTransfer = currentStoreStock + originalQuantity;
-  const storeAfterTransfer = Number.isFinite(parsedQuantity) ? availableForTransfer - parsedQuantity : availableForTransfer;
-  const stationAfterTransfer = Number.isFinite(parsedQuantity)
-    ? Math.max(0, currentStationStock - originalQuantity) + parsedQuantity
+  const storeAfterTransfer = Number.isFinite(totalShots) ? availableForTransfer - totalShots : availableForTransfer;
+  const stationAfterTransfer = Number.isFinite(totalShots)
+    ? Math.max(0, currentStationStock - originalQuantity) + totalShots
     : currentStationStock;
 
   const canSubmit =
     Boolean(form.inventory_item_id) &&
     Boolean(form.station_id) &&
-    Number.isFinite(parsedQuantity) &&
-    parsedQuantity > 0 &&
-    parsedQuantity <= availableForTransfer &&
+    Number.isFinite(totalShots) &&
+    totalShots > 0 &&
+    totalShots <= availableForTransfer &&
     !submitting;
 
   const itemOptions = useMemo(
@@ -150,9 +160,14 @@ export default function TransferManagement() {
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((item) => ({
           value: item.id,
-          label: `${item.name} • ${Number(item.container_size_ml || 0)}ml • ${Number(
-            stocks.find((row) => row.inventory_item_id === item.id)?.quantity || 0
-          )} in store`,
+          label: (() => {
+            const stockQty = Number(stocks.find((row) => row.inventory_item_id === item.id)?.quantity || 0);
+            const itemShots = Number(item.shots_per_bottle || 0);
+            if (String(item.unit || "").toLowerCase() === "bottle" && itemShots > 0) {
+              return `${item.name} | ${itemShots} shots/bottle | ${stockQty} shots in store`;
+            }
+            return `${item.name} | ${item.unit || "Unit"} | ${stockQty} in store`;
+          })(),
         })),
     [items, stocks, form.inventory_item_id]
   );
@@ -187,6 +202,8 @@ export default function TransferManagement() {
       inventory_item_id: "",
       station_id: "",
       quantity: "",
+      bottles: "",
+      loose_shots: "",
     });
     setEditId(null);
   };
@@ -195,7 +212,7 @@ export default function TransferManagement() {
     const payload = {
       inventory_item_id: Number(form.inventory_item_id),
       station_id: Number(form.station_id),
-      quantity: Number(Number(form.quantity).toFixed(3)),
+      quantity: Number(Number(totalShots).toFixed(3)),
     };
 
     try {
@@ -230,11 +247,19 @@ export default function TransferManagement() {
   };
 
   const openEdit = (transfer) => {
+    const item = items.find((row) => row.id === Number(transfer.inventory_item_id));
+    const itemShots = Number(item?.shots_per_bottle || 0);
+    const isShots = String(item?.unit || "").toLowerCase() === "bottle" && itemShots > 0;
+    const qty = Number(transfer.quantity || 0);
+    const bottles = isShots && itemShots > 0 ? Math.floor(qty / itemShots) : 0;
+    const looseShots = isShots && itemShots > 0 ? Number((qty - bottles * itemShots).toFixed(3)) : 0;
     setEditId(transfer.id);
     setForm({
       inventory_item_id: String(transfer.inventory_item_id),
       station_id: String(transfer.station_id),
-      quantity: String(transfer.quantity),
+      quantity: isShots ? "" : String(transfer.quantity),
+      bottles: isShots ? String(bottles) : "",
+      loose_shots: isShots ? String(looseShots || "") : "",
     });
     setActiveTab("entry");
   };
@@ -258,7 +283,7 @@ export default function TransferManagement() {
               <p className="mt-2 text-2xl font-semibold">{transfers.filter((row) => row.status !== "Deleted").length}</p>
             </Card>
             <Card className="border-border/70 p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Store Bottles Available</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Store Stock Available</p>
               <p className="mt-2 text-2xl font-semibold">
                 {stocks.reduce((sum, row) => sum + Number(row.quantity || 0), 0).toFixed(3)}
               </p>
@@ -269,7 +294,7 @@ export default function TransferManagement() {
             <Card className="inventory-panel p-5">
               <div className="mb-4">
                 <h3 className="text-lg font-semibold">{editId ? "Update Transfer" : "Transfer To Station"}</h3>
-                <p className="text-sm text-muted-foreground">Move bottles from store stock to a destination station with a clear before/after preview.</p>
+                <p className="text-sm text-muted-foreground">Move bottles and shots from store stock to a destination station with a clear before/after preview.</p>
               </div>
 
               <div className="space-y-4">
@@ -282,12 +307,20 @@ export default function TransferManagement() {
                     placeholder="Search inventory item"
                     options={itemOptions}
                     value={itemOptions.find((option) => option.value === Number(form.inventory_item_id)) || null}
-                    onChange={(option) =>
+                    onChange={(option) => {
+                      const nextId = option?.value || "";
+                      const nextItem = items.find((item) => item.id === Number(nextId));
+                      const nextShots = Number(nextItem?.shots_per_bottle || 0);
+                      const nextIsShots =
+                        String(nextItem?.unit || "").toLowerCase() === "bottle" && nextShots > 0;
                       setForm((prev) => ({
                         ...prev,
-                        inventory_item_id: option?.value || "",
-                      }))
-                    }
+                        inventory_item_id: nextId,
+                        quantity: nextIsShots ? "" : prev.quantity,
+                        bottles: nextIsShots ? prev.bottles : "",
+                        loose_shots: nextIsShots ? prev.loose_shots : "",
+                      }));
+                    }}
                   />
                 </div>
 
@@ -309,17 +342,50 @@ export default function TransferManagement() {
                   />
                 </div>
 
-                <div>
-                  <label className="mb-2 block text-sm font-medium">Quantity To Transfer</label>
-                  <Input
-                    type="number"
-                    step="0.001"
-                    min="0.001"
-                    placeholder="0"
-                    value={form.quantity}
-                    onChange={(e) => setForm((prev) => ({ ...prev, quantity: e.target.value }))}
-                  />
-                </div>
+                {isShotTracked ? (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">Bottles To Transfer</label>
+                      <Input
+                        type="number"
+                        step="1"
+                        min="0"
+                        placeholder="0"
+                        value={form.bottles}
+                        onChange={(e) => setForm((prev) => ({ ...prev, bottles: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">Loose Shots</label>
+                      <Input
+                        type="number"
+                        step="1"
+                        min="0"
+                        placeholder="0"
+                        value={form.loose_shots}
+                        onChange={(e) => setForm((prev) => ({ ...prev, loose_shots: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="mb-2 block text-sm font-medium">Quantity To Transfer</label>
+                    <Input
+                      type="number"
+                      step="0.001"
+                      min="0.001"
+                      placeholder="0"
+                      value={form.quantity}
+                      onChange={(e) => setForm((prev) => ({ ...prev, quantity: e.target.value }))}
+                    />
+                  </div>
+                )}
+
+                {isShotTracked && (
+                  <p className="text-xs text-muted-foreground">
+                    Total shots: {Number.isFinite(totalShots) ? totalShots.toFixed(3) : "0"}
+                  </p>
+                )}
 
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="inventory-panel-soft rounded-xl p-3">
@@ -340,7 +406,7 @@ export default function TransferManagement() {
                   <Button onClick={handleSubmit} disabled={!canSubmit}>
                     {submitting ? "Saving..." : editId ? "Update Transfer" : "Transfer Stock"}
                   </Button>
-                  {(editId || form.inventory_item_id || form.station_id || form.quantity) && (
+                  {(editId || form.inventory_item_id || form.station_id || form.quantity || form.bottles || form.loose_shots) && (
                     <Button type="button" variant="outline" onClick={resetForm} disabled={submitting}>
                       Clear
                     </Button>
@@ -360,7 +426,13 @@ export default function TransferManagement() {
                         <div>
                           <p className="font-medium">{transfer.inventory_item_name}</p>
                           <p className="text-sm text-muted-foreground">To {transfer.station_name}</p>
-                          <p className="text-xs text-muted-foreground">{transfer.quantity} units • {formatEatDateTime(transfer.created_at)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {transfer.quantity}{" "}
+                            {(items.find((item) => item.id === transfer.inventory_item_id)?.shots_per_bottle || 0) > 0
+                              ? "shots"
+                              : items.find((item) => item.id === transfer.inventory_item_id)?.unit?.toLowerCase() || "units"}{" "}
+                            | {formatEatDateTime(transfer.created_at)}
+                          </p>
                         </div>
                         <StatusBadge status={transfer.status} />
                       </div>
@@ -419,7 +491,12 @@ export default function TransferManagement() {
                         <td className="px-4 py-3">{(transferPage - 1) * PAGE_SIZE + index + 1}</td>
                         <td className="px-4 py-3 font-medium">{transfer.inventory_item_name}</td>
                         <td className="px-4 py-3">{transfer.station_name}</td>
-                        <td className="px-4 py-3">{transfer.quantity}</td>
+                        <td className="px-4 py-3">
+                          {transfer.quantity}{" "}
+                          {(items.find((item) => item.id === transfer.inventory_item_id)?.shots_per_bottle || 0) > 0
+                            ? "shots"
+                            : items.find((item) => item.id === transfer.inventory_item_id)?.unit?.toLowerCase() || "units"}
+                        </td>
                         <td className="px-4 py-3">
                           <StatusBadge status={transfer.status} />
                         </td>

@@ -15,6 +15,7 @@ class InventoryItem(db.Model):
     servings_per_unit = db.Column(db.Float, nullable=False, default=1.0)
     container_size_ml = db.Column(db.Float, nullable=False, default=1.0)
     default_shot_ml = db.Column(db.Float, nullable=False, default=1.0)
+    shots_per_bottle = db.Column(db.Float, nullable=False, default=0.0)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=eat_now_naive)
 

@@ -25,7 +25,20 @@ def _parse_positive_float(value, field_name):
     return parsed
 
 
+def _parse_non_negative_float(value, field_name):
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name} must be a number")
+    if parsed < 0:
+        raise ValueError(f"{field_name} must be zero or greater")
+    return parsed
+
+
 def _default_shot_ratio(item):
+    shots_per_bottle = float(getattr(item, "shots_per_bottle", 0) or 0)
+    if shots_per_bottle > 0:
+        return 1.0 / shots_per_bottle
     container_size_ml = float(item.container_size_ml or 0)
     default_shot_ml = float(item.default_shot_ml or 0)
     if container_size_ml <= 0 or default_shot_ml <= 0:
@@ -43,6 +56,16 @@ def _parse_link_rule(data, inventory_item):
         serving_value = 1.0 if serving_type != "custom_ml" else float(inventory_item.default_shot_ml or 1.0)
     else:
         serving_value = _parse_positive_float(raw_value, "serving_value")
+
+    shots_per_bottle = float(getattr(inventory_item, "shots_per_bottle", 0) or 0)
+    if shots_per_bottle > 0:
+        if raw_value in (None, "") and serving_type == "custom_ml":
+            serving_value = 1.0
+        if serving_type == "bottle":
+            deduction_ratio = serving_value * shots_per_bottle
+        else:
+            deduction_ratio = serving_value
+        return serving_type, serving_value, deduction_ratio
 
     if serving_type == "custom_ml":
         deduction_ratio = serving_value / float(inventory_item.container_size_ml)
@@ -75,6 +98,7 @@ def _serialize_inventory_item(item):
         "unit": item.unit,
         "container_size_ml": item.container_size_ml,
         "default_shot_ml": item.default_shot_ml,
+        "shots_per_bottle": float(getattr(item, "shots_per_bottle", 0) or 0),
         "default_shot_deduction_ratio": _default_shot_ratio(item),
         "is_active": item.is_active,
         "created_at": item.created_at,
@@ -99,18 +123,35 @@ def create_inventory_item():
     data = request.get_json() or {}
     name = (data.get("name") or "").strip()
     unit = (data.get("unit") or "Bottle").strip() or "Bottle"
+    unit_lower = unit.lower()
 
     if not name:
         return jsonify({"msg": "Name is required"}), 400
 
-    try:
-        container_size_ml = _parse_positive_float(data.get("container_size_ml"), "container_size_ml")
-        default_shot_ml = _parse_positive_float(data.get("default_shot_ml"), "default_shot_ml")
-    except ValueError as exc:
-        return jsonify({"msg": str(exc)}), 400
+    shots_per_bottle = data.get("shots_per_bottle")
+    parsed_shots = None
+    if shots_per_bottle not in (None, ""):
+        try:
+            parsed_shots = _parse_non_negative_float(shots_per_bottle, "shots_per_bottle")
+        except ValueError as exc:
+            return jsonify({"msg": str(exc)}), 400
 
-    if default_shot_ml > container_size_ml:
-        return jsonify({"msg": "default_shot_ml cannot be greater than container_size_ml"}), 400
+    container_size_ml = None
+    default_shot_ml = None
+    if parsed_shots is None and (data.get("container_size_ml") not in (None, "") or data.get("default_shot_ml") not in (None, "")):
+        try:
+            container_size_ml = _parse_positive_float(data.get("container_size_ml"), "container_size_ml")
+            default_shot_ml = _parse_positive_float(data.get("default_shot_ml"), "default_shot_ml")
+        except ValueError as exc:
+            return jsonify({"msg": str(exc)}), 400
+        if default_shot_ml > container_size_ml:
+            return jsonify({"msg": "default_shot_ml cannot be greater than container_size_ml"}), 400
+        if unit_lower == "bottle":
+            parsed_shots = container_size_ml / default_shot_ml
+    else:
+        # Keep legacy fields populated for compatibility even when using shots.
+        container_size_ml = float(data.get("container_size_ml") or 1.0)
+        default_shot_ml = float(data.get("default_shot_ml") or 1.0)
 
     if InventoryItem.query.filter_by(name=name).first():
         return jsonify({"msg": "Inventory item already exists"}), 400
@@ -118,10 +159,11 @@ def create_inventory_item():
     item = InventoryItem(
         name=name,
         unit=unit,
-        serving_unit="ml",
-        servings_per_unit=container_size_ml / default_shot_ml,
+        serving_unit="shot" if (parsed_shots or 0) > 0 else "ml",
+        servings_per_unit=parsed_shots if (parsed_shots or 0) > 0 else (container_size_ml / default_shot_ml),
         container_size_ml=container_size_ml,
         default_shot_ml=default_shot_ml,
+        shots_per_bottle=parsed_shots or 0,
         is_active=bool(data.get("is_active", True)),
     )
     db.session.add(item)
@@ -174,27 +216,42 @@ def update_inventory_item(item_id):
             return jsonify({"msg": "unit is required"}), 400
         item.unit = unit
 
-    try:
-        container_size_ml = (
-            _parse_positive_float(data["container_size_ml"], "container_size_ml")
-            if "container_size_ml" in data
-            else float(item.container_size_ml)
-        )
-        default_shot_ml = (
-            _parse_positive_float(data["default_shot_ml"], "default_shot_ml")
-            if "default_shot_ml" in data
-            else float(item.default_shot_ml)
-        )
-    except ValueError as exc:
-        return jsonify({"msg": str(exc)}), 400
+    shots_per_bottle = None
+    if "shots_per_bottle" in data:
+        try:
+            shots_per_bottle = _parse_non_negative_float(data.get("shots_per_bottle"), "shots_per_bottle")
+        except ValueError as exc:
+            return jsonify({"msg": str(exc)}), 400
 
-    if default_shot_ml > container_size_ml:
+    container_size_ml = float(item.container_size_ml or 1.0)
+    default_shot_ml = float(item.default_shot_ml or 1.0)
+    container_updated = False
+    shot_updated = False
+
+    if "container_size_ml" in data:
+        try:
+            container_size_ml = _parse_positive_float(data["container_size_ml"], "container_size_ml")
+        except ValueError as exc:
+            return jsonify({"msg": str(exc)}), 400
+        container_updated = True
+    if "default_shot_ml" in data:
+        try:
+            default_shot_ml = _parse_positive_float(data["default_shot_ml"], "default_shot_ml")
+        except ValueError as exc:
+            return jsonify({"msg": str(exc)}), 400
+        shot_updated = True
+
+    if (container_updated or shot_updated) and default_shot_ml > container_size_ml:
         return jsonify({"msg": "default_shot_ml cannot be greater than container_size_ml"}), 400
 
     item.container_size_ml = container_size_ml
     item.default_shot_ml = default_shot_ml
-    item.serving_unit = "ml"
-    item.servings_per_unit = container_size_ml / default_shot_ml
+    if shots_per_bottle is not None:
+        item.shots_per_bottle = shots_per_bottle
+    elif (container_updated or shot_updated) and (item.unit or "").strip().lower() == "bottle":
+        item.shots_per_bottle = container_size_ml / default_shot_ml
+    item.serving_unit = "shot" if (item.shots_per_bottle or 0) > 0 else "ml"
+    item.servings_per_unit = item.shots_per_bottle or (container_size_ml / default_shot_ml)
 
     if "is_active" in data:
         item.is_active = bool(data.get("is_active"))

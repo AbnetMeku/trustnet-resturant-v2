@@ -662,7 +662,15 @@ def _upsert_inventory_item(payload: dict) -> None:
     row.servings_per_unit = payload.get("servings_per_unit") or row.servings_per_unit or 1.0
     row.container_size_ml = payload.get("container_size_ml") or row.container_size_ml or 1.0
     row.default_shot_ml = payload.get("default_shot_ml") or row.default_shot_ml or 1.0
+    if "shots_per_bottle" in payload:
+        try:
+            row.shots_per_bottle = float(payload.get("shots_per_bottle") or 0)
+        except (TypeError, ValueError):
+            row.shots_per_bottle = 0.0
     row.is_active = bool(payload.get("is_active", True))
+    if float(getattr(row, "shots_per_bottle", 0) or 0) > 0:
+        row.serving_unit = "shot"
+        row.servings_per_unit = float(row.shots_per_bottle or 0)
     db.session.flush()
     _ensure_mapping("inventory_item", cloud_id, row.id)
 
@@ -1145,6 +1153,7 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
             "servings_per_unit": row.servings_per_unit,
             "container_size_ml": row.container_size_ml,
             "default_shot_ml": row.default_shot_ml,
+            "shots_per_bottle": float(getattr(row, "shots_per_bottle", 0) or 0),
             "is_active": row.is_active,
         }
     if entity_type == "inventory_menu_link":
@@ -1402,6 +1411,7 @@ def seed_cloud_sync_outbox() -> int:
                         "servings_per_unit": row.servings_per_unit,
                         "container_size_ml": row.container_size_ml,
                         "default_shot_ml": row.default_shot_ml,
+                        "shots_per_bottle": float(getattr(row, "shots_per_bottle", 0) or 0),
                         "is_active": row.is_active,
                     },
                 )

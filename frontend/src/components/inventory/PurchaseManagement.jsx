@@ -65,7 +65,13 @@ export default function PurchaseManagement() {
   const [submitting, setSubmitting] = useState(false);
   const [historySearch, setHistorySearch] = useState("");
 
-  const [form, setForm] = useState({ inventory_item_id: "", quantity: "", unit_price: "" });
+  const [form, setForm] = useState({
+    inventory_item_id: "",
+    quantity: "",
+    unit_price: "",
+    bottles: "",
+    loose_shots: "",
+  });
 
   const loadData = async () => {
     try {
@@ -90,6 +96,8 @@ export default function PurchaseManagement() {
     () => items.find((item) => item.id === Number(form.inventory_item_id)),
     [items, form.inventory_item_id]
   );
+  const shotsPerBottle = Number(selectedItem?.shots_per_bottle || 0);
+  const isShotTracked = String(selectedItem?.unit || "").toLowerCase() === "bottle" && shotsPerBottle > 0;
 
   const currentStockQty = useMemo(() => {
     const stock = stocks.find((row) => row.inventory_item_id === Number(form.inventory_item_id));
@@ -97,14 +105,20 @@ export default function PurchaseManagement() {
   }, [stocks, form.inventory_item_id]);
 
   const parsedQuantity = Number(form.quantity || 0);
+  const parsedBottles = Number(form.bottles || 0);
+  const parsedLooseShots = Number(form.loose_shots || 0);
+  const totalShots = isShotTracked
+    ? (Number.isFinite(parsedBottles) ? parsedBottles : 0) * shotsPerBottle +
+      (Number.isFinite(parsedLooseShots) ? parsedLooseShots : 0)
+    : parsedQuantity;
   const parsedUnitPrice = Number(form.unit_price || 0);
-  const stockAfterEntry = Number.isFinite(parsedQuantity) ? currentStockQty + parsedQuantity : currentStockQty;
-  const totalCost = Number.isFinite(parsedQuantity) && Number.isFinite(parsedUnitPrice) ? parsedQuantity * parsedUnitPrice : 0;
+  const stockAfterEntry = Number.isFinite(totalShots) ? currentStockQty + totalShots : currentStockQty;
+  const totalCost = Number.isFinite(totalShots) && Number.isFinite(parsedUnitPrice) ? totalShots * parsedUnitPrice : 0;
 
   const canSubmit =
     Boolean(form.inventory_item_id) &&
-    Number.isFinite(parsedQuantity) &&
-    parsedQuantity > 0 &&
+    Number.isFinite(totalShots) &&
+    totalShots > 0 &&
     !submitting;
 
   const inventoryOptions = useMemo(
@@ -114,9 +128,14 @@ export default function PurchaseManagement() {
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((item) => ({
           value: item.id,
-          label: `${item.name} • ${Number(item.container_size_ml || 0)}ml • ${Number(
-            stocks.find((row) => row.inventory_item_id === item.id)?.quantity || 0
-          )} in store`,
+          label: (() => {
+            const stockQty = Number(stocks.find((row) => row.inventory_item_id === item.id)?.quantity || 0);
+            const itemShots = Number(item.shots_per_bottle || 0);
+            if (String(item.unit || "").toLowerCase() === "bottle" && itemShots > 0) {
+              return `${item.name} | ${itemShots} shots/bottle | ${stockQty} shots in store`;
+            }
+            return `${item.name} | ${item.unit || "Unit"} | ${stockQty} in store`;
+          })(),
         })),
     [items, stocks]
   );
@@ -137,14 +156,14 @@ export default function PurchaseManagement() {
   const paginatedPurchases = filteredPurchases.slice((purchasePage - 1) * PAGE_SIZE, purchasePage * PAGE_SIZE);
 
   const resetForm = () => {
-    setForm({ inventory_item_id: "", quantity: "", unit_price: "" });
+    setForm({ inventory_item_id: "", quantity: "", unit_price: "", bottles: "", loose_shots: "" });
     setEditId(null);
   };
 
   const handleSubmit = async () => {
     const payload = {
       inventory_item_id: Number(form.inventory_item_id),
-      quantity: Number(Number(form.quantity).toFixed(3)),
+      quantity: Number(Number(totalShots).toFixed(3)),
       unit_price: form.unit_price === "" ? null : Number(Number(form.unit_price).toFixed(3)),
     };
 
@@ -180,11 +199,19 @@ export default function PurchaseManagement() {
   };
 
   const openEdit = (purchase) => {
+    const item = items.find((row) => row.id === Number(purchase.inventory_item_id));
+    const itemShots = Number(item?.shots_per_bottle || 0);
+    const isShots = String(item?.unit || "").toLowerCase() === "bottle" && itemShots > 0;
+    const qty = Number(purchase.quantity || 0);
+    const bottles = isShots && itemShots > 0 ? Math.floor(qty / itemShots) : 0;
+    const looseShots = isShots && itemShots > 0 ? Number((qty - bottles * itemShots).toFixed(3)) : 0;
     setEditId(purchase.id);
     setForm({
       inventory_item_id: String(purchase.inventory_item_id),
-      quantity: String(purchase.quantity),
+      quantity: isShots ? "" : String(purchase.quantity),
       unit_price: purchase.unit_price ?? "",
+      bottles: isShots ? String(bottles) : "",
+      loose_shots: isShots ? String(looseShots || "") : "",
     });
     setActiveTab("entry");
   };
@@ -219,7 +246,7 @@ export default function PurchaseManagement() {
             <Card className="inventory-panel p-5">
               <div className="mb-4">
                 <h3 className="text-lg font-semibold">{editId ? "Update Receipt" : "Receive Stock"}</h3>
-                <p className="text-sm text-muted-foreground">Search the bottle, enter quantity, and confirm the stock increase.</p>
+                <p className="text-sm text-muted-foreground">Search the item, enter bottles + shots (or quantity), and confirm the stock increase.</p>
               </div>
 
               <div className="space-y-4">
@@ -232,35 +259,91 @@ export default function PurchaseManagement() {
                     placeholder="Search inventory item"
                     options={inventoryOptions}
                     value={inventoryOptions.find((option) => option.value === Number(form.inventory_item_id)) || null}
-                    onChange={(option) => setForm((prev) => ({ ...prev, inventory_item_id: option?.value || "" }))}
+                    onChange={(option) => {
+                      const nextId = option?.value || "";
+                      const nextItem = items.find((item) => item.id === Number(nextId));
+                      const nextShots = Number(nextItem?.shots_per_bottle || 0);
+                      const nextIsShots =
+                        String(nextItem?.unit || "").toLowerCase() === "bottle" && nextShots > 0;
+                      setForm((prev) => ({
+                        ...prev,
+                        inventory_item_id: nextId,
+                        quantity: nextIsShots ? "" : prev.quantity,
+                        bottles: nextIsShots ? prev.bottles : "",
+                        loose_shots: nextIsShots ? prev.loose_shots : "",
+                      }));
+                    }}
                   />
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="mb-2 block text-sm font-medium">Quantity Received</label>
-                    <Input
-                      type="number"
-                      step="0.001"
-                      min="0.001"
-                      placeholder="0"
-                      value={form.quantity}
-                      onChange={(e) => setForm((prev) => ({ ...prev, quantity: e.target.value }))}
-                    />
+                {isShotTracked ? (
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">Bottles Received</label>
+                      <Input
+                        type="number"
+                        step="1"
+                        min="0"
+                        placeholder="0"
+                        value={form.bottles}
+                        onChange={(e) => setForm((prev) => ({ ...prev, bottles: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">Loose Shots</label>
+                      <Input
+                        type="number"
+                        step="1"
+                        min="0"
+                        placeholder="0"
+                        value={form.loose_shots}
+                        onChange={(e) => setForm((prev) => ({ ...prev, loose_shots: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">Unit Price per Shot (Optional)</label>
+                      <Input
+                        type="number"
+                        step="0.001"
+                        min="0"
+                        placeholder="0.00"
+                        value={form.unit_price}
+                        onChange={(e) => setForm((prev) => ({ ...prev, unit_price: e.target.value }))}
+                      />
+                    </div>
                   </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">Quantity Received</label>
+                      <Input
+                        type="number"
+                        step="0.001"
+                        min="0.001"
+                        placeholder="0"
+                        value={form.quantity}
+                        onChange={(e) => setForm((prev) => ({ ...prev, quantity: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">Unit Price (Optional)</label>
+                      <Input
+                        type="number"
+                        step="0.001"
+                        min="0"
+                        placeholder="0.00"
+                        value={form.unit_price}
+                        onChange={(e) => setForm((prev) => ({ ...prev, unit_price: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                )}
 
-                  <div>
-                    <label className="mb-2 block text-sm font-medium">Unit Price (Optional)</label>
-                    <Input
-                      type="number"
-                      step="0.001"
-                      min="0"
-                      placeholder="0.00"
-                      value={form.unit_price}
-                      onChange={(e) => setForm((prev) => ({ ...prev, unit_price: e.target.value }))}
-                    />
-                  </div>
-                </div>
+                {isShotTracked && (
+                  <p className="text-xs text-muted-foreground">
+                    Total shots: {Number.isFinite(totalShots) ? totalShots.toFixed(3) : "0"}
+                  </p>
+                )}
 
                 <div className="grid gap-3 md:grid-cols-3">
                   <div className="inventory-panel-soft rounded-xl p-3">
@@ -300,7 +383,12 @@ export default function PurchaseManagement() {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="font-medium">{purchase.inventory_item_name}</p>
-                          <p className="text-sm text-muted-foreground">{purchase.quantity} units</p>
+                          <p className="text-sm text-muted-foreground">
+                            {purchase.quantity}{" "}
+                            {(items.find((item) => item.id === purchase.inventory_item_id)?.shots_per_bottle || 0) > 0
+                              ? "shots"
+                              : items.find((item) => item.id === purchase.inventory_item_id)?.unit?.toLowerCase() || "units"}
+                          </p>
                           <p className="text-xs text-muted-foreground">{formatEatDateTime(purchase.created_at)}</p>
                         </div>
                         <StatusBadge status={purchase.status} />
@@ -359,7 +447,12 @@ export default function PurchaseManagement() {
                       <tr key={purchase.id} className="inventory-table-row">
                         <td className="px-4 py-3">{(purchasePage - 1) * PAGE_SIZE + index + 1}</td>
                         <td className="px-4 py-3 font-medium">{purchase.inventory_item_name}</td>
-                        <td className="px-4 py-3">{purchase.quantity}</td>
+                        <td className="px-4 py-3">
+                          {purchase.quantity}{" "}
+                          {(items.find((item) => item.id === purchase.inventory_item_id)?.shots_per_bottle || 0) > 0
+                            ? "shots"
+                            : items.find((item) => item.id === purchase.inventory_item_id)?.unit?.toLowerCase() || "units"}
+                        </td>
                         <td className="px-4 py-3">{purchase.unit_price ?? "-"}</td>
                         <td className="px-4 py-3">
                           <StatusBadge status={purchase.status} />

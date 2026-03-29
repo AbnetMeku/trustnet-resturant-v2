@@ -14,8 +14,15 @@ def resolve_link_deduction_amount(link, quantity):
     inventory_item = link.inventory_item
     container_size_ml = float(getattr(inventory_item, "container_size_ml", 0) or 0)
     default_shot_ml = float(getattr(inventory_item, "default_shot_ml", 0) or 0)
+    shots_per_bottle = float(getattr(inventory_item, "shots_per_bottle", 0) or 0)
     serving_type = str(getattr(link, "serving_type", "") or "").strip().lower()
     serving_value = float(getattr(link, "serving_value", 0) or 0)
+
+    if shots_per_bottle > 0:
+        if serving_type == "bottle":
+            return max(serving_value, 0) * shots_per_bottle * float(quantity)
+        if serving_type in {"shot", "custom_ml"}:
+            return max(serving_value, 0) * float(quantity)
 
     if serving_type == "shot" and container_size_ml > 0 and default_shot_ml > 0:
         return (default_shot_ml * max(serving_value, 0)) / container_size_ml * float(quantity)
