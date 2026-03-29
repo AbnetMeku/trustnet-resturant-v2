@@ -31,8 +31,8 @@ function formatShotDisplay(value, shotsPerBottle) {
     shots = 0;
   }
   const parts = [];
-  if (bottles > 0) parts.push(`${bottles} bottle${bottles === 1 ? "" : "s"}`);
-  if (shots > 0 || parts.length === 0) parts.push(`${shots} shot${shots === 1 ? "" : "s"}`);
+  if (bottles > 0) parts.push(`${bottles} bt`);
+  if (shots > 0 || parts.length === 0) parts.push(`${shots} sh`);
   return parts.join(" ");
 }
 
@@ -577,9 +577,9 @@ export default function StockManagement() {
           <Card className="inventory-panel p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <h3 className="text-lg font-semibold">Store and Station Matrix</h3>
+                <h3 className="text-lg font-semibold">Store and Station</h3>
                 <p className="text-sm text-muted-foreground">
-                  Live stock by inventory item across the store and every station.
+                  Live stock across store and every station.
                 </p>
               </div>
               <div className="flex gap-2">
