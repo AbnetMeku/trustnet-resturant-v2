@@ -380,11 +380,15 @@ def _station_row_for_date(
         void_qty = _as_float(snapshot.void_quantity) if snapshot else 0.0
         if snapshot:
             transfer_in = _as_float(snapshot.added_quantity)
-        if previous_snapshot_map.get((station.id, item.id)):
+        if snapshot and snapshot.opening_adjusted:
+            opening = _as_float(snapshot.start_of_day_quantity)
+            closing = _as_float(snapshot.remaining_quantity)
+        elif previous_snapshot_map.get((station.id, item.id)):
             opening = _as_float(previous_snapshot_map[(station.id, item.id)].remaining_quantity)
+            closing = current_quantity
         else:
             opening = current_quantity - transfer_in + sold - void_qty
-        closing = _as_float(snapshot.remaining_quantity) if snapshot and snapshot.opening_adjusted else current_quantity
+            closing = current_quantity
     elif snapshot:
         opening = _as_float(snapshot.start_of_day_quantity)
         transfer_in = _as_float(snapshot.added_quantity)

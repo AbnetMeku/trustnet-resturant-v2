@@ -80,7 +80,7 @@ function HistoryTable({
             {!isStore && <th className="px-4 py-3 font-medium text-right">Transferred In</th>}
             {!isStore && <th className="px-4 py-3 font-medium text-right">Sold</th>}
             {!isStore && <th className="px-4 py-3 font-medium text-right">Void</th>}
-            <th className="px-4 py-3 font-medium text-right">Closing</th>
+            <th className="px-4 py-3 font-medium text-right">Current / Closing</th>
           </tr>
         </thead>
         <tbody>
@@ -400,14 +400,6 @@ export default function StockManagement() {
             <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Station Daily History</h3>
-                <p className="text-sm text-muted-foreground">
-                  Opening, transferred in, sold, void, and closing stock for each station.
-                </p>
-                {!canAdjustToday && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Opening adjustments are available only for today and admin users.
-                  </p>
-                )}
               </div>
               <div className="grid gap-3 md:grid-cols-4">
                 <div>
@@ -488,14 +480,6 @@ export default function StockManagement() {
             <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Store Daily History</h3>
-                <p className="text-sm text-muted-foreground">
-                  Opening, purchased, transferred out, and closing stock for the selected business day.
-                </p>
-                {!canAdjustToday && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Opening adjustments are available only for today and admin users.
-                  </p>
-                )}
               </div>
               <div className="grid gap-3 md:grid-cols-3">
                 <div>

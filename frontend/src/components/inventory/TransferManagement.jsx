@@ -167,6 +167,7 @@ export default function TransferManagement() {
   const stationAfterTransfer = Number.isFinite(totalShots)
     ? Math.max(0, currentStationStock - originalQuantity) + totalShots
     : currentStationStock;
+  const hasEnoughStock = Number.isFinite(totalShots) && totalShots <= availableForTransfer;
 
   const canSubmit =
     Boolean(form.inventory_item_id) &&
@@ -400,15 +401,27 @@ export default function TransferManagement() {
                   <div className="inventory-panel-soft rounded-xl p-3">
                     <p className="text-xs text-muted-foreground">Store Before / After</p>
                     <p className="mt-1 text-xl font-semibold">
-                      {formatQuantityDisplay(availableForTransfer, selectedItem, false)} /{" "}
-                      {formatQuantityDisplay(storeAfterTransfer, selectedItem, false)}
+                      {hasEnoughStock ? (
+                        <>
+                          {formatQuantityDisplay(availableForTransfer, selectedItem, false)} /{" "}
+                          {formatQuantityDisplay(storeAfterTransfer, selectedItem, false)}
+                        </>
+                      ) : (
+                        <span className="text-destructive">Not enough in store</span>
+                      )}
                     </p>
                   </div>
                   <div className="inventory-panel-soft rounded-xl p-3">
                     <p className="text-xs text-muted-foreground">Station Before / After</p>
                     <p className="mt-1 text-xl font-semibold">
-                      {formatQuantityDisplay(currentStationStock, selectedItem, false)} /{" "}
-                      {formatQuantityDisplay(stationAfterTransfer, selectedItem, false)}
+                      {hasEnoughStock ? (
+                        <>
+                          {formatQuantityDisplay(currentStationStock, selectedItem, false)} /{" "}
+                          {formatQuantityDisplay(stationAfterTransfer, selectedItem, false)}
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
                     </p>
                   </div>
                 </div>
