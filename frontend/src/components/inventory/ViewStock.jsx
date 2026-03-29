@@ -379,6 +379,7 @@ export default function StockManagement() {
       toast.success("Opening stock updated.");
       cancelAdjustments();
       await loadHistory();
+      await loadOverview();
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Failed to update opening stock."));
     } finally {
