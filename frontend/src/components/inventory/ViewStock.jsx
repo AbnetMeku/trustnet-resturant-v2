@@ -402,7 +402,7 @@ export default function StockManagement() {
               <div>
                 <h3 className="text-lg font-semibold">Station Daily History</h3>
               </div>
-              <div className="grid gap-3 md:grid-cols-4">
+              <div className="grid gap-3 md:grid-cols-5">
                 <div>
                   <label className="mb-2 block text-sm font-medium">Date</label>
                   <Input type="date" value={historyDate} onChange={(event) => setHistoryDate(event.target.value)} />
@@ -429,10 +429,10 @@ export default function StockManagement() {
                 <div className="flex items-end gap-2">
                   {adjustScope === "station" ? (
                     <>
-                      <Button type="button" onClick={() => saveAdjustments("station")} disabled={savingAdjustments} className="flex-1">
+                      <Button type="button" onClick={() => saveAdjustments("station")} disabled={savingAdjustments} className="h-11 flex-1">
                         {savingAdjustments ? "Saving..." : "Save"}
                       </Button>
-                      <Button type="button" variant="outline" onClick={cancelAdjustments} disabled={savingAdjustments} className="flex-1">
+                      <Button type="button" variant="outline" onClick={cancelAdjustments} disabled={savingAdjustments} className="h-11 flex-1">
                         Cancel
                       </Button>
                     </>
@@ -443,11 +443,17 @@ export default function StockManagement() {
                         variant="outline"
                         onClick={() => beginAdjustments("station")}
                         disabled={!canAdjustToday || loadingHistory}
-                        className="flex-1"
+                        className="h-11 w-full"
                       >
                         Adjust Opening
                       </Button>
-                      <Button type="button" variant="outline" onClick={loadHistory} disabled={loadingHistory} className="flex-1">
+                    </>
+                  )}
+                </div>
+                <div className="flex items-end">
+                  {adjustScope === "station" ? null : (
+                    <>
+                      <Button type="button" variant="outline" onClick={loadHistory} disabled={loadingHistory} className="h-11 w-full">
                         <RefreshCw className={`mr-2 h-4 w-4 ${loadingHistory ? "animate-spin" : ""}`} />
                         Refresh
                       </Button>
@@ -482,7 +488,7 @@ export default function StockManagement() {
               <div>
                 <h3 className="text-lg font-semibold">Store Daily History</h3>
               </div>
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-4">
                 <div>
                   <label className="mb-2 block text-sm font-medium">Date</label>
                   <Input type="date" value={historyDate} onChange={(event) => setHistoryDate(event.target.value)} />
@@ -494,10 +500,10 @@ export default function StockManagement() {
                 <div className="flex items-end gap-2">
                   {adjustScope === "store" ? (
                     <>
-                      <Button type="button" onClick={() => saveAdjustments("store")} disabled={savingAdjustments} className="flex-1">
+                      <Button type="button" onClick={() => saveAdjustments("store")} disabled={savingAdjustments} className="h-11 flex-1">
                         {savingAdjustments ? "Saving..." : "Save"}
                       </Button>
-                      <Button type="button" variant="outline" onClick={cancelAdjustments} disabled={savingAdjustments} className="flex-1">
+                      <Button type="button" variant="outline" onClick={cancelAdjustments} disabled={savingAdjustments} className="h-11 flex-1">
                         Cancel
                       </Button>
                     </>
@@ -508,11 +514,17 @@ export default function StockManagement() {
                         variant="outline"
                         onClick={() => beginAdjustments("store")}
                         disabled={!canAdjustToday || loadingHistory}
-                        className="flex-1"
+                        className="h-11 w-full"
                       >
                         Adjust Opening
                       </Button>
-                      <Button type="button" variant="outline" onClick={loadHistory} disabled={loadingHistory} className="flex-1">
+                    </>
+                  )}
+                </div>
+                <div className="flex items-end">
+                  {adjustScope === "store" ? null : (
+                    <>
+                      <Button type="button" variant="outline" onClick={loadHistory} disabled={loadingHistory} className="h-11 w-full">
                         <RefreshCw className={`mr-2 h-4 w-4 ${loadingHistory ? "animate-spin" : ""}`} />
                         Refresh
                       </Button>

@@ -304,7 +304,7 @@ export default function TransferManagement() {
             <Card className="inventory-panel p-5">
               <div className="mb-4">
                 <h3 className="text-lg font-semibold">{editId ? "Update Transfer" : "Transfer To Station"}</h3>
-                <p className="text-sm text-muted-foreground">Move bottles and shots from store stock to a destination station with a clear before/after preview.</p>
+                <p className="text-sm text-muted-foreground">Move bottles and shots from store stock to a destination station.</p>
               </div>
 
               <div className="space-y-4">
@@ -475,7 +475,7 @@ export default function TransferManagement() {
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Transfer History</h3>
-                <p className="text-sm text-muted-foreground">Edits and deletes remain visible in the ledger with their status.</p>
+                <p className="text-sm text-muted-foreground">Transfer Audit Trail</p>
               </div>
               <div className="w-full md:w-80">
                 <Input

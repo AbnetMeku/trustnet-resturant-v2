@@ -255,7 +255,7 @@ export default function PurchaseManagement() {
             <Card className="inventory-panel p-5">
               <div className="mb-4">
                 <h3 className="text-lg font-semibold">{editId ? "Update Receipt" : "Receive Stock"}</h3>
-                <p className="text-sm text-muted-foreground">Search the item, enter bottles + shots (or quantity), and confirm the stock increase.</p>
+                <p className="text-sm text-muted-foreground">Search the item, enter bottles + shots quantity, and confirm.</p>
               </div>
 
               <div className="space-y-4">
@@ -288,7 +288,7 @@ export default function PurchaseManagement() {
                 {isShotTracked ? (
                   <div className="grid gap-4 md:grid-cols-3">
                     <div>
-                      <label className="mb-2 block text-sm font-medium">Bottles Received</label>
+                      <label className="mb-2 block text-sm font-medium">Bottle Quantity</label>
                       <Input
                         type="number"
                         step="1"
@@ -299,7 +299,7 @@ export default function PurchaseManagement() {
                       />
                     </div>
                     <div>
-                      <label className="mb-2 block text-sm font-medium">Loose Shots</label>
+                      <label className="mb-2 block text-sm font-medium">Shot Quantity</label>
                       <Input
                         type="number"
                         step="1"
@@ -324,7 +324,7 @@ export default function PurchaseManagement() {
                 ) : (
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <label className="mb-2 block text-sm font-medium">Quantity Received</label>
+                      <label className="mb-2 block text-sm font-medium">Quantity</label>
                       <Input
                         type="number"
                         step="0.001"
@@ -362,7 +362,7 @@ export default function PurchaseManagement() {
                     </p>
                   </div>
                   <div className="inventory-panel-soft rounded-xl p-3">
-                    <p className="text-xs text-muted-foreground">After Receipt</p>
+                    <p className="text-xs text-muted-foreground">After Purchase</p>
                     <p className="mt-1 text-xl font-semibold">
                       {formatQuantityDisplay(stockAfterEntry, selectedItem, false)}
                     </p>
@@ -387,7 +387,7 @@ export default function PurchaseManagement() {
             </Card>
 
             <Card className="inventory-panel p-5">
-              <h3 className="text-lg font-semibold">Recent Receipts</h3>
+              <h3 className="text-lg font-semibold">Recent Purchase</h3>
               <p className="text-sm text-muted-foreground">Latest non-deleted purchase entries.</p>
               <div className="mt-4 space-y-3">
                 {recentPurchases.length ? (
@@ -421,7 +421,7 @@ export default function PurchaseManagement() {
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Purchase History</h3>
-                <p className="text-sm text-muted-foreground">Keep the audit trail. Deleted and updated rows remain visible with their status.</p>
+                <p className="text-sm text-muted-foreground">Purchase Audit Trail</p>
               </div>
               <div className="w-full md:w-80">
                 <Input
