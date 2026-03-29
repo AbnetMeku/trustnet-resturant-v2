@@ -609,8 +609,14 @@ def adjust_opening_stock():
             + float(snapshot.purchased_quantity or 0)
             - float(snapshot.transferred_out_quantity or 0)
         )
+        store_stock = StoreStock.query.filter_by(inventory_item_id=item.id).first()
+        if store_stock is None:
+            store_stock = StoreStock(inventory_item_id=item.id, quantity=0.0)
+            db.session.add(store_stock)
+        store_stock.quantity = float(snapshot.closing_quantity or 0)
         db.session.commit()
         queue_cloud_sync_upsert("store_stock_snapshot", snapshot)
+        queue_cloud_sync_upsert("store_stock", store_stock)
         return jsonify({"msg": "Store opening stock updated"}), 200
 
     if station_id is None:
@@ -638,6 +644,19 @@ def adjust_opening_stock():
         - float(snapshot.sold_quantity or 0)
         + float(snapshot.void_quantity or 0)
     )
+    station_stock = StationStock.query.filter_by(
+        station_id=station.id,
+        inventory_item_id=item.id,
+    ).first()
+    if station_stock is None:
+        station_stock = StationStock(
+            station_id=station.id,
+            inventory_item_id=item.id,
+            quantity=0.0,
+        )
+        db.session.add(station_stock)
+    station_stock.quantity = float(snapshot.remaining_quantity or 0)
     db.session.commit()
     queue_cloud_sync_upsert("station_stock_snapshot", snapshot)
+    queue_cloud_sync_upsert("station_stock", station_stock)
     return jsonify({"msg": "Station opening stock updated"}), 200
