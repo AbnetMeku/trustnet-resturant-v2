@@ -16,6 +16,8 @@ from app.models import (
     StoreStockSnapshot,
 )
 from app.utils.timezone import get_business_day_bounds, get_eat_today
+from app.utils.decorators import roles_required
+from app.services.inventory_service import get_or_create_station_snapshot, get_or_create_store_snapshot
 from app.services.cloud_sync import queue_cloud_sync_delete, queue_cloud_sync_upsert
 
 inventory_stock_bp = Blueprint("inventory_stock_bp", __name__, url_prefix="/inventory/stock")
@@ -31,6 +33,16 @@ def _parse_business_date():
         return datetime.fromisoformat(date_str).date() if date_str else get_eat_today()
     except ValueError:
         return None
+
+
+def _parse_non_negative_float(value, field_name):
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name} must be a number")
+    if parsed < 0:
+        raise ValueError(f"{field_name} must be zero or greater")
+    return parsed
 
 
 def _serialize_store_stock(stock):
@@ -290,6 +302,7 @@ def _store_row_for_date(
     transferred_out = transfer_totals.get(item.id, 0.0)
     current_quantity = current_store_map.get(item.id, 0.0)
     snapshot = snapshot_map.get(item.id)
+    opening_adjusted = bool(snapshot and snapshot.opening_adjusted)
 
     if query_date == today:
         if snapshot:
@@ -300,7 +313,7 @@ def _store_row_for_date(
             opening = _as_float(previous_snapshot_map[item.id].closing_quantity)
         else:
             opening = current_quantity - purchased + transferred_out
-        closing = current_quantity
+        closing = _as_float(snapshot.closing_quantity) if snapshot and snapshot.opening_adjusted else current_quantity
     elif snapshot:
         opening = _as_float(snapshot.opening_quantity)
         closing = _as_float(snapshot.closing_quantity)
@@ -336,6 +349,7 @@ def _store_row_for_date(
         "inventory_item_id": item.id,
         "inventory_item_name": item.name,
         "shots_per_bottle": _as_float(getattr(item, "shots_per_bottle", 0) or 0),
+        "opening_adjusted": opening_adjusted,
         "opening_quantity": opening,
         "purchased_quantity": purchased,
         "transferred_out_quantity": transferred_out,
@@ -359,6 +373,7 @@ def _station_row_for_date(
     transfer_in = transfer_in_totals.get((station.id, item.id), 0.0)
     current_quantity = current_station_map.get((station.id, item.id), 0.0)
     snapshot = snapshot_map.get((station.id, item.id))
+    opening_adjusted = bool(snapshot and snapshot.opening_adjusted)
 
     if query_date == today:
         sold = _as_float(snapshot.sold_quantity) if snapshot else 0.0
@@ -369,7 +384,7 @@ def _station_row_for_date(
             opening = _as_float(previous_snapshot_map[(station.id, item.id)].remaining_quantity)
         else:
             opening = current_quantity - transfer_in + sold - void_qty
-        closing = current_quantity
+        closing = _as_float(snapshot.remaining_quantity) if snapshot and snapshot.opening_adjusted else current_quantity
     elif snapshot:
         opening = _as_float(snapshot.start_of_day_quantity)
         transfer_in = _as_float(snapshot.added_quantity)
@@ -394,6 +409,7 @@ def _station_row_for_date(
         "inventory_item_id": item.id,
         "inventory_item_name": item.name,
         "shots_per_bottle": _as_float(getattr(item, "shots_per_bottle", 0) or 0),
+        "opening_adjusted": opening_adjusted,
         "opening_quantity": opening,
         "purchased_quantity": 0.0,
         "transferred_out_quantity": 0.0,
@@ -546,3 +562,78 @@ def get_daily_stock_history():
         ),
         200,
     )
+
+
+@inventory_stock_bp.route("/opening-adjustment", methods=["PATCH"])
+@roles_required("admin")
+def adjust_opening_stock():
+    data = request.get_json() or {}
+    scope = (data.get("scope") or "").strip().lower()
+    inventory_item_id = data.get("inventory_item_id")
+    station_id = data.get("station_id")
+
+    if scope not in {"store", "station"}:
+        return jsonify({"msg": "scope must be either 'store' or 'station'"}), 400
+    if inventory_item_id is None:
+        return jsonify({"msg": "inventory_item_id is required"}), 400
+    try:
+        inventory_item_id = int(inventory_item_id)
+    except (TypeError, ValueError):
+        return jsonify({"msg": "inventory_item_id must be a number"}), 400
+
+    try:
+        opening_quantity = _parse_non_negative_float(data.get("opening_quantity"), "opening_quantity")
+    except ValueError as exc:
+        return jsonify({"msg": str(exc)}), 400
+
+    today = get_eat_today()
+
+    item = InventoryItem.query.get(inventory_item_id)
+    if not item:
+        return jsonify({"msg": "Inventory item not found"}), 404
+
+    if scope == "store":
+        snapshot = get_or_create_store_snapshot(
+            inventory_item_id=item.id,
+            snapshot_date=today,
+            opening_quantity=opening_quantity,
+        )
+        snapshot.opening_quantity = opening_quantity
+        snapshot.opening_adjusted = True
+        snapshot.closing_quantity = (
+            float(snapshot.opening_quantity or 0)
+            + float(snapshot.purchased_quantity or 0)
+            - float(snapshot.transferred_out_quantity or 0)
+        )
+        db.session.commit()
+        queue_cloud_sync_upsert("store_stock_snapshot", snapshot)
+        return jsonify({"msg": "Store opening stock updated"}), 200
+
+    if station_id is None:
+        return jsonify({"msg": "station_id is required for station scope"}), 400
+    try:
+        station_id = int(station_id)
+    except (TypeError, ValueError):
+        return jsonify({"msg": "station_id must be a number"}), 400
+
+    station = Station.query.get(station_id)
+    if not station:
+        return jsonify({"msg": "Station not found"}), 404
+
+    snapshot = get_or_create_station_snapshot(
+        station_id=station.id,
+        inventory_item_id=item.id,
+        snapshot_date=today,
+        opening_quantity=opening_quantity,
+    )
+    snapshot.start_of_day_quantity = opening_quantity
+    snapshot.opening_adjusted = True
+    snapshot.remaining_quantity = (
+        float(snapshot.start_of_day_quantity or 0)
+        + float(snapshot.added_quantity or 0)
+        - float(snapshot.sold_quantity or 0)
+        + float(snapshot.void_quantity or 0)
+    )
+    db.session.commit()
+    queue_cloud_sync_upsert("station_stock_snapshot", snapshot)
+    return jsonify({"msg": "Station opening stock updated"}), 200

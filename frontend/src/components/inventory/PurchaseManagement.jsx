@@ -15,6 +15,10 @@ import { formatEatDateTime } from "@/lib/timezone";
 import { getApiErrorMessage } from "@/lib/apiError";
 
 const PAGE_SIZE = 10;
+const numberFormat = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 3,
+});
 
 const selectStyles = {
   control: (base, state) => ({
@@ -52,7 +56,7 @@ function StatusBadge({ status }) {
   return <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${styles}`}>{status}</span>;
 }
 
-function formatQuantityDisplay(quantity, item) {
+function formatQuantityDisplay(quantity, item, includeUnit = true) {
   const total = Number(quantity || 0);
   const perBottle = Number(item?.shots_per_bottle || 0);
   const isBottle = String(item?.unit || "").toLowerCase() === "bottle";
@@ -68,8 +72,10 @@ function formatQuantityDisplay(quantity, item) {
     if (shots > 0 || parts.length === 0) parts.push(`${shots} shot${shots === 1 ? "" : "s"}`);
     return parts.join(" ");
   }
+  const formatted = numberFormat.format(total);
+  if (!includeUnit) return formatted;
   const unitLabel = item?.unit?.toLowerCase() || "units";
-  return `${Number(total).toFixed(3)} ${unitLabel}`;
+  return `${formatted} ${unitLabel}`;
 }
 
 export default function PurchaseManagement() {
@@ -351,11 +357,15 @@ export default function PurchaseManagement() {
                 <div className="grid gap-3 md:grid-cols-3">
                   <div className="inventory-panel-soft rounded-xl p-3">
                     <p className="text-xs text-muted-foreground">Current Store Stock</p>
-                    <p className="mt-1 text-xl font-semibold">{currentStockQty.toFixed(3)}</p>
+                    <p className="mt-1 text-xl font-semibold">
+                      {formatQuantityDisplay(currentStockQty, selectedItem, false)}
+                    </p>
                   </div>
                   <div className="inventory-panel-soft rounded-xl p-3">
                     <p className="text-xs text-muted-foreground">After Receipt</p>
-                    <p className="mt-1 text-xl font-semibold">{stockAfterEntry.toFixed(3)}</p>
+                    <p className="mt-1 text-xl font-semibold">
+                      {formatQuantityDisplay(stockAfterEntry, selectedItem, false)}
+                    </p>
                   </div>
                   <div className="inventory-panel-soft rounded-xl p-3">
                     <p className="text-xs text-muted-foreground">Estimated Total Cost</p>

@@ -125,6 +125,7 @@ class StationStockSnapshot(db.Model):
     sold_quantity = db.Column(db.Float, nullable=False, default=0.0)    # updated per order
     void_quantity = db.Column(db.Float, nullable=False, default=0.0)
     remaining_quantity = db.Column(db.Float, nullable=False, default=0.0)
+    opening_adjusted = db.Column(db.Boolean, default=False)
 
     created_at = db.Column(db.DateTime, default=eat_now_naive)
 
@@ -146,6 +147,7 @@ class StoreStockSnapshot(db.Model):
     purchased_quantity = db.Column(db.Float, nullable=False, default=0.0)
     transferred_out_quantity = db.Column(db.Float, nullable=False, default=0.0)
     closing_quantity = db.Column(db.Float, nullable=False, default=0.0)
+    opening_adjusted = db.Column(db.Boolean, default=False)
 
     created_at = db.Column(db.DateTime, default=eat_now_naive)
 

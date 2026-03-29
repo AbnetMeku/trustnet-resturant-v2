@@ -797,6 +797,7 @@ def _upsert_station_stock_snapshot(payload: dict) -> None:
     row.sold_quantity = float(payload.get("sold_quantity") or 0)
     row.void_quantity = float(payload.get("void_quantity") or 0)
     row.remaining_quantity = float(payload.get("remaining_quantity") or 0)
+    row.opening_adjusted = bool(payload.get("opening_adjusted", row.opening_adjusted or False))
     db.session.flush()
 
 
@@ -821,6 +822,7 @@ def _upsert_store_stock_snapshot(payload: dict) -> None:
     row.purchased_quantity = float(payload.get("purchased_quantity") or 0)
     row.transferred_out_quantity = float(payload.get("transferred_out_quantity") or 0)
     row.closing_quantity = float(payload.get("closing_quantity") or 0)
+    row.opening_adjusted = bool(payload.get("opening_adjusted", row.opening_adjusted or False))
     db.session.flush()
 
 
@@ -1207,6 +1209,7 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
             "sold_quantity": row.sold_quantity,
             "void_quantity": row.void_quantity,
             "remaining_quantity": row.remaining_quantity,
+            "opening_adjusted": bool(getattr(row, "opening_adjusted", False)),
         }
     if entity_type == "store_stock_snapshot":
         return {
@@ -1217,6 +1220,7 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
             "purchased_quantity": row.purchased_quantity,
             "transferred_out_quantity": row.transferred_out_quantity,
             "closing_quantity": row.closing_quantity,
+            "opening_adjusted": bool(getattr(row, "opening_adjusted", False)),
         }
     if entity_type == "order":
         items_payload = []
@@ -1516,6 +1520,7 @@ def seed_cloud_sync_outbox() -> int:
                         "sold_quantity": row.sold_quantity,
                         "void_quantity": row.void_quantity,
                         "remaining_quantity": row.remaining_quantity,
+                        "opening_adjusted": bool(getattr(row, "opening_adjusted", False)),
                     },
                 )
                 for row in StationStockSnapshot.query.order_by(StationStockSnapshot.id.asc()).all()
@@ -1534,6 +1539,7 @@ def seed_cloud_sync_outbox() -> int:
                         "purchased_quantity": row.purchased_quantity,
                         "transferred_out_quantity": row.transferred_out_quantity,
                         "closing_quantity": row.closing_quantity,
+                        "opening_adjusted": bool(getattr(row, "opening_adjusted", False)),
                     },
                 )
                 for row in StoreStockSnapshot.query.order_by(StoreStockSnapshot.id.asc()).all()

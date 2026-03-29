@@ -152,3 +152,14 @@ export const getDailyStockHistory = async (params = {}, token = null) => {
     throw new Error(error.response?.data?.msg || "Failed to fetch daily stock history");
   }
 };
+
+export const adjustOpeningStock = async (data, token = null) => {
+  try {
+    const res = await axios.patch(`${BASE_URL}/opening-adjustment`, data, {
+      headers: { ...getAuthHeader(token), "Content-Type": "application/json" },
+    });
+    return res.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.msg || "Failed to adjust opening stock");
+  }
+};
