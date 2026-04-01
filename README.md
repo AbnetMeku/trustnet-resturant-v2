@@ -18,7 +18,7 @@ docker compose up -d --build
 
 3. Open:
 - Frontend: `http://localhost:8080`
-- POS API: `http://localhost:5000`
+- POS API: `http://localhost:5050`
 
 ---
 
@@ -90,7 +90,7 @@ docker compose down -v
 
 Ports:
 - `8080`: Frontend
-- `5000`: POS API
+- `5050`: POS API
 - `5001`: Inventory API (internal by default, not exposed to host)
 - `5432`: Postgres
 
@@ -227,7 +227,7 @@ Run against the backend API (recommended for pure API performance):
 # Linux/Ubuntu
 docker run --rm -i --network host \
   -v "$(pwd)/scripts/k6:/scripts" \
-  -e BASE_URL=http://127.0.0.1:5000 \
+  -e BASE_URL=http://127.0.0.1:5050 \
   -e WAITER_PIN=1001 -e STATION_PIN=1234 \
   grafana/k6 run /scripts/waiter_kds_load.js
 ```
@@ -249,7 +249,7 @@ Report generation (summary JSON + time-series JSON):
 mkdir -p scripts/k6/reports
 docker run --rm -i --network host \
   -v "$(pwd)/scripts/k6:/scripts" \
-  -e BASE_URL=http://127.0.0.1:5000 \
+  -e BASE_URL=http://127.0.0.1:5050 \
   -e WAITER_PIN=1001 -e STATION_PIN=1234 \
   grafana/k6 run \
     --summary-export /scripts/reports/waiter_kds_summary.json \
