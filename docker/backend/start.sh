@@ -45,7 +45,7 @@ python -m app.workers.PrintWorker &
 WORKER_PID=$!
 
 echo "Starting POS API..."
-gunicorn --bind 0.0.0.0:5000 --workers "${GUNICORN_WORKERS:-2}" --threads "${GUNICORN_THREADS:-4}" --timeout 120 wsgi:application &
+gunicorn --bind 0.0.0.0:5050 --workers "${GUNICORN_WORKERS:-2}" --threads "${GUNICORN_THREADS:-4}" --timeout 120 wsgi:application &
 API_PID=$!
 
 cleanup() {
