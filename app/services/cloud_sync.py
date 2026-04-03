@@ -1147,6 +1147,16 @@ def _payload_fingerprint(payload: dict) -> str:
     return hashlib.sha256(encoded).hexdigest()[:12]
 
 
+def _attach_timestamps(payload: dict, row) -> dict:
+    created_at = getattr(row, "created_at", None)
+    if created_at and "created_at" not in payload:
+        payload["created_at"] = created_at.isoformat()
+    updated_at = getattr(row, "updated_at", None)
+    if updated_at and "updated_at" not in payload:
+        payload["updated_at"] = updated_at.isoformat()
+    return payload
+
+
 def _event_suffix(updated_at, payload: dict) -> str:
     if updated_at is None:
         return _payload_fingerprint(payload)
@@ -1156,50 +1166,51 @@ def _event_suffix(updated_at, payload: dict) -> str:
 def _build_sync_payload(entity_type: str, row) -> dict | None:
     if row is None:
         return None
+    payload = None
     if entity_type == "station":
-        return {
+        payload = {
             "id": row.id,
             "name": row.name,
             "print_mode": row.print_mode,
             "cashier_printer": row.cashier_printer,
         }
-    if entity_type == "waiter_profile":
-        return {
+    elif entity_type == "waiter_profile":
+        payload = {
             "id": row.id,
             "name": row.name,
             "max_tables": row.max_tables,
             "allow_vip": row.allow_vip,
             "station_ids": [station.id for station in (row.stations or [])],
         }
-    if entity_type == "user":
-        return {
+    elif entity_type == "user":
+        payload = {
             "id": row.id,
             "username": row.username,
             "role": row.role,
             "waiter_profile_id": row.waiter_profile_id,
         }
-    if entity_type == "table":
-        return {
+    elif entity_type == "table":
+        payload = {
             "id": row.id,
             "number": row.number,
             "status": row.status,
             "is_vip": row.is_vip,
             "waiter_ids": [waiter.id for waiter in (row.waiters or [])],
         }
-    if entity_type == "category":
-        return {
+    elif entity_type == "category":
+        payload = {
             "id": row.id,
             "name": row.name,
             "quantity_step": float(row.quantity_step or 1),
         }
-    if entity_type == "subcategory":
-        return {
+    elif entity_type == "subcategory":
+        payload = {
             "id": row.id,
             "name": row.name,
             "category_id": row.category_id,
         }
-    if entity_type == "menu_item":
-        return {
+    elif entity_type == "menu_item":
+        payload = {
             "id": row.id,
             "name": row.name,
             "description": row.description,
@@ -1211,8 +1222,8 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
             "subcategory_id": row.subcategory_id,
             "image_url": row.image_url,
         }
-    if entity_type == "inventory_item":
-        return {
+    elif entity_type == "inventory_item":
+        payload = {
             "id": row.id,
             "name": row.name,
             "unit": row.unit,
@@ -1223,8 +1234,8 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
             "shots_per_bottle": float(getattr(row, "shots_per_bottle", 0) or 0),
             "is_active": row.is_active,
         }
-    if entity_type == "inventory_menu_link":
-        return {
+    elif entity_type == "inventory_menu_link":
+        payload = {
             "id": row.id,
             "inventory_item_id": row.inventory_item_id,
             "menu_item_id": row.menu_item_id,
@@ -1232,21 +1243,21 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
             "serving_type": row.serving_type,
             "serving_value": row.serving_value,
         }
-    if entity_type == "store_stock":
-        return {
+    elif entity_type == "store_stock":
+        payload = {
             "id": row.id,
             "inventory_item_id": row.inventory_item_id,
             "quantity": row.quantity,
         }
-    if entity_type == "station_stock":
-        return {
+    elif entity_type == "station_stock":
+        payload = {
             "id": row.id,
             "station_id": row.station_id,
             "inventory_item_id": row.inventory_item_id,
             "quantity": row.quantity,
         }
-    if entity_type == "stock_purchase":
-        return {
+    elif entity_type == "stock_purchase":
+        payload = {
             "id": row.id,
             "inventory_item_id": row.inventory_item_id,
             "quantity": row.quantity,
@@ -1254,8 +1265,8 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
             "status": row.status,
             "created_at": row.created_at.isoformat() if row.created_at else None,
         }
-    if entity_type == "stock_transfer":
-        return {
+    elif entity_type == "stock_transfer":
+        payload = {
             "id": row.id,
             "inventory_item_id": row.inventory_item_id,
             "station_id": row.station_id,
@@ -1263,8 +1274,8 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
             "status": row.status,
             "created_at": row.created_at.isoformat() if row.created_at else None,
         }
-    if entity_type == "station_stock_snapshot":
-        return {
+    elif entity_type == "station_stock_snapshot":
+        payload = {
             "id": row.id,
             "station_id": row.station_id,
             "inventory_item_id": row.inventory_item_id,
@@ -1276,8 +1287,8 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
             "remaining_quantity": row.remaining_quantity,
             "opening_adjusted": bool(getattr(row, "opening_adjusted", False)),
         }
-    if entity_type == "store_stock_snapshot":
-        return {
+    elif entity_type == "store_stock_snapshot":
+        payload = {
             "id": row.id,
             "inventory_item_id": row.inventory_item_id,
             "snapshot_date": row.snapshot_date.isoformat() if row.snapshot_date else None,
@@ -1287,7 +1298,7 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
             "closing_quantity": row.closing_quantity,
             "opening_adjusted": bool(getattr(row, "opening_adjusted", False)),
         }
-    if entity_type == "order":
+    elif entity_type == "order":
         items_payload = []
         for item in (row.items or []):
             menu_item = item.menu_item
@@ -1308,7 +1319,7 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
                     "status": item.status,
                 }
             )
-        return {
+        payload = {
             "order_id": row.id,
             "status": row.status,
             "total_amount": float(row.total_amount or 0),
@@ -1318,7 +1329,9 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
             "updated_at": row.updated_at.isoformat() if row.updated_at else None,
             "items": items_payload,
         }
-    return None
+    if payload is None:
+        return None
+    return _attach_timestamps(payload, row)
 
 
 def queue_cloud_sync_upsert(entity_type: str, row) -> None:
