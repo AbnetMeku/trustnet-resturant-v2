@@ -235,6 +235,7 @@ def reset_cloud_tenant() -> None:
     response.raise_for_status()
     # Clear local outbox so next sync re-queues everything.
     CloudSyncOutbox.query.delete(synchronize_session=False)
+    CloudSyncIdMap.query.delete(synchronize_session=False)
     state = _ensure_sync_state()
     state.last_pulled_event_id = 0
     state.last_sync_error = None
@@ -578,6 +579,14 @@ def _upsert_subcategory(payload: dict) -> None:
     cloud_id = payload.get("id")
     category_id = payload.get("category_id")
     mapped_category_id = _resolve_entity_id("category", category_id)
+    if mapped_category_id is None:
+        category_name = (payload.get("category_name") or "").strip()
+        if category_name:
+            category_match = _find_category_by_name(category_name)
+            if category_match:
+                if category_id is not None:
+                    _ensure_mapping("category", category_id, category_match.id)
+                mapped_category_id = category_match.id
     local_id = _resolve_entity_id("subcategory", cloud_id)
     row = db.session.get(SubCategory, local_id) if local_id else None
     if row is None:
@@ -614,14 +623,49 @@ def _upsert_menu_item(payload: dict) -> None:
     row.is_available = bool(payload.get("is_available", True))
     row.image_url = payload.get("image_url")
 
-    station_id = payload.get("station_id")
-    station = _ensure_station_for_cloud_id(station_id)
-    if station is None:
-        return
-    row.station_id = station.id
+    station_cloud_id = payload.get("station_id")
+    if station_cloud_id is not None:
+        mapped_station_id = _resolve_entity_id("station", station_cloud_id)
+        if mapped_station_id is None:
+            station_name = (payload.get("station_name") or "").strip() or None
+            if station_name:
+                station_match = _find_station_by_name(station_name)
+                if station_match:
+                    _ensure_mapping("station", station_cloud_id, station_match.id)
+                    mapped_station_id = station_match.id
+        if mapped_station_id is None and row.id and row.station_id:
+            mapped_station_id = row.station_id
+        if mapped_station_id is None:
+            station = _ensure_station_for_cloud_id(station_cloud_id, payload.get("station_name"))
+            if station is None:
+                return
+            mapped_station_id = station.id
+        row.station_id = mapped_station_id
 
-    subcategory_id = payload.get("subcategory_id")
-    row.subcategory_id = _resolve_entity_id("subcategory", subcategory_id)
+    subcategory_cloud_id = payload.get("subcategory_id")
+    if subcategory_cloud_id is not None:
+        mapped_subcategory_id = _resolve_entity_id("subcategory", subcategory_cloud_id)
+        if mapped_subcategory_id is None:
+            subcategory_name = (payload.get("subcategory_name") or "").strip() or None
+            category_name = (payload.get("category_name") or "").strip() or None
+            mapped_category_id = None
+            if payload.get("category_id") is not None:
+                mapped_category_id = _resolve_entity_id("category", payload.get("category_id"))
+            if mapped_category_id is None and category_name:
+                category_match = _find_category_by_name(category_name)
+                if category_match and payload.get("category_id") is not None:
+                    _ensure_mapping("category", payload.get("category_id"), category_match.id)
+                mapped_category_id = category_match.id if category_match else None
+            if subcategory_name:
+                subcategory_match = _find_subcategory_by_name(subcategory_name, mapped_category_id)
+                if subcategory_match is None:
+                    subcategory_match = SubCategory.query.filter_by(name=subcategory_name).first()
+                if subcategory_match:
+                    _ensure_mapping("subcategory", subcategory_cloud_id, subcategory_match.id)
+                    mapped_subcategory_id = subcategory_match.id
+        if mapped_subcategory_id is None and row.id and row.subcategory_id:
+            mapped_subcategory_id = row.subcategory_id
+        row.subcategory_id = mapped_subcategory_id
 
     db.session.flush()
     _ensure_mapping("menu_item", cloud_id, row.id)
@@ -680,8 +724,20 @@ def _upsert_inventory_menu_link(payload: dict) -> None:
     local_id = _resolve_entity_id("inventory_menu_link", cloud_id)
     row = db.session.get(InventoryMenuLink, local_id) if local_id else None
 
-    inventory_item = _ensure_inventory_item_for_cloud_id(payload.get("inventory_item_id"))
-    menu_item_id = _resolve_entity_id("menu_item", payload.get("menu_item_id"))
+    inventory_item = _ensure_inventory_item_for_cloud_id(
+        payload.get("inventory_item_id"),
+        payload.get("inventory_item_name"),
+    )
+    menu_item_cloud_id = payload.get("menu_item_id")
+    menu_item_id = _resolve_entity_id("menu_item", menu_item_cloud_id)
+    if menu_item_id is None:
+        menu_item_name = (payload.get("menu_item_name") or "").strip()
+        if menu_item_name:
+            menu_match = _find_menu_item_by_name(menu_item_name)
+            if menu_match:
+                if menu_item_cloud_id is not None:
+                    _ensure_mapping("menu_item", menu_item_cloud_id, menu_match.id)
+                menu_item_id = menu_match.id
     if inventory_item is None or menu_item_id is None:
         return
 
@@ -699,7 +755,10 @@ def _upsert_inventory_menu_link(payload: dict) -> None:
 
 
 def _upsert_store_stock(payload: dict) -> None:
-    inventory_item = _ensure_inventory_item_for_cloud_id(payload.get("inventory_item_id"))
+    inventory_item = _ensure_inventory_item_for_cloud_id(
+        payload.get("inventory_item_id"),
+        payload.get("inventory_item_name"),
+    )
     if inventory_item is None:
         return
     row = StoreStock.query.filter_by(inventory_item_id=inventory_item.id).first()
@@ -711,8 +770,11 @@ def _upsert_store_stock(payload: dict) -> None:
 
 
 def _upsert_station_stock(payload: dict) -> None:
-    station = _ensure_station_for_cloud_id(payload.get("station_id"))
-    inventory_item = _ensure_inventory_item_for_cloud_id(payload.get("inventory_item_id"))
+    station = _ensure_station_for_cloud_id(payload.get("station_id"), payload.get("station_name"))
+    inventory_item = _ensure_inventory_item_for_cloud_id(
+        payload.get("inventory_item_id"),
+        payload.get("inventory_item_name"),
+    )
     if station is None or inventory_item is None:
         return
     row = StationStock.query.filter_by(station_id=station.id, inventory_item_id=inventory_item.id).first()
@@ -728,7 +790,10 @@ def _upsert_stock_purchase(payload: dict) -> None:
     local_id = _resolve_entity_id("stock_purchase", cloud_id)
     row = db.session.get(StockPurchase, local_id) if local_id else None
 
-    inventory_item = _ensure_inventory_item_for_cloud_id(payload.get("inventory_item_id"))
+    inventory_item = _ensure_inventory_item_for_cloud_id(
+        payload.get("inventory_item_id"),
+        payload.get("inventory_item_name"),
+    )
     if inventory_item is None:
         return
 
@@ -752,8 +817,11 @@ def _upsert_stock_transfer(payload: dict) -> None:
     local_id = _resolve_entity_id("stock_transfer", cloud_id)
     row = db.session.get(StockTransfer, local_id) if local_id else None
 
-    inventory_item = _ensure_inventory_item_for_cloud_id(payload.get("inventory_item_id"))
-    station = _ensure_station_for_cloud_id(payload.get("station_id"))
+    inventory_item = _ensure_inventory_item_for_cloud_id(
+        payload.get("inventory_item_id"),
+        payload.get("inventory_item_name"),
+    )
+    station = _ensure_station_for_cloud_id(payload.get("station_id"), payload.get("station_name"))
     if inventory_item is None or station is None:
         return
 
@@ -773,8 +841,11 @@ def _upsert_stock_transfer(payload: dict) -> None:
 
 
 def _upsert_station_stock_snapshot(payload: dict) -> None:
-    station = _ensure_station_for_cloud_id(payload.get("station_id"))
-    inventory_item = _ensure_inventory_item_for_cloud_id(payload.get("inventory_item_id"))
+    station = _ensure_station_for_cloud_id(payload.get("station_id"), payload.get("station_name"))
+    inventory_item = _ensure_inventory_item_for_cloud_id(
+        payload.get("inventory_item_id"),
+        payload.get("inventory_item_name"),
+    )
     snapshot_date = _parse_date(payload.get("snapshot_date"))
     if station is None or inventory_item is None or snapshot_date is None:
         return
@@ -802,7 +873,10 @@ def _upsert_station_stock_snapshot(payload: dict) -> None:
 
 
 def _upsert_store_stock_snapshot(payload: dict) -> None:
-    inventory_item = _ensure_inventory_item_for_cloud_id(payload.get("inventory_item_id"))
+    inventory_item = _ensure_inventory_item_for_cloud_id(
+        payload.get("inventory_item_id"),
+        payload.get("inventory_item_name"),
+    )
     snapshot_date = _parse_date(payload.get("snapshot_date"))
     if inventory_item is None or snapshot_date is None:
         return
