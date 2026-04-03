@@ -878,8 +878,6 @@ def _apply_cloud_event(entity_type: str, operation: str, payload: dict) -> None:
         _upsert_subcategory(payload)
     elif entity_type == "menu_item":
         _upsert_menu_item(payload)
-    elif entity_type == "branding":
-        _upsert_branding(payload)
     elif entity_type == "inventory_item":
         _upsert_inventory_item(payload)
     elif entity_type == "inventory_menu_link":
@@ -1138,13 +1136,6 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
             "station_id": row.station_id,
             "subcategory_id": row.subcategory_id,
             "image_url": row.image_url,
-        }
-    if entity_type == "branding":
-        return {
-            "business_day_start_time": row.business_day_start_time,
-            "print_preview_enabled": row.print_preview_enabled,
-            "kds_mark_unavailable_enabled": row.kds_mark_unavailable_enabled,
-            "low_power_mode_enabled": row.low_power_mode_enabled,
         }
     if entity_type == "inventory_item":
         return {
@@ -1543,22 +1534,6 @@ def seed_cloud_sync_outbox() -> int:
                     },
                 )
                 for row in StoreStockSnapshot.query.order_by(StoreStockSnapshot.id.asc()).all()
-            ),
-        ),
-        (
-            "branding",
-            (
-                (
-                    row.id,
-                    row.updated_at,
-                        {
-                            "business_day_start_time": row.business_day_start_time,
-                            "print_preview_enabled": row.print_preview_enabled,
-                            "kds_mark_unavailable_enabled": row.kds_mark_unavailable_enabled,
-                            "low_power_mode_enabled": row.low_power_mode_enabled,
-                        },
-                )
-                for row in BrandingSettings.query.order_by(BrandingSettings.id.asc()).all()
             ),
         ),
         (

@@ -9,7 +9,6 @@ from werkzeug.utils import secure_filename
 from app.extensions import db
 from app.models.models import BrandingSettings, Category, SubCategory
 from app.utils.decorators import roles_required
-from app.services.cloud_sync import queue_cloud_sync_upsert
 
 branding_bp = Blueprint("branding_bp", __name__, url_prefix="/branding")
 
@@ -303,7 +302,6 @@ def update_branding():
         return jsonify({"error": str(exc)}), 400
 
     db.session.commit()
-    queue_cloud_sync_upsert("branding", settings)
     return jsonify(_serialize_branding(settings)), 200
 
 
@@ -333,5 +331,4 @@ def upload_branding_asset(asset_type):
         settings.background_url = saved_url
 
     db.session.commit()
-    queue_cloud_sync_upsert("branding", settings)
     return jsonify(_serialize_branding(settings)), 200
