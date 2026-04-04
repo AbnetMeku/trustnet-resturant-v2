@@ -999,11 +999,15 @@ def activate_cloud_device() -> dict:
             timeout=_timeout(),
         )
     except Exception as exc:
-        _apply_validation_failure(state, f"Activation failed: {exc}")
+        _apply_validation_failure(state, f"Activation failed: {exc}", grant_grace=True)
         raise
 
     if response.status_code >= 400:
-        _apply_validation_failure(state, _extract_error_message(response, "Activation rejected"))
+        _apply_validation_failure(
+            state,
+            _extract_error_message(response, "Activation rejected"),
+            grant_grace=_should_grant_grace_for_http_error(response),
+        )
         response.raise_for_status()
 
     data = response.json()
@@ -1038,11 +1042,15 @@ def validate_cloud_license() -> dict:
             timeout=_timeout(),
         )
     except Exception as exc:
-        _apply_validation_failure(state, f"Validation failed: {exc}")
+        _apply_validation_failure(state, f"Validation failed: {exc}", grant_grace=True)
         raise
 
     if response.status_code >= 400:
-        _apply_validation_failure(state, _extract_error_message(response, "License validation rejected"))
+        _apply_validation_failure(
+            state,
+            _extract_error_message(response, "License validation rejected"),
+            grant_grace=_should_grant_grace_for_http_error(response),
+        )
         response.raise_for_status()
 
     data = response.json()
@@ -1082,12 +1090,28 @@ def _ensure_grace_period(state: CloudLicenseState) -> None:
         state.grace_until = now + timedelta(hours=grace_hours)
 
 
-def _apply_validation_failure(state: CloudLicenseState, error_message: str) -> None:
+def _apply_validation_failure(
+    state: CloudLicenseState,
+    error_message: str,
+    *,
+    grant_grace: bool,
+) -> None:
     state.is_valid = False
     state.status = state.status or "unknown"
     state.last_error = error_message
-    _ensure_grace_period(state)
+    if grant_grace:
+        _ensure_grace_period(state)
+    else:
+        state.grace_until = None
     db.session.commit()
+
+
+def _should_grant_grace_for_http_error(response: requests.Response | None) -> bool:
+    if response is None:
+        return True
+    if response.status_code == 429:
+        return True
+    return response.status_code >= 500
 
 
 def _validate_before_sync() -> bool:
