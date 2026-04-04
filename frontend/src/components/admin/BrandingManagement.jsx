@@ -459,9 +459,6 @@ export default function BrandingManagement() {
               <Card className="admin-card space-y-4 border border-red-200/80 p-4 backdrop-blur-sm dark:border-red-900/70">
                 <div className="space-y-1">
                   <h4 className="font-medium text-red-700 dark:text-red-400">Clear Order History</h4>
-                  <p className="text-sm text-slate-600 dark:text-slate-300">
-                    Permanently deletes orders, order items, and print jobs inside the selected business-day date range.
-                  </p>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
@@ -548,9 +545,6 @@ export default function BrandingManagement() {
                     Use the lightweight UI for waiter and KDS screens to improve performance on older tablets.
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Default is ON. Disable if you want full animations and visual effects on those screens.
-                </p>
               </div>
 
               <div className="space-y-2">
@@ -570,9 +564,6 @@ export default function BrandingManagement() {
                     Allow waiters to close their own shift from the waiter history screen.
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Default is OFF. When disabled, shift closing is handled by cashier/manager only.
-                </p>
               </div>
 
               <div className="space-y-2">
@@ -628,12 +619,12 @@ export default function BrandingManagement() {
                     </p>
                   )}
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Items from any selected subcategory will receive the daily kitchen tag counter.
+                    Items from selected subcategory will receive the daily kitchen tag counter.
                   </p>
                 </div>
               )}
 
-              <div className="space-y-2">
+              {/* <div className="space-y-2">
                 <Label htmlFor="branding-print-preview">Print Worker Preview</Label>
                 <div className="flex items-center gap-2 rounded-md border border-slate-200 p-3 dark:border-slate-700">
                   <Checkbox
@@ -650,7 +641,7 @@ export default function BrandingManagement() {
                     Show ticket simulation preview on the print worker screen
                   </span>
                 </div>
-              </div>
+              </div> */}
 
               <div className="space-y-2">
                 <Label htmlFor="branding-kds-mark-unavailable">KDS Mark Unavailable</Label>

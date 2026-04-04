@@ -96,7 +96,7 @@ export default function HistoryPage({ onDayCloseChange }) {
       <div className="flex-1">
         <div className="flex flex-col gap-3 mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-0">የቀኑ የተዘጉ እና የተከፈሉ ትዕዛዞች</h1>
+            {/* <h1 className="text-2xl sm:text-3xl font-bold mb-0">የቀኑ የተዘጉ እና የተከፈሉ ትዕዛዞች</h1> */}
             {isViewingToday && isClosedForToday && (
               <span className="text-sm font-semibold text-green-700 dark:text-green-300">
                 ዛሬ ተዘግቷል
@@ -136,11 +136,11 @@ export default function HistoryPage({ onDayCloseChange }) {
           </p>
         )}
 
-        {isViewingToday && dayCloseStatus && !waiterCloseEnabled && (
+        {/* {isViewingToday && dayCloseStatus && !waiterCloseEnabled && (
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
             ቀን መዝጋት በካሺር/አስተዳዳሪ ይተከናወናል።
           </p>
-        )}
+        )} */}
 
         {isViewingToday && dayCloseStatus && isClosedForToday && (
           <p className="text-sm text-green-600 dark:text-green-400 mb-4">
