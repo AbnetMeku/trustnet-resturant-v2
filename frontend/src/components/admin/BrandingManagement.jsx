@@ -44,6 +44,7 @@ const DEFAULT_FORM = {
   print_preview_enabled: false,
   kds_mark_unavailable_enabled: false,
   low_power_mode_enabled: true,
+  waiter_shift_close_enabled: false,
   kitchen_tag_subcategory_ids: [],
 };
 
@@ -87,6 +88,7 @@ export default function BrandingManagement() {
           print_preview_enabled: Boolean(settings.print_preview_enabled),
           kds_mark_unavailable_enabled: Boolean(settings.kds_mark_unavailable_enabled),
           low_power_mode_enabled: settings.low_power_mode_enabled !== false,
+          waiter_shift_close_enabled: Boolean(settings.waiter_shift_close_enabled),
           kitchen_tag_subcategory_ids: selectedIds,
         });
         setKitchenTagEnabled(selectedIds.length > 0);
@@ -182,6 +184,7 @@ export default function BrandingManagement() {
       print_preview_enabled: Boolean(data.print_preview_enabled),
       kds_mark_unavailable_enabled: Boolean(data.kds_mark_unavailable_enabled),
       low_power_mode_enabled: data.low_power_mode_enabled !== false,
+      waiter_shift_close_enabled: Boolean(data.waiter_shift_close_enabled),
       kitchen_tag_subcategory_ids: nextIds,
     });
     setKitchenTagEnabled(nextIds.length > 0);
@@ -198,6 +201,7 @@ export default function BrandingManagement() {
         print_preview_enabled: Boolean(form.print_preview_enabled),
         kds_mark_unavailable_enabled: Boolean(form.kds_mark_unavailable_enabled),
         low_power_mode_enabled: Boolean(form.low_power_mode_enabled),
+        waiter_shift_close_enabled: Boolean(form.waiter_shift_close_enabled),
         kitchen_tag_category_id: null,
         kitchen_tag_subcategory_id: null,
         kitchen_tag_subcategory_ids: kitchenTagEnabled ? form.kitchen_tag_subcategory_ids : [],
@@ -221,6 +225,7 @@ export default function BrandingManagement() {
         print_preview_enabled: false,
         kds_mark_unavailable_enabled: false,
         low_power_mode_enabled: true,
+        waiter_shift_close_enabled: false,
         kitchen_tag_category_id: null,
         kitchen_tag_subcategory_id: null,
         kitchen_tag_subcategory_ids: [],
@@ -545,6 +550,28 @@ export default function BrandingManagement() {
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Default is ON. Disable if you want full animations and visual effects on those screens.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="branding-waiter-shift-close">Waiter Shift Close</Label>
+                <div className="flex items-center gap-2 rounded-md border border-slate-200 p-3 dark:border-slate-700">
+                  <Checkbox
+                    id="branding-waiter-shift-close"
+                    checked={form.waiter_shift_close_enabled}
+                    onCheckedChange={(value) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        waiter_shift_close_enabled: Boolean(value),
+                      }))
+                    }
+                  />
+                  <span className="text-sm text-slate-700 dark:text-slate-200">
+                    Allow waiters to close their own shift from the waiter history screen.
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Default is OFF. When disabled, shift closing is handled by cashier/manager only.
                 </p>
               </div>
 

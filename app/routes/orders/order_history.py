@@ -3,7 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from sqlalchemy.orm import joinedload
 from sqlalchemy import delete
 from app.extensions import db
-from app.models.models import Order, OrderItem, PrintJob, Table, User
+from app.models.models import BrandingSettings, Order, OrderItem, PrintJob, Table, User
 from app.routes.orders.order import order_to_dict, error_response
 from app.utils.decorators import roles_required, extract_roles_from_claims
 from datetime import datetime, timedelta
@@ -46,6 +46,11 @@ def _waiter_day_status(waiter: User):
     )
     is_closed_for_today = waiter.waiter_day_closed_on == today
     return today, open_orders_count, is_closed_for_today
+
+
+def _waiter_shift_close_enabled() -> bool:
+    settings = db.session.get(BrandingSettings, 1)
+    return bool(settings and settings.waiter_shift_close_enabled)
 
 # ---------------------- GET /order-history ---------------------- #
 @order_history_bp.route("/", methods=["GET"])
@@ -94,13 +99,15 @@ def waiter_day_close_status():
         return error_response("Invalid token identity.", 401)
 
     today, open_orders_count, is_closed_for_today = _waiter_day_status(waiter)
+    allow_waiter_close = _waiter_shift_close_enabled()
 
     return jsonify(
         {
             "date": today.isoformat(),
             "isClosedForToday": is_closed_for_today,
             "openOrdersCount": open_orders_count,
-            "canCloseForToday": (open_orders_count == 0 and not is_closed_for_today),
+            "canCloseForToday": (allow_waiter_close and open_orders_count == 0 and not is_closed_for_today),
+            "waiterCloseEnabled": allow_waiter_close,
         }
     ), 200
 
@@ -133,6 +140,9 @@ def waiter_close_day():
     waiter = _current_waiter_from_jwt()
     if not waiter:
         return error_response("Invalid token identity.", 401)
+
+    if not _waiter_shift_close_enabled():
+        return error_response("Waiter shift closing is disabled. Please contact the cashier.", 403)
 
     today, open_orders_count, is_closed_for_today = _waiter_day_status(waiter)
     if is_closed_for_today:

@@ -216,6 +216,7 @@ class BrandingSettings(db.Model):
     print_preview_enabled = db.Column(db.Boolean, nullable=False, default=False)
     kds_mark_unavailable_enabled = db.Column(db.Boolean, nullable=False, default=False)
     low_power_mode_enabled = db.Column(db.Boolean, nullable=False, default=True)
+    waiter_shift_close_enabled = db.Column(db.Boolean, nullable=False, default=False)
     kitchen_tag_category_id = db.Column(
         db.Integer,
         db.ForeignKey("categories.id", ondelete="SET NULL"),

@@ -2,6 +2,7 @@
 import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
 import {
+  closeWaiterDay,
   fetchOrderHistory,
   fetchOrderSummary,
   fetchWaiterDayCloseStatus,
@@ -12,9 +13,11 @@ import { Loader2 } from "lucide-react";
 import { eatBusinessDateISO, formatEatTime } from "@/lib/timezone";
 import { getApiErrorMessage } from "@/lib/apiError";
 import ModalPortal from "@/components/ui/ModalPortal";
+import { useBranding } from "@/hooks/useBranding";
 
 export default function HistoryPage({ onDayCloseChange }) {
   const { authToken, user } = useAuth();
+  const branding = useBranding();
   const todayISO = eatBusinessDateISO();
   const [selectedDate, setSelectedDate] = useState(todayISO);
   const [loading, setLoading] = useState(true);
@@ -23,6 +26,7 @@ export default function HistoryPage({ onDayCloseChange }) {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showSummarySidebar, setShowSummarySidebar] = useState(false);
   const [dayCloseStatus, setDayCloseStatus] = useState(null);
+  const [closingDay, setClosingDay] = useState(false);
 
   useEffect(() => {
     if (!authToken || !user) {
@@ -70,6 +74,22 @@ export default function HistoryPage({ onDayCloseChange }) {
   const isClosedForToday = Boolean(dayCloseStatus?.isClosedForToday);
   const openOrdersCount = Number(dayCloseStatus?.openOrdersCount || 0);
   const isViewingToday = selectedDate === todayISO;
+  const waiterCloseEnabled = dayCloseStatus?.waiterCloseEnabled ?? Boolean(branding?.waiter_shift_close_enabled);
+  const canCloseForToday = Boolean(dayCloseStatus?.canCloseForToday);
+
+  const handleCloseDay = async () => {
+    if (!authToken || closingDay) return;
+    setClosingDay(true);
+    try {
+      const response = await closeWaiterDay(authToken);
+      toast.success(response?.message || "Shift closed for today.");
+      await refreshDayCloseStatus();
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to close shift."));
+    } finally {
+      setClosingDay(false);
+    }
+  };
 
   return (
     <div className="p-4 md:p-6 dark:bg-gray-900 min-h-[70vh] text-gray-900 dark:text-gray-100 flex">
@@ -101,6 +121,23 @@ export default function HistoryPage({ onDayCloseChange }) {
         {isViewingToday && dayCloseStatus && !isClosedForToday && openOrdersCount > 0 && (
           <p className="text-sm text-amber-600 dark:text-amber-400 mb-4">
             ቀኑን ከመዝጋት በፊት ክፍት ትዕዛዞችን ዝጋ ({openOrdersCount})።
+          </p>
+        )}
+
+        {isViewingToday && dayCloseStatus && waiterCloseEnabled && !isClosedForToday && (
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <Button onClick={handleCloseDay} disabled={!canCloseForToday || closingDay}>
+              {closingDay ? "በመዝጋት ላይ..." : "ቀኑን ዝጋ"}
+            </Button>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              ክፍት ትዕዛዞች ከተጠናቀቁ በኋላ ቀኑን ዝጋ።
+            </span>
+          </div>
+        )}
+
+        {isViewingToday && dayCloseStatus && !waiterCloseEnabled && (
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+            ቀን መዝጋት በካሺር/አስተዳዳሪ ይተከናወናል።
           </p>
         )}
 

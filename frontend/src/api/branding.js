@@ -11,6 +11,7 @@ export const DEFAULT_BRANDING = {
   print_preview_enabled: false,
   kds_mark_unavailable_enabled: false,
   low_power_mode_enabled: true,
+  waiter_shift_close_enabled: false,
   kitchen_tag_category_id: null,
   kitchen_tag_subcategory_id: null,
   kitchen_tag_subcategory_ids: [],
