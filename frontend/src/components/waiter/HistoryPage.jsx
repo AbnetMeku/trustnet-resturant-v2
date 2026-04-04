@@ -103,18 +103,30 @@ export default function HistoryPage({ onDayCloseChange }) {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            <label htmlFor="history-date" className="text-sm font-medium">
-              ቀን
-            </label>
-            <input
-              id="history-date"
-              type="date"
-              value={selectedDate}
-              max={todayISO}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-full sm:w-auto h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-            />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <label htmlFor="history-date" className="text-sm font-medium">
+                ቀን
+              </label>
+              <input
+                id="history-date"
+                type="date"
+                value={selectedDate}
+                max={todayISO}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-full sm:w-auto h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+              />
+            </div>
+            {isViewingToday && dayCloseStatus && waiterCloseEnabled && !isClosedForToday && (
+              <div className="flex items-center gap-3">
+                <Button onClick={handleCloseDay} disabled={!canCloseForToday || closingDay}>
+                  {closingDay ? "በመዝጋት ላይ..." : "ቀኑን ዝጋ"}
+                </Button>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  ክፍት ትዕዛዞች ከተጠናቀቁ በኋላ ቀኑን ዝጋ።
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -122,17 +134,6 @@ export default function HistoryPage({ onDayCloseChange }) {
           <p className="text-sm text-amber-600 dark:text-amber-400 mb-4">
             ቀኑን ከመዝጋት በፊት ክፍት ትዕዛዞችን ዝጋ ({openOrdersCount})።
           </p>
-        )}
-
-        {isViewingToday && dayCloseStatus && waiterCloseEnabled && !isClosedForToday && (
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <Button onClick={handleCloseDay} disabled={!canCloseForToday || closingDay}>
-              {closingDay ? "በመዝጋት ላይ..." : "ቀኑን ዝጋ"}
-            </Button>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              ክፍት ትዕዛዞች ከተጠናቀቁ በኋላ ቀኑን ዝጋ።
-            </span>
-          </div>
         )}
 
         {isViewingToday && dayCloseStatus && !waiterCloseEnabled && (
