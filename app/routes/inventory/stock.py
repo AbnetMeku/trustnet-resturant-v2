@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from sqlalchemy import func
 
 from app.extensions import db
@@ -65,6 +65,21 @@ def _serialize_station_stock(stock):
         "quantity": stock.quantity,
         "updated_at": stock.updated_at,
     }
+
+
+def _station_id_from_token():
+    claims = get_jwt() or {}
+    station_id = claims.get("station_id")
+    if station_id is not None:
+        try:
+            return int(station_id)
+        except (TypeError, ValueError):
+            return None
+    identity = get_jwt_identity()
+    try:
+        return int(identity)
+    except (TypeError, ValueError):
+        return None
 
 
 @inventory_stock_bp.route("/store", methods=["POST"])
@@ -561,6 +576,85 @@ def get_daily_stock_history():
                 "business_day_end": end_dt.isoformat(),
                 "scope": scope,
                 "stations": [{"id": station.id, "name": station.name} for station in stations],
+                "rows": rows,
+            }
+        ),
+        200,
+    )
+
+
+@inventory_stock_bp.route("/station/daily", methods=["GET"])
+@roles_required("station")
+def get_station_daily_stock():
+    query_date = _parse_business_date()
+    if query_date is None:
+        return jsonify({"msg": "Invalid date format, use YYYY-MM-DD"}), 400
+
+    station_id = _station_id_from_token()
+    if not station_id:
+        return jsonify({"msg": "Invalid station token"}), 400
+
+    station = Station.query.get(station_id)
+    if not station:
+        return jsonify({"msg": "Station not found"}), 404
+
+    today = get_eat_today()
+    start_dt, end_dt = get_business_day_bounds(query_date)
+    items = InventoryItem.query.order_by(InventoryItem.name.asc()).all()
+
+    current_station_map = {
+        (row.station_id, row.inventory_item_id): _as_float(row.quantity)
+        for row in StationStock.query.filter_by(station_id=station.id).all()
+    }
+    station_snapshots = {
+        (row.station_id, row.inventory_item_id): row
+        for row in StationStockSnapshot.query.filter_by(snapshot_date=query_date, station_id=station.id).all()
+    }
+    previous_station_snapshots = {
+        (row.station_id, row.inventory_item_id): row
+        for row in StationStockSnapshot.query.filter_by(
+            snapshot_date=query_date - timedelta(days=1),
+            station_id=station.id,
+        ).all()
+    }
+    transfer_in_totals = {
+        (station_id_value, inventory_item_id): _as_float(quantity)
+        for station_id_value, inventory_item_id, quantity in (
+            db.session.query(
+                StockTransfer.station_id,
+                StockTransfer.inventory_item_id,
+                func.coalesce(func.sum(StockTransfer.quantity), 0),
+            )
+            .filter(
+                StockTransfer.status != "Deleted",
+                StockTransfer.created_at >= start_dt,
+                StockTransfer.created_at < end_dt,
+                StockTransfer.station_id == station.id,
+            )
+            .group_by(StockTransfer.station_id, StockTransfer.inventory_item_id)
+            .all()
+        )
+    }
+
+    rows = []
+    for item in items:
+        row = _station_row_for_date(
+            station,
+            item,
+            query_date,
+            today,
+            current_station_map,
+            transfer_in_totals,
+            station_snapshots,
+            previous_station_snapshots,
+        )
+        rows.append(row)
+
+    return (
+        jsonify(
+            {
+                "business_date": query_date.isoformat(),
+                "station": {"id": station.id, "name": station.name},
                 "rows": rows,
             }
         ),

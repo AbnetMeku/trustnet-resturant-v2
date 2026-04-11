@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { FaHistory, FaMoon, FaSun, FaUserCircle, FaUtensils } from "react-icons/fa";
+import { FaBoxOpen, FaHistory, FaMoon, FaSun, FaUserCircle, FaUtensils } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -7,6 +7,7 @@ import { useBranding } from "@/hooks/useBranding";
 
 import StationOrders from "@/components/station/StationOrders";
 import StationHistory from "@/components/station/StationHistory";
+import StationInventory from "@/components/station/StationInventory";
 
 export default function StationDashboard() {
   const { station, logout } = useAuth();
@@ -38,6 +39,7 @@ export default function StationDashboard() {
   const menuSections = [
     { id: "orders", icon: FaUtensils, label: "Orders" },
     { id: "history", icon: FaHistory, label: "History" },
+    { id: "inventory", icon: FaBoxOpen, label: "Inventory" },
   ];
 
   return (
@@ -94,6 +96,7 @@ export default function StationDashboard() {
           <div className="admin-card p-4 md:p-5">
             {active === "orders" && <StationOrders />}
             {active === "history" && <StationHistory />}
+            {active === "inventory" && <StationInventory />}
           </div>
         </main>
       </div>

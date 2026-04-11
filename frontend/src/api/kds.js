@@ -61,3 +61,18 @@ export const fetchReadyOrdersHistory = async (
     throw error;
   }
 };
+
+// Fetch station inventory (daily snapshot) for this station
+export const fetchStationInventory = async (stationToken, date) => {
+  if (!stationToken) throw new Error("Station token is required");
+  const query = date ? `?date=${encodeURIComponent(date)}` : "";
+  try {
+    const res = await axios.get(`/api/inventory/stock/station/daily${query}`, {
+      headers: getAuthHeader(stationToken),
+    });
+    return res.data;
+  } catch (error) {
+    console.error("Failed to fetch station inventory:", error);
+    throw error;
+  }
+};
