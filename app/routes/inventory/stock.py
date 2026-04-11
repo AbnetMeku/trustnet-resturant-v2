@@ -7,6 +7,8 @@ from sqlalchemy import func
 from app.extensions import db
 from app.models import (
     InventoryItem,
+    InventoryMenuLink,
+    MenuItem,
     Station,
     StationStock,
     StationStockSnapshot,
@@ -600,7 +602,29 @@ def get_station_daily_stock():
 
     today = get_eat_today()
     start_dt, end_dt = get_business_day_bounds(query_date)
-    items = InventoryItem.query.order_by(InventoryItem.name.asc()).all()
+    stock_item_ids = (
+        db.session.query(StationStock.inventory_item_id)
+        .filter(StationStock.station_id == station.id)
+        .distinct()
+        .all()
+    )
+    snapshot_item_ids = (
+        db.session.query(StationStockSnapshot.inventory_item_id)
+        .filter(StationStockSnapshot.station_id == station.id)
+        .distinct()
+        .all()
+    )
+    item_ids = {
+        *[row[0] for row in stock_item_ids],
+        *[row[0] for row in snapshot_item_ids],
+    }
+    items = (
+        InventoryItem.query.filter(InventoryItem.id.in_(item_ids))
+        .order_by(InventoryItem.name.asc())
+        .all()
+        if item_ids
+        else []
+    )
 
     current_station_map = {
         (row.station_id, row.inventory_item_id): _as_float(row.quantity)
