@@ -179,7 +179,7 @@ def adjust_inventory_for_addition(station_name, inventory_item_id, quantity, sna
     return snapshot
 
 
-def adjust_inventory_for_order_item(station_name, menu_item_id, quantity, reverse=False):
+def adjust_inventory_for_order_item(station_name, menu_item_id, quantity, reverse=False, snapshot_date=None):
     if quantity <= 0:
         return
 
@@ -191,7 +191,7 @@ def adjust_inventory_for_order_item(station_name, menu_item_id, quantity, revers
     if not links:
         return
 
-    today = get_eat_today()
+    target_date = snapshot_date or get_eat_today()
 
     for link in links:
         inventory_item = link.inventory_item
@@ -219,7 +219,7 @@ def adjust_inventory_for_order_item(station_name, menu_item_id, quantity, revers
         snapshot = get_or_create_station_snapshot(
             station.id,
             inventory_item.id,
-            snapshot_date=today,
+            snapshot_date=target_date,
             opening_quantity=opening_quantity,
         )
 

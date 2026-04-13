@@ -1,3 +1,4 @@
+from datetime import datetime
 from flask import Blueprint, current_app, jsonify, request
 
 from app.services.inventory_service import adjust_inventory_for_order_item
@@ -25,16 +26,21 @@ def adjust_inventory_internal():
     menu_item_id = data.get("menu_item_id")
     quantity = data.get("quantity")
     reverse = bool(data.get("reverse", False))
+    snapshot_date = data.get("snapshot_date")
 
     if not station_name or menu_item_id is None or quantity is None:
         return jsonify({"error": "station_name, menu_item_id, and quantity are required"}), 400
 
     try:
+        parsed_snapshot_date = None
+        if snapshot_date:
+            parsed_snapshot_date = datetime.fromisoformat(snapshot_date).date()
         adjust_inventory_for_order_item(
             station_name=station_name,
             menu_item_id=int(menu_item_id),
             quantity=float(quantity),
             reverse=reverse,
+            snapshot_date=parsed_snapshot_date,
         )
         return jsonify({"message": "Inventory adjusted"}), 200
     except Exception as exc:

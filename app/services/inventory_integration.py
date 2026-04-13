@@ -44,6 +44,7 @@ def send_inventory_adjustment_or_queue(
     menu_item_id: int,
     quantity: float,
     reverse: bool = False,
+    snapshot_date: str | None = None,
 ) -> None:
     """
     Best-effort synchronous push to inventory service.
@@ -56,6 +57,8 @@ def send_inventory_adjustment_or_queue(
         "quantity": float(quantity),
         "reverse": bool(reverse),
     }
+    if snapshot_date:
+        payload["snapshot_date"] = snapshot_date
 
     timeout = current_app.config.get("INVENTORY_SYNC_TIMEOUT_SECONDS", 2)
     url = _inventory_adjust_url()

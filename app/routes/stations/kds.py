@@ -6,7 +6,7 @@ from sqlalchemy import asc, desc
 from datetime import datetime
 from app.routes.orders.order import recalc_order_total
 from app.services.inventory_integration import send_inventory_adjustment_or_queue
-from app.utils.timezone import eat_now_naive, get_business_day_bounds
+from app.utils.timezone import eat_now_naive, get_business_day_bounds, get_business_day_date
 stations_kds_bp = Blueprint("stations_kds_bp", __name__, url_prefix="/stations/kds")
 
 def parse_station_identity(identity):
@@ -131,12 +131,17 @@ def update_order_item_status(order_item_id):
     item.status = new_status
     item.updated_at = eat_now_naive()
 
+    snapshot_date = None
+    if getattr(item, "created_at", None):
+        snapshot_date = get_business_day_date(item.created_at).isoformat()
+
     if prev_status != "ready" and new_status == "ready":
         # Deduct inventory
         send_inventory_adjustment_or_queue(
             station_name=item.station,
             menu_item_id=item.menu_item_id,
             quantity=float(item.quantity),
+            snapshot_date=snapshot_date,
         )
     elif prev_status == "ready" and new_status == "void":
         # Revert inventory for voided item
@@ -145,6 +150,7 @@ def update_order_item_status(order_item_id):
             menu_item_id=item.menu_item_id,
             quantity=float(item.quantity),
             reverse=True,
+            snapshot_date=snapshot_date,
         )
 
     # Recalculate order totals after status change (ready or void)

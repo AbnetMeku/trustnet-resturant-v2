@@ -376,8 +376,8 @@ def get_order_summary_range():
     try:
         start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
         end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
-        start_dt = datetime.combine(start_date, datetime.min.time())
-        end_dt = datetime.combine(end_date + timedelta(days=1), datetime.min.time())
+        start_dt, _ = get_business_day_bounds(start_date)
+        _, end_dt = get_business_day_bounds(end_date)
         query = query.filter(Order.created_at >= start_dt, Order.created_at < end_dt)
     except ValueError:
         return error_response("Invalid date format. Use YYYY-MM-DD.", 400)

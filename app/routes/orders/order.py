@@ -12,7 +12,7 @@ from app.routes.print.print_jobs import create_station_print_jobs, create_cashie
 from sqlalchemy.exc import IntegrityError
 from app.services.inventory_integration import send_inventory_adjustment_or_queue
 from app.services.waiter_profiles import waiter_allowed_station_ids, waiter_can_access_table
-from app.utils.timezone import get_eat_today, eat_now_naive
+from app.utils.timezone import get_eat_today, eat_now_naive, get_business_day_date
 from app.services.cloud_sync import _upsert_outbox_event, _timestamp_suffix, queue_cloud_sync_upsert
 
 
@@ -621,11 +621,16 @@ def update_order_item(order_id, item_id):
         order_item.status = data["status"]
 
         # ---------------- Deduct stock if status changed to ready ---------------- #
+        snapshot_date = None
+        if getattr(order_item, "created_at", None):
+            snapshot_date = get_business_day_date(order_item.created_at).isoformat()
+
         if prev_status != "ready" and data["status"] == "ready":
                 send_inventory_adjustment_or_queue(
                     station_name=order_item.station,
                     menu_item_id=order_item.menu_item_id,
                     quantity=float(order_item.quantity),
+                    snapshot_date=snapshot_date,
                 )
             # Revert inventory if moving from ready to void
         elif prev_status == "ready" and data["status"] == "void":
@@ -634,6 +639,7 @@ def update_order_item(order_id, item_id):
                     menu_item_id=order_item.menu_item_id,
                     quantity=float(order_item.quantity),
                     reverse=True,
+                    snapshot_date=snapshot_date,
                 )
             # Optional: handle unvoid back to ready
         elif prev_status == "void" and data["status"] == "ready":
@@ -641,6 +647,7 @@ def update_order_item(order_id, item_id):
                     station_name=order_item.station,
                     menu_item_id=order_item.menu_item_id,
                     quantity=float(order_item.quantity),
+                    snapshot_date=snapshot_date,
                 )
                 
     # ---------------- Commit ----------------
@@ -711,12 +718,17 @@ def void_order_item(order_id, item_id):
         order_item.status = "void"
 
         # Adjust inventory if item was previously ready
+        snapshot_date = None
+        if getattr(order_item, "created_at", None):
+            snapshot_date = get_business_day_date(order_item.created_at).isoformat()
+
         if prev_status == "ready":
             send_inventory_adjustment_or_queue(
                 station_name=order_item.station,
                 menu_item_id=order_item.menu_item_id,
                 quantity=float(order_item.quantity),
                 reverse=True,  # return stock
+                snapshot_date=snapshot_date,
             )
 
         # Recalculate order total (excluding voided)
@@ -761,11 +773,16 @@ def unvoid_order_item(order_id, item_id):
     item.status = "ready"  # default back to ready
 
     # Adjust inventory if previously voided
+    snapshot_date = None
+    if getattr(item, "created_at", None):
+        snapshot_date = get_business_day_date(item.created_at).isoformat()
+
     if prev_status == "void":
         send_inventory_adjustment_or_queue(
             station_name=item.station,
             menu_item_id=item.menu_item_id,
             quantity=float(item.quantity),  # deduct stock
+            snapshot_date=snapshot_date,
         )
 
     # Keep order totals in sync after status changes.
