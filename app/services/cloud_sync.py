@@ -46,6 +46,18 @@ from werkzeug.security import generate_password_hash
 
 logger = logging.getLogger(__name__)
 
+EXCLUDED_SYNC_ENTITY_TYPES = {
+    "branding",
+    "branding_settings",
+    "cloud_config",
+    "cloud_license_policy",
+    "cloud_license_state",
+}
+
+
+def _should_sync_entity(entity_type: str) -> bool:
+    return entity_type not in EXCLUDED_SYNC_ENTITY_TYPES
+
 
 def _generate_device_id() -> str:
     return uuid.uuid4().hex
@@ -1134,6 +1146,8 @@ def _should_validate_license(license_state: CloudLicenseState) -> bool:
 
 
 def _upsert_outbox_event(event_id: str, entity_type: str, entity_id: str, operation: str, payload: dict) -> None:
+    if not _should_sync_entity(entity_type):
+        return
     existing = CloudSyncOutbox.query.filter_by(event_id=event_id).first()
     if existing:
         payload_changed = existing.payload != payload or existing.operation != operation
@@ -1359,6 +1373,8 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
 
 
 def queue_cloud_sync_upsert(entity_type: str, row) -> None:
+    if not _should_sync_entity(entity_type):
+        return
     payload = _build_sync_payload(entity_type, row)
     if not payload:
         return
@@ -1375,6 +1391,8 @@ def queue_cloud_sync_upsert(entity_type: str, row) -> None:
 
 
 def queue_cloud_sync_delete(entity_type: str, entity_id: int | str) -> None:
+    if not _should_sync_entity(entity_type):
+        return
     if entity_id is None:
         return
     payload = {"id": entity_id}
@@ -1684,6 +1702,8 @@ def seed_cloud_sync_outbox() -> int:
 
     try:
         for entity_type, rows in entities:
+            if not _should_sync_entity(entity_type):
+                continue
             for entity_id, updated_at, payload in rows:
                 event_id = f"{entity_type}-{entity_id}-{_event_suffix(updated_at, payload)}"
                 before = CloudSyncOutbox.query.filter_by(event_id=event_id).first()
