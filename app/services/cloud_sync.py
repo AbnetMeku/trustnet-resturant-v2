@@ -35,6 +35,7 @@ from app.models.models import (
     CloudSyncState,
     MenuItem,
     Order,
+    PrintJob,
     Station,
     SubCategory,
     Table,
@@ -1367,6 +1368,20 @@ def _build_sync_payload(entity_type: str, row) -> dict | None:
             "updated_at": row.updated_at.isoformat() if row.updated_at else None,
             "items": items_payload,
         }
+    elif entity_type == "print_job":
+        payload = {
+            "id": row.id,
+            "order_id": row.order_id,
+            "station_id": row.station_id,
+            "station_name": row.station.name if getattr(row, "station", None) else None,
+            "type": row.type,
+            "items_data": row.items_data,
+            "status": row.status,
+            "error_message": row.error_message,
+            "printed_at": row.printed_at.isoformat() if row.printed_at else None,
+            "attempts": int(row.attempts or 0),
+            "retry_after": row.retry_after.isoformat() if row.retry_after else None,
+        }
     if payload is None:
         return None
     return _attach_timestamps(payload, row)
@@ -1698,6 +1713,29 @@ def seed_cloud_sync_outbox() -> int:
                  for row in Order.query.order_by(Order.id.asc()).all()
               ),
           ),
+        (
+            "print_job",
+            (
+                (
+                    row.id,
+                    row.updated_at,
+                    {
+                        "id": row.id,
+                        "order_id": row.order_id,
+                        "station_id": row.station_id,
+                        "station_name": row.station.name if row.station else None,
+                        "type": row.type,
+                        "items_data": row.items_data,
+                        "status": row.status,
+                        "error_message": row.error_message,
+                        "printed_at": row.printed_at.isoformat() if row.printed_at else None,
+                        "attempts": int(row.attempts or 0),
+                        "retry_after": row.retry_after.isoformat() if row.retry_after else None,
+                    },
+                )
+                for row in PrintJob.query.order_by(PrintJob.id.asc()).all()
+            ),
+        ),
     )
 
     try:

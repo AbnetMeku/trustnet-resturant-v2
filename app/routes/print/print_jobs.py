@@ -6,6 +6,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app.extensions import db
 from app.models.models import PrintJob, Order, Station, OrderItem
+from app.services.cloud_sync import queue_cloud_sync_delete, queue_cloud_sync_upsert
 from app.utils.decorators import extract_roles_from_claims
 from app.utils.timezone import eat_now_naive
 
@@ -68,6 +69,7 @@ def order_item_to_dict(item: OrderItem):
 def create_station_print_jobs(order: Order, only_new_items=True, item_ids=None):
     stations = Station.query.all()
     item_ids = set(item_ids or [])
+    created_jobs = []
 
     table_number = order.table.number if order.table else "Unknown"
     waiter_name = order.user.username if order.user else "Unknown"
@@ -97,7 +99,7 @@ def create_station_print_jobs(order: Order, only_new_items=True, item_ids=None):
 
         if (station.print_mode or "grouped") == "separate":
             for it in station_items:
-                db.session.add(PrintJob(
+                job = PrintJob(
                     order_id=order.id,
                     station_id=station.id,
                     type="station",
@@ -107,9 +109,11 @@ def create_station_print_jobs(order: Order, only_new_items=True, item_ids=None):
                         "waiter": waiter_name,
                         "items": [it],
                     }
-                ))
+                )
+                db.session.add(job)
+                created_jobs.append(job)
         else:
-            db.session.add(PrintJob(
+            job = PrintJob(
                 order_id=order.id,
                 station_id=station.id,
                 type="station",
@@ -119,9 +123,13 @@ def create_station_print_jobs(order: Order, only_new_items=True, item_ids=None):
                     "waiter": waiter_name,
                     "items": station_items,
                 }
-            ))
+            )
+            db.session.add(job)
+            created_jobs.append(job)
 
     db.session.commit()
+    for job in created_jobs:
+        queue_cloud_sync_upsert("print_job", job)
 
 # -----------------------------
 # Mark order items as 'ready' after print
@@ -188,6 +196,7 @@ def create_cashier_print_job(order_id: int):
     )
     db.session.add(job)
     db.session.commit()
+    queue_cloud_sync_upsert("print_job", job)
     return job
 
 # -----------------------------
@@ -208,6 +217,7 @@ def mark_job_printed(job_id: int):
     job.retry_after = None
     job.error_message = None
     db.session.commit()
+    queue_cloud_sync_upsert("print_job", job)
     return jsonify({"message": f"Print job {job.id} marked as printed"}), 200
 
 # -----------------------------
@@ -260,6 +270,7 @@ def retry_failed_job(job_id: int):
     job.retry_after = None
     job.error_message = None
     db.session.commit()
+    queue_cloud_sync_upsert("print_job", job)
 
     return jsonify({"message": f"Print job {job.id} set to pending for retry"}), 200
 
@@ -306,6 +317,7 @@ def manual_station_print():
     )
     db.session.add(job)
     db.session.commit()
+    queue_cloud_sync_upsert("print_job", job)
     return jsonify({"message": f"Manual station print job {job.id} created"}), 201
 
 # -----------------------------
@@ -387,6 +399,7 @@ def print_cashier_manual():
 
     db.session.add(job)
     db.session.commit()
+    queue_cloud_sync_upsert("print_job", job)
 
     return jsonify({"message": f"Cashier receipt print job created for order {order.id}"}), 201
 # -----------------------------
@@ -452,4 +465,5 @@ def delete_print_job(job_id: int):
 
     db.session.delete(job)
     db.session.commit()
+    queue_cloud_sync_delete("print_job", job.id)
     return jsonify({"message": f"Print job {job.id} deleted"}), 200

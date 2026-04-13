@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 from sqlalchemy import and_, create_engine, or_
 from sqlalchemy.orm import sessionmaker
 
-from app.models.models import BrandingSettings, OrderItem, PrintJob, Station
+from app.models.models import BrandingSettings, CloudSyncOutbox, OrderItem, PrintJob, Station
 from app.utils.timezone import eat_now, eat_now_naive
 
 LOGGER = logging.getLogger("print_worker")
@@ -120,6 +120,36 @@ class PrintWorker:
         if not isinstance(raw_items, list):
             raw_items = []
         return [item for item in raw_items if isinstance(item, dict)]
+
+    def _enqueue_print_job_sync(self, session, job: PrintJob):
+        payload = {
+            "id": job.id,
+            "order_id": job.order_id,
+            "station_id": job.station_id,
+            "station_name": job.station.name if job.station else None,
+            "type": job.type,
+            "items_data": job.items_data,
+            "status": job.status,
+            "error_message": job.error_message,
+            "printed_at": job.printed_at.isoformat() if job.printed_at else None,
+            "attempts": int(job.attempts or 0),
+            "retry_after": job.retry_after.isoformat() if job.retry_after else None,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "updated_at": job.updated_at.isoformat() if job.updated_at else None,
+        }
+        event_id = f"print_job-{job.id}-{eat_now_naive().strftime('%Y%m%d%H%M%S')}"
+        session.add(
+            CloudSyncOutbox(
+                event_id=event_id,
+                entity_type="print_job",
+                entity_id=str(job.id),
+                operation="upsert",
+                payload=payload,
+                status="pending",
+                retry_count=0,
+            )
+        )
+        session.commit()
 
     def _draw_aligned(self, draw, y, text, font, anchor="left", margin=10):
         bbox = draw.textbbox((0, 0), text, font=font)
@@ -368,6 +398,7 @@ class PrintWorker:
                 self._mark_failure(session, job, error_message or "Printing failed")
 
             session.commit()
+            self._enqueue_print_job_sync(session, job)
         except Exception as exc:
             session.rollback()
             LOGGER.exception("Unhandled print-job processing error for job %s: %s", job_id, exc)
@@ -377,6 +408,7 @@ class PrintWorker:
                 if job and job.status == "in_progress":
                     self._mark_failure(session, job, str(exc))
                     session.commit()
+                    self._enqueue_print_job_sync(session, job)
             finally:
                 session.close()
             return
