@@ -35,5 +35,14 @@ def allocate_next_table_number() -> str:
         db.session.add(counter)
         db.session.flush()
 
+    # If tables were created without updating the counter, resync to avoid duplicates.
+    max_existing = counter.last_number or 0
+    for table in Table.query.all():
+        value = str(table.number or "").strip()
+        if value.isdigit():
+            max_existing = max(max_existing, int(value))
+    if max_existing > (counter.last_number or 0):
+        counter.last_number = max_existing
+
     counter.last_number += 1
     return str(counter.last_number)

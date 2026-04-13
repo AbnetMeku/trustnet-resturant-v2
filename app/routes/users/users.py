@@ -126,6 +126,8 @@ def update_user(user_id):
     if not user:
         abort(404, "User not found")
 
+    original_profile_id = user.waiter_profile_id
+
     data = request.get_json() or {}
     new_username = (data.get("username") or "").strip() if data.get("username") is not None else None
     new_password = data.get("password")
@@ -181,7 +183,8 @@ def update_user(user_id):
             user.waiter_profile = None
 
         if user.role == "waiter" and auto_assign_tables:
-            auto_assign_tables_for_waiter(user, replace_existing=False)
+            profile_changed = original_profile_id != user.waiter_profile_id
+            auto_assign_tables_for_waiter(user, replace_existing=profile_changed)
 
     elif current_user.role == "waiter" and current_user.id == user.id:
         if new_role != user.role:
