@@ -8,6 +8,7 @@ from app.models import (
     StoreStockSnapshot,
 )
 from app.utils.timezone import get_eat_today
+from datetime import timedelta
 
 
 def resolve_link_deduction_amount(link, quantity):
@@ -103,6 +104,54 @@ def get_or_create_today_snapshot(station_name, inventory_item_id):
     if not station:
         return None
     return get_or_create_station_snapshot(station.id, inventory_item_id, snapshot_date=get_eat_today())
+
+
+def _sync_future_station_openings(station_id, inventory_item_id, start_date, end_date):
+    """
+    Align next-day opening quantities to previous-day closing quantities.
+    Stops if a day has a manual opening adjustment.
+    """
+    if start_date >= end_date:
+        return
+
+    previous_snapshot = StationStockSnapshot.query.filter_by(
+        station_id=station_id,
+        inventory_item_id=inventory_item_id,
+        snapshot_date=start_date,
+    ).first()
+    if not previous_snapshot:
+        return
+
+    previous_remaining = float(previous_snapshot.remaining_quantity or 0)
+    day = start_date + timedelta(days=1)
+
+    while day <= end_date:
+        snapshot = StationStockSnapshot.query.filter_by(
+            station_id=station_id,
+            inventory_item_id=inventory_item_id,
+            snapshot_date=day,
+        ).first()
+
+        if snapshot is None:
+            snapshot = get_or_create_station_snapshot(
+                station_id=station_id,
+                inventory_item_id=inventory_item_id,
+                snapshot_date=day,
+                opening_quantity=previous_remaining,
+            )
+        elif snapshot.opening_adjusted:
+            break
+        else:
+            snapshot.start_of_day_quantity = previous_remaining
+
+        snapshot.remaining_quantity = (
+            float(snapshot.start_of_day_quantity or 0)
+            + float(snapshot.added_quantity or 0)
+            - float(snapshot.sold_quantity or 0)
+            + float(snapshot.void_quantity or 0)
+        )
+        previous_remaining = float(snapshot.remaining_quantity or 0)
+        day = day + timedelta(days=1)
 
 
 def update_store_snapshot_purchase(inventory_item_id, quantity_delta, snapshot_date=None, opening_quantity=None):
@@ -234,5 +283,13 @@ def adjust_inventory_for_order_item(station_name, menu_item_id, quantity, revers
             - float(snapshot.sold_quantity or 0)
             + float(snapshot.void_quantity or 0)
         )
+
+        if target_date < get_eat_today():
+            _sync_future_station_openings(
+                station_id=station.id,
+                inventory_item_id=inventory_item.id,
+                start_date=target_date,
+                end_date=get_eat_today(),
+            )
 
     db.session.commit()
