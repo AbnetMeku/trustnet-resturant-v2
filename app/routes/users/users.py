@@ -181,7 +181,7 @@ def update_user(user_id):
             user.waiter_profile = None
 
         if user.role == "waiter" and auto_assign_tables:
-            auto_assign_tables_for_waiter(user, replace_existing=True)
+            auto_assign_tables_for_waiter(user, replace_existing=False)
 
     elif current_user.role == "waiter" and current_user.id == user.id:
         if new_role != user.role:
