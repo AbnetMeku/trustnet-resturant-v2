@@ -1,5 +1,6 @@
 import logging
 import os
+import requests
 import socket
 import threading
 import time
@@ -10,8 +11,8 @@ from PIL import Image, ImageDraw, ImageFont
 from sqlalchemy import and_, create_engine, or_
 from sqlalchemy.orm import sessionmaker
 
-from app.models.models import BrandingSettings, CloudSyncOutbox, OrderItem, PrintJob, Station
-from app.utils.timezone import eat_now, eat_now_naive
+from app.models.models import BrandingSettings, CloudSyncOutbox, InventoryOutbox, OrderItem, PrintJob, Station
+from app.utils.timezone import eat_now, eat_now_naive, get_business_day_date
 
 LOGGER = logging.getLogger("print_worker")
 logging.basicConfig(level=logging.INFO)
@@ -150,6 +151,66 @@ class PrintWorker:
             )
         )
         session.commit()
+
+    def _inventory_adjust_url(self) -> str:
+        base = os.environ.get("INVENTORY_BASE_URL", "http://127.0.0.1:5001").rstrip("/")
+        return f"{base}/api/inventory/internal/adjust"
+
+    def _inventory_service_headers(self) -> dict:
+        return {
+            "Content-Type": "application/json",
+            "X-Service-Key": os.environ.get("INVENTORY_SERVICE_KEY", ""),
+        }
+
+    def _queue_inventory_outbox_event(self, session, payload: dict, error_message: str | None = None):
+        session.add(
+            InventoryOutbox(
+                event_type="adjust_inventory",
+                payload=payload,
+                status="pending",
+                retry_count=0,
+                last_error=error_message,
+            )
+        )
+        session.flush()
+
+    def _send_inventory_adjustment_or_queue(
+        self,
+        session,
+        *,
+        station_name: str,
+        menu_item_id: int,
+        quantity: float,
+        reverse: bool = False,
+        snapshot_date: str | None = None,
+    ):
+        payload = {
+            "event_type": "adjust_inventory",
+            "station_name": station_name,
+            "menu_item_id": int(menu_item_id),
+            "quantity": float(quantity),
+            "reverse": bool(reverse),
+        }
+        if snapshot_date:
+            payload["snapshot_date"] = snapshot_date
+
+        timeout = float(os.environ.get("INVENTORY_SYNC_TIMEOUT_SECONDS", "2"))
+        try:
+            response = requests.post(
+                self._inventory_adjust_url(),
+                json=payload,
+                headers=self._inventory_service_headers(),
+                timeout=timeout,
+            )
+            if 200 <= response.status_code < 300:
+                return
+            self._queue_inventory_outbox_event(
+                session,
+                payload,
+                error_message=f"Inventory service returned {response.status_code}",
+            )
+        except Exception as exc:
+            self._queue_inventory_outbox_event(session, payload, error_message=str(exc))
 
     def _draw_aligned(self, draw, y, text, font, anchor="left", margin=10):
         bbox = draw.textbbox((0, 0), text, font=font)
@@ -393,6 +454,17 @@ class PrintWorker:
                     if item_id:
                         order_item = session.get(OrderItem, item_id)
                         if order_item:
+                            if order_item.status != "ready":
+                                snapshot_date = None
+                                if getattr(order_item, "created_at", None):
+                                    snapshot_date = get_business_day_date(order_item.created_at).isoformat()
+                                self._send_inventory_adjustment_or_queue(
+                                    session,
+                                    station_name=order_item.station,
+                                    menu_item_id=order_item.menu_item_id,
+                                    quantity=float(order_item.quantity),
+                                    snapshot_date=snapshot_date,
+                                )
                             order_item.status = "ready"
             else:
                 self._mark_failure(session, job, error_message or "Printing failed")
