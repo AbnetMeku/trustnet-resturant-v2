@@ -41,21 +41,31 @@ echo "Ensuring default admin user..."
 python -m app.scripts.ensure_default_admin
 
 echo "Starting print worker..."
-python -m app.workers.PrintWorker &
-WORKER_PID=$!
+worker_supervisor() {
+  while true; do
+    echo "Launching print worker..."
+    python -m app.workers.PrintWorker
+    EXIT_CODE=$?
+    echo "Print worker exited with code ${EXIT_CODE}; restarting in 5 seconds..."
+    sleep 5
+  done
+}
+
+worker_supervisor &
+WORKER_SUPERVISOR_PID=$!
 
 echo "Starting POS API..."
 gunicorn --bind 0.0.0.0:5050 --workers "${GUNICORN_WORKERS:-2}" --threads "${GUNICORN_THREADS:-4}" --timeout 120 wsgi:application &
 API_PID=$!
 
 cleanup() {
-  kill -TERM "$WORKER_PID" "$API_PID" 2>/dev/null || true
-  wait "$WORKER_PID" "$API_PID" 2>/dev/null || true
+  kill -TERM "$WORKER_SUPERVISOR_PID" "$API_PID" 2>/dev/null || true
+  wait "$WORKER_SUPERVISOR_PID" "$API_PID" 2>/dev/null || true
 }
 
 trap cleanup INT TERM
 
-wait -n "$WORKER_PID" "$API_PID"
+wait "$API_PID"
 EXIT_CODE=$?
 cleanup
 exit "$EXIT_CODE"
