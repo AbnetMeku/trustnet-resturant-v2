@@ -47,6 +47,21 @@ def _parse_non_negative_float(value, field_name):
     return parsed
 
 
+def _map_sum_by_inventory_item(model, quantity_column, *filters):
+    return {
+        inventory_item_id: _as_float(quantity)
+        for inventory_item_id, quantity in (
+            db.session.query(
+                model.inventory_item_id,
+                func.coalesce(func.sum(quantity_column), 0),
+            )
+            .filter(*filters)
+            .group_by(model.inventory_item_id)
+            .all()
+        )
+    }
+
+
 def _serialize_store_stock(stock):
     return {
         "id": stock.id,
@@ -224,19 +239,13 @@ def delete_station_stock(stock_id):
 @jwt_required()
 def get_overall_stock():
     items = InventoryItem.query.order_by(InventoryItem.name.asc()).all()
+    store_totals = _map_sum_by_inventory_item(StoreStock, StoreStock.quantity)
+    station_totals = _map_sum_by_inventory_item(StationStock, StationStock.quantity)
     result = []
 
     for item in items:
-        store_qty = _as_float(
-            db.session.query(func.coalesce(func.sum(StoreStock.quantity), 0))
-            .filter(StoreStock.inventory_item_id == item.id)
-            .scalar()
-        )
-        station_qty = _as_float(
-            db.session.query(func.coalesce(func.sum(StationStock.quantity), 0))
-            .filter(StationStock.inventory_item_id == item.id)
-            .scalar()
-        )
+        store_qty = store_totals.get(item.id, 0.0)
+        station_qty = station_totals.get(item.id, 0.0)
         result.append(
             {
                 "inventory_item_id": item.id,
@@ -313,6 +322,8 @@ def _store_row_for_date(
     previous_snapshot_map,
     purchase_totals,
     transfer_totals,
+    historical_purchase_totals,
+    historical_transfer_totals,
     today,
 ):
     purchased = purchase_totals.get(item.id, 0.0)
@@ -340,23 +351,7 @@ def _store_row_for_date(
         opening = _as_float(previous_snapshot_map[item.id].closing_quantity)
         closing = opening + purchased - transferred_out
     else:
-        opening = _as_float(
-            db.session.query(func.coalesce(func.sum(StockPurchase.quantity), 0))
-            .filter(
-                StockPurchase.inventory_item_id == item.id,
-                StockPurchase.status != "Deleted",
-                StockPurchase.created_at < get_business_day_bounds(query_date)[0],
-            )
-            .scalar()
-        ) - _as_float(
-            db.session.query(func.coalesce(func.sum(StockTransfer.quantity), 0))
-            .filter(
-                StockTransfer.inventory_item_id == item.id,
-                StockTransfer.status != "Deleted",
-                StockTransfer.created_at < get_business_day_bounds(query_date)[0],
-            )
-            .scalar()
-        )
+        opening = historical_purchase_totals.get(item.id, 0.0) - historical_transfer_totals.get(item.id, 0.0)
         closing = opening + purchased - transferred_out
 
     return {
@@ -452,6 +447,7 @@ def get_daily_stock_history():
     station_id = request.args.get("station_id", type=int)
     today = get_eat_today()
     start_dt, end_dt = get_business_day_bounds(query_date)
+    previous_start_dt = get_business_day_bounds(query_date)[0]
 
     items = InventoryItem.query.order_by(InventoryItem.name.asc()).all()
     stations_query = Station.query.order_by(Station.name.asc())
@@ -517,6 +513,18 @@ def get_daily_stock_history():
             .all()
         )
     }
+    historical_purchase_totals = _map_sum_by_inventory_item(
+        StockPurchase,
+        StockPurchase.quantity,
+        StockPurchase.status != "Deleted",
+        StockPurchase.created_at < previous_start_dt,
+    )
+    historical_transfer_totals = _map_sum_by_inventory_item(
+        StockTransfer,
+        StockTransfer.quantity,
+        StockTransfer.status != "Deleted",
+        StockTransfer.created_at < previous_start_dt,
+    )
     transfer_in_totals = {
         (station_id_value, inventory_item_id): _as_float(quantity)
         for station_id_value, inventory_item_id, quantity in (
@@ -546,6 +554,8 @@ def get_daily_stock_history():
                 previous_store_snapshots,
                 purchase_totals,
                 transfer_totals,
+                historical_purchase_totals,
+                historical_transfer_totals,
                 today,
             )
             if any(_as_float(row[key]) != 0.0 for key in ("opening_quantity", "purchased_quantity", "transferred_out_quantity", "closing_quantity")):

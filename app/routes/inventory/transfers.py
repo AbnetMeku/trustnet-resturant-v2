@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
+from sqlalchemy.orm import joinedload
 from app.extensions import db
 from app.models import InventoryItem, StoreStock, StationStock, StockTransfer, Station
 from app.services.inventory_service import (
@@ -97,7 +98,10 @@ def create_transfer():
 @jwt_required()
 def get_all_transfers():
     station_id = request.args.get("station_id")
-    query = StockTransfer.query
+    query = StockTransfer.query.options(
+        joinedload(StockTransfer.inventory_item),
+        joinedload(StockTransfer.station),
+    )
     if station_id:
         query = query.filter_by(station_id=station_id)
 
@@ -110,7 +114,15 @@ def get_all_transfers():
 @inventory_transfer_bp.route("/<int:transfer_id>", methods=["GET"])
 @jwt_required()
 def get_single_transfer(transfer_id):
-    transfer = db.session.get(StockTransfer, transfer_id)
+    transfer = (
+        StockTransfer.query
+        .options(
+            joinedload(StockTransfer.inventory_item),
+            joinedload(StockTransfer.station),
+        )
+        .filter_by(id=transfer_id)
+        .first()
+    )
     if not transfer:
         return jsonify({"msg": "Transfer not found"}), 404
 

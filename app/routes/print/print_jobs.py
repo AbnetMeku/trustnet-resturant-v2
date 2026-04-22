@@ -4,6 +4,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
+from sqlalchemy.orm import joinedload
 from app.extensions import db
 from app.models.models import PrintJob, Order, Station, OrderItem
 from app.services.cloud_sync import queue_cloud_sync_delete, queue_cloud_sync_upsert
@@ -413,7 +414,7 @@ def get_all_print_jobs():
     roles = extract_roles_from_claims(claims)
 
     status = request.args.get("status")  # optional query param
-    query = PrintJob.query
+    query = PrintJob.query.options(joinedload(PrintJob.order))
 
     if status:
         query = query.filter_by(status=status)

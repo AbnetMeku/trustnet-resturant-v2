@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy import delete
 from app.extensions import db
 from app.models.models import BrandingSettings, Order, OrderItem, PrintJob, Table, User
@@ -57,7 +57,14 @@ def _waiter_shift_close_enabled() -> bool:
 @jwt_required()
 @roles_required("admin", "manager", "waiter", "cashier")
 def get_order_history():
-    query = Order.query
+    query = (
+        db.session.query(Order)
+        .options(
+            joinedload(Order.table),
+            joinedload(Order.user),
+            selectinload(Order.items).joinedload(OrderItem.menu_item),
+        )
+    )
 
     date_str = request.args.get("date")
     if date_str:
@@ -254,7 +261,13 @@ def reopen_waiter_day(waiter_id):
 @jwt_required()
 @roles_required("admin", "manager", "waiter", "cashier")
 def get_order_summary():
-    query = Order.query
+    query = (
+        db.session.query(Order)
+        .options(
+            joinedload(Order.user),
+            selectinload(Order.items).joinedload(OrderItem.menu_item),
+        )
+    )
 
     date_str = request.args.get("date")
     if not date_str:
@@ -364,7 +377,13 @@ def get_order_summary_range():
     Aggregated summary of orders between start_date and end_date (inclusive).
     Params: start_date, end_date (YYYY-MM-DD), user_id (optional)
     """
-    query = Order.query
+    query = (
+        db.session.query(Order)
+        .options(
+            joinedload(Order.user),
+            selectinload(Order.items).joinedload(OrderItem.menu_item),
+        )
+    )
 
     # --- Parse dates ---
     start_date_str = request.args.get("start_date")

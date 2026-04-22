@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
+from sqlalchemy.orm import joinedload
 from app.extensions import db
 from app.models import StationStockSnapshot, StationStock, InventoryItem, Station
 from datetime import datetime
@@ -62,7 +63,10 @@ def get_all_snapshots():
     inventory_item_id = request.args.get("inventory_item_id")
     snapshot_date = request.args.get("snapshot_date")  # optional YYYY-MM-DD
 
-    query = StationStockSnapshot.query
+    query = StationStockSnapshot.query.options(
+        joinedload(StationStockSnapshot.station),
+        joinedload(StationStockSnapshot.inventory_item),
+    )
 
     # Validate station_id
     if station_id:
@@ -113,7 +117,15 @@ def get_all_snapshots():
 @inventory_snapshot_bp.route("/<int:snapshot_id>", methods=["GET"])
 @jwt_required()
 def get_snapshot(snapshot_id):
-    snapshot = StationStockSnapshot.query.get(snapshot_id)
+    snapshot = (
+        StationStockSnapshot.query
+        .options(
+            joinedload(StationStockSnapshot.station),
+            joinedload(StationStockSnapshot.inventory_item),
+        )
+        .filter_by(id=snapshot_id)
+        .first()
+    )
     if not snapshot:
         return jsonify({"msg": "Snapshot not found"}), 404
 

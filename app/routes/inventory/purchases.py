@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
+from sqlalchemy.orm import joinedload
 from app.extensions import db
 from app.models import InventoryItem, StoreStock, StockPurchase
 from app.services.inventory_service import update_store_snapshot_purchase
@@ -71,7 +72,12 @@ def create_stock_purchase():
 @inventory_purchase_bp.route("/", methods=["GET"])
 @jwt_required()
 def get_all_purchases():
-    purchases = StockPurchase.query.order_by(StockPurchase.created_at.desc()).all()
+    purchases = (
+        StockPurchase.query
+        .options(joinedload(StockPurchase.inventory_item))
+        .order_by(StockPurchase.created_at.desc())
+        .all()
+    )
     result = [_serialize_purchase(p) for p in purchases]
     return jsonify(result), 200
 
@@ -80,7 +86,12 @@ def get_all_purchases():
 @inventory_purchase_bp.route("/<int:purchase_id>", methods=["GET"])
 @jwt_required()
 def get_single_purchase(purchase_id):
-    purchase = db.session.get(StockPurchase, purchase_id)
+    purchase = (
+        StockPurchase.query
+        .options(joinedload(StockPurchase.inventory_item))
+        .filter_by(id=purchase_id)
+        .first()
+    )
     if not purchase:
         return jsonify({"msg": "Purchase not found"}), 404
 
