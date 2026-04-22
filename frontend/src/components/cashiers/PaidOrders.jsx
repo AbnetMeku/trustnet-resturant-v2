@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useDeferredValue, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchOrders } from "@/api/orders";
 import { getUsers } from "@/api/users";
@@ -22,6 +22,7 @@ export default function PaidOrders() {
   const [filterWaiter, setFilterWaiter] = useState("");
   const [filterTable, setFilterTable] = useState("");
   const [selectedDate, setSelectedDate] = useState(eatBusinessDateISO());
+  const deferredTableFilter = useDeferredValue(filterTable.trim());
 
   useEffect(() => {
     async function loadWaiters() {
@@ -41,7 +42,12 @@ export default function PaidOrders() {
     const loadOrders = async () => {
       setLoading(true);
       try {
-        const data = await fetchOrders(authToken, { status: "paid" });
+        const data = await fetchOrders(authToken, {
+          status: "paid",
+          date: selectedDate,
+          waiter_id: filterWaiter ? Number(filterWaiter) : undefined,
+          table_number: deferredTableFilter || undefined,
+        });
         setOrders(data);
       } catch (err) {
         toast.error(getApiErrorMessage(err, "Failed to load paid orders."));
@@ -51,7 +57,7 @@ export default function PaidOrders() {
     };
 
     loadOrders();
-  }, [authToken]);
+  }, [authToken, deferredTableFilter, filterWaiter, selectedDate]);
 
   const handlePrintReceipt = async (orderId) => {
     try {
@@ -66,15 +72,6 @@ export default function PaidOrders() {
     }
   };
 
-  const filteredOrders = orders.filter((order) => {
-    const orderDate = eatBusinessDateISO(order.created_at);
-    return (
-      (filterWaiter ? order.user?.id?.toString() === filterWaiter : true) &&
-      (filterTable ? String(order.table?.number || "").includes(filterTable) : true) &&
-      (selectedDate ? orderDate === selectedDate : true)
-    );
-  });
-
   return (
     <div className="space-y-5">
       <Card className="admin-card overflow-hidden">
@@ -87,7 +84,7 @@ export default function PaidOrders() {
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Showing</p>
-                <p className="text-sm font-medium">{filteredOrders.length}</p>
+                <p className="text-sm font-medium">{orders.length}</p>
               </div>
               <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Total Paid</p>
@@ -144,13 +141,13 @@ export default function PaidOrders() {
         <Card className="admin-card p-8 text-center text-sm text-slate-500 dark:text-slate-300">
           Loading paid orders...
         </Card>
-      ) : filteredOrders.length === 0 ? (
+      ) : orders.length === 0 ? (
         <Card className="admin-card p-8 text-center text-sm text-slate-500 dark:text-slate-300">
           No paid orders found.
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filteredOrders.map((order) => (
+          {orders.map((order) => (
             <Card key={order.id} className="admin-card p-5 transition hover:shadow-md">
               <div className="flex items-start justify-between">
                 <div>
@@ -290,4 +287,3 @@ export default function PaidOrders() {
     </div>
   );
 }
-

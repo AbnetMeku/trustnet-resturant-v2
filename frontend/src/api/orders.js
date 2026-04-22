@@ -102,7 +102,30 @@ export const fetchOrders = async (token, filters = {}) => {
         "Invalid status filter: must be 'open', 'closed', or 'paid'"
       );
     }
-    const params = new URLSearchParams(filters);
+    if (
+      filters.waiter_id !== undefined &&
+      filters.waiter_id !== "" &&
+      (!Number.isInteger(filters.waiter_id) || filters.waiter_id <= 0)
+    ) {
+      throw new Error("Invalid waiter_id filter: must be a positive integer");
+    }
+    if (
+      filters.date !== undefined &&
+      filters.date !== "" &&
+      !/^\d{4}-\d{2}-\d{2}$/.test(filters.date)
+    ) {
+      throw new Error("Invalid date filter: must be in YYYY-MM-DD format");
+    }
+    if (
+      filters.table_number !== undefined &&
+      typeof filters.table_number !== "string"
+    ) {
+      throw new Error("Invalid table_number filter: must be a string");
+    }
+    const normalizedFilters = Object.fromEntries(
+      Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== "")
+    );
+    const params = new URLSearchParams(normalizedFilters);
     const res = await axiosInstance.get(`/orders?${params.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
     });

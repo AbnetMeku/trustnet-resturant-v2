@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useDeferredValue, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchOrders } from "@/api/orders";
 import { getUsers } from "@/api/users";
@@ -19,6 +19,7 @@ export default function OpenOrders() {
   const [filterWaiter, setFilterWaiter] = useState("");
   const [filterTable, setFilterTable] = useState("");
   const [selectedDate, setSelectedDate] = useState(eatBusinessDateISO());
+  const deferredTableFilter = useDeferredValue(filterTable.trim());
 
   useEffect(() => {
     async function loadWaiters() {
@@ -38,7 +39,12 @@ export default function OpenOrders() {
     const loadOrders = async () => {
       setLoading(true);
       try {
-        const data = await fetchOrders(authToken, { status: "open" });
+        const data = await fetchOrders(authToken, {
+          status: "open",
+          date: selectedDate,
+          waiter_id: filterWaiter ? Number(filterWaiter) : undefined,
+          table_number: deferredTableFilter || undefined,
+        });
         setOrders(data);
       } catch (err) {
         console.error("Failed to load open orders:", err);
@@ -49,16 +55,7 @@ export default function OpenOrders() {
     };
 
     loadOrders();
-  }, [authToken]);
-
-  const filteredOrders = orders.filter((order) => {
-    const orderDate = eatBusinessDateISO(order.created_at);
-    return (
-      (filterWaiter ? order.user?.id?.toString() === filterWaiter : true) &&
-      (filterTable ? String(order.table?.number || "").includes(filterTable) : true) &&
-      (selectedDate ? orderDate === selectedDate : true)
-    );
-  });
+  }, [authToken, deferredTableFilter, filterWaiter, selectedDate]);
 
   return (
     <div className="space-y-5">
@@ -72,7 +69,7 @@ export default function OpenOrders() {
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Showing</p>
-                <p className="text-sm font-medium">{filteredOrders.length}</p>
+                <p className="text-sm font-medium">{orders.length}</p>
               </div>
               <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Total Open</p>
@@ -129,13 +126,13 @@ export default function OpenOrders() {
         <Card className="admin-card p-8 text-center text-sm text-slate-500 dark:text-slate-300">
           Loading open orders...
         </Card>
-      ) : filteredOrders.length === 0 ? (
+      ) : orders.length === 0 ? (
         <Card className="admin-card p-8 text-center text-sm text-slate-500 dark:text-slate-300">
           No open orders available.
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filteredOrders.map((order) => {
+          {orders.map((order) => {
             const totalItemsCount = (order.active_items?.length || 0) + (order.voided_items?.length || 0);
             return (
               <Card key={order.id} className="admin-card p-5 transition hover:shadow-md">
@@ -243,4 +240,3 @@ export default function OpenOrders() {
     </div>
   );
 }
-

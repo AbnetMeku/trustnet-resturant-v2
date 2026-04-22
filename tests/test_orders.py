@@ -1,10 +1,11 @@
 # tests/test_orders.py
 import pytest
 from datetime import timedelta
+from flask_jwt_extended import create_access_token
 from app import create_app, db
 from app.models.models import User, Table, MenuItem, Order, OrderItem, KitchenTagCounter, Station
 from app.routes.orders.kitchen_tag import generate_kitchen_tag
-from app.utils.timezone import get_eat_today
+from app.utils.timezone import get_eat_today, get_business_day_bounds
 
 @pytest.fixture
 def app():
@@ -117,3 +118,89 @@ def test_order_item_status_update(app, sample_user, sample_table, sample_menu_it
 
     updated_item = OrderItem.query.get(item.id)
     assert updated_item.status == "ready"
+
+
+def test_list_orders_applies_cashier_server_side_filters(app, client):
+    with app.app_context():
+        cashier = User(username="cashier_filters", password_hash="pass", role="cashier")
+        waiter_one = User(username="waiter_one", password_hash="pass", role="waiter")
+        waiter_two = User(username="waiter_two", password_hash="pass", role="waiter")
+        station = Station(name="cashier_filter_station", password_hash="hash")
+        table_one = Table(number="12")
+        table_two = Table(number="20")
+        menu_item = MenuItem(
+            name="Filter Steak",
+            price=10.0,
+            is_available=True,
+            station_id=station.id,
+        )
+
+        db.session.add_all([cashier, waiter_one, waiter_two, station, table_one, table_two])
+        db.session.flush()
+        db.session.add(menu_item)
+        db.session.flush()
+
+        today_start, _ = get_business_day_bounds(get_eat_today())
+        yesterday_start = today_start - timedelta(days=1)
+
+        matching_order = Order(
+            table_id=table_one.id,
+            user_id=waiter_one.id,
+            status="paid",
+            total_amount=10.0,
+            created_at=today_start + timedelta(hours=2),
+        )
+        non_matching_waiter = Order(
+            table_id=table_one.id,
+            user_id=waiter_two.id,
+            status="paid",
+            total_amount=10.0,
+            created_at=today_start + timedelta(hours=3),
+        )
+        non_matching_date = Order(
+            table_id=table_one.id,
+            user_id=waiter_one.id,
+            status="paid",
+            total_amount=10.0,
+            created_at=yesterday_start + timedelta(hours=2),
+        )
+        non_matching_table = Order(
+            table_id=table_two.id,
+            user_id=waiter_one.id,
+            status="paid",
+            total_amount=10.0,
+            created_at=today_start + timedelta(hours=4),
+        )
+        db.session.add_all([matching_order, non_matching_waiter, non_matching_date, non_matching_table])
+        db.session.flush()
+
+        for order in [matching_order, non_matching_waiter, non_matching_date, non_matching_table]:
+            db.session.add(
+                OrderItem(
+                    order_id=order.id,
+                    menu_item_id=menu_item.id,
+                    quantity=1,
+                    price=menu_item.price,
+                    status="pending",
+                    station=station.name,
+                    prep_tag=generate_kitchen_tag(),
+                )
+            )
+        db.session.commit()
+
+        token = create_access_token(
+            identity=str(cashier.id),
+            additional_claims={"role": "cashier", "username": cashier.username},
+        )
+
+    response = client.get(
+        (
+            f"/api/orders?status=paid&date={get_eat_today().isoformat()}"
+            f"&waiter_id={waiter_one.id}&table_number=12"
+        ),
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert [order["id"] for order in payload] == [matching_order.id]

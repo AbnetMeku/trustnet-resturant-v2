@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useDeferredValue, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchOrders, updateOrderStatus } from "@/api/orders";
 import { getUsers } from "@/api/users";
@@ -23,6 +23,7 @@ export default function ClosedOrders() {
   const [filterWaiter, setFilterWaiter] = useState("");
   const [filterTable, setFilterTable] = useState("");
   const [selectedDate, setSelectedDate] = useState(eatBusinessDateISO());
+  const deferredTableFilter = useDeferredValue(filterTable.trim());
 
   useEffect(() => {
     async function loadWaiters() {
@@ -41,7 +42,12 @@ export default function ClosedOrders() {
     const loadOrders = async () => {
       setLoading(true);
       try {
-        const data = await fetchOrders(authToken, { status: "closed" });
+        const data = await fetchOrders(authToken, {
+          status: "closed",
+          date: selectedDate,
+          waiter_id: filterWaiter ? Number(filterWaiter) : undefined,
+          table_number: deferredTableFilter || undefined,
+        });
         setOrders(data);
       } catch (err) {
         toast.error(getApiErrorMessage(err, "Failed to load closed orders."));
@@ -50,7 +56,7 @@ export default function ClosedOrders() {
       }
     };
     loadOrders();
-  }, [authToken]);
+  }, [authToken, deferredTableFilter, filterWaiter, selectedDate]);
 
   const handleMarkPaid = async (orderId) => {
     try {
@@ -75,15 +81,6 @@ export default function ClosedOrders() {
     }
   };
 
-  const filteredOrders = orders.filter((order) => {
-    const orderDate = eatBusinessDateISO(order.created_at);
-    return (
-      (filterWaiter ? order.user?.id?.toString() === filterWaiter : true) &&
-      (filterTable ? String(order.table?.number || "").includes(filterTable) : true) &&
-      (selectedDate ? orderDate === selectedDate : true)
-    );
-  });
-
   return (
     <div className="space-y-5">
       <Card className="admin-card overflow-hidden">
@@ -96,7 +93,7 @@ export default function ClosedOrders() {
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Showing</p>
-                <p className="text-sm font-medium">{filteredOrders.length}</p>
+                <p className="text-sm font-medium">{orders.length}</p>
               </div>
               <div className="admin-stat">
                 <p className="text-[11px] uppercase tracking-wide text-slate-300">Pending</p>
@@ -153,13 +150,13 @@ export default function ClosedOrders() {
         <Card className="admin-card p-8 text-center text-sm text-slate-500 dark:text-slate-300">
           Loading closed orders...
         </Card>
-      ) : filteredOrders.length === 0 ? (
+      ) : orders.length === 0 ? (
         <Card className="admin-card p-8 text-center text-sm text-slate-500 dark:text-slate-300">
           No closed orders pending payment.
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filteredOrders.map((order) => (
+          {orders.map((order) => (
             <Card key={order.id} className="admin-card p-5 transition hover:shadow-md">
               <div className="flex items-start justify-between">
                 <div>
@@ -329,4 +326,3 @@ export default function ClosedOrders() {
     </div>
   );
 }
-

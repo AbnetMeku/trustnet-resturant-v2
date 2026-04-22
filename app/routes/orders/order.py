@@ -10,9 +10,10 @@ from collections import defaultdict
 import logging
 from app.routes.print.print_jobs import create_station_print_jobs, create_cashier_print_job 
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload, selectinload
 from app.services.inventory_integration import send_inventory_adjustment_or_queue
 from app.services.waiter_profiles import waiter_allowed_station_ids, waiter_can_access_table
-from app.utils.timezone import get_eat_today, eat_now_naive, get_business_day_date
+from app.utils.timezone import get_eat_today, eat_now_naive, get_business_day_date, get_business_day_bounds, parse_date_or_today
 from app.services.cloud_sync import _upsert_outbox_event, _timestamp_suffix, queue_cloud_sync_upsert
 
 
@@ -484,9 +485,19 @@ def update_order(order_id):
 @jwt_required()
 @roles_required("admin", "manager", "waiter", "cashier", "station")
 def list_orders():
-    query = Order.query
+    query = (
+        db.session.query(Order)
+        .options(
+            joinedload(Order.table),
+            joinedload(Order.user),
+            selectinload(Order.items).joinedload(OrderItem.menu_item),
+        )
+    )
     table_id = request.args.get("table_id")
+    table_number = request.args.get("table_number", type=str)
     status = request.args.get("status")
+    waiter_id = request.args.get("waiter_id")
+    date_str = request.args.get("date", type=str)
 
     if table_id:
         try:
@@ -494,8 +505,28 @@ def list_orders():
         except ValueError:
             return error_response("Invalid table_id.", 400)
 
+    if table_number:
+        query = query.join(Order.table).filter(Table.number.ilike(f"%{table_number.strip()}%"))
+
     if status:
         query = query.filter_by(status=status)
+
+    if waiter_id:
+        try:
+            waiter_id_int = int(waiter_id)
+            if waiter_id_int <= 0:
+                raise ValueError
+        except ValueError:
+            return error_response("Invalid waiter_id.", 400)
+        query = query.filter(Order.user_id == waiter_id_int)
+
+    if date_str:
+        try:
+            target_day = parse_date_or_today(date_str)
+        except ValueError:
+            return error_response("Invalid date. Expected YYYY-MM-DD.", 400)
+        day_start, day_end = get_business_day_bounds(target_day)
+        query = query.filter(Order.created_at >= day_start, Order.created_at < day_end)
 
     jwt_data = get_jwt()
     roles = jwt_roles(jwt_data)
