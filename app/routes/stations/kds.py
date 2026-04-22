@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app.models.models import OrderItem, Station, Order
 from app.extensions import db
 from sqlalchemy import asc, desc
+from sqlalchemy.orm import joinedload
 from datetime import datetime
 from app.routes.orders.order import recalc_order_total
 from app.services.inventory_integration import send_inventory_adjustment_or_queue
@@ -51,6 +52,11 @@ def get_pending_orders():
 
     pending_items = (
         db.session.query(OrderItem)
+        .options(
+            joinedload(OrderItem.order).joinedload(Order.table),
+            joinedload(OrderItem.order).joinedload(Order.user),
+            joinedload(OrderItem.menu_item),
+        )
         .join(Order)
         .join(Order.table)
         .join(Order.user)
@@ -194,6 +200,11 @@ def get_ready_orders_history():
     # Base query: include ready and void items in history
     query = (
         db.session.query(OrderItem)
+        .options(
+            joinedload(OrderItem.order).joinedload(Order.table),
+            joinedload(OrderItem.order).joinedload(Order.user),
+            joinedload(OrderItem.menu_item),
+        )
         .join(Order)
         .join(Order.table)
         .join(Order.user)

@@ -53,6 +53,14 @@ def test_manager_can_create_waiter_with_pin(client, app):
     assert data["role"] == "waiter"
 
 
+def test_manager_cannot_create_waiter_with_duplicate_pin(client, app):
+    headers = get_auth_headers(2, "manager", app)
+    duplicate_user = {"username": "dupwaiter", "pin": "1111", "role": "waiter"}
+    res = client.post("/api/users/", headers=headers, json=duplicate_user)
+    assert res.status_code == 400
+    assert "already taken" in res.get_data(as_text=True).lower()
+
+
 def test_waiter_cannot_create_user(client, app):
     headers = get_auth_headers(3, "waiter", app)
     new_user = {"username": "baduser", "password": "badpass", "role": "cashier"}

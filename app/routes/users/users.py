@@ -11,6 +11,15 @@ users_bp = Blueprint("users_bp", __name__, url_prefix="/users")
 ALLOWED_ROLES = {"admin", "manager", "cashier", "waiter"}
 
 
+def _waiter_pin_taken(pin: str, exclude_user_id: int | None = None) -> bool:
+    if not pin:
+        return False
+    query = User.query.filter(User.role == "waiter", User.pin_hash == pin)
+    if exclude_user_id is not None:
+        query = query.filter(User.id != exclude_user_id)
+    return query.first() is not None
+
+
 def user_to_dict(user):
     return {
         "id": user.id,
@@ -68,11 +77,8 @@ def create_user():
     if User.query.filter_by(username=username).first():
         abort(400, "Username already exists")
 
-    if role == "waiter":
-        existing_waiters = User.query.filter_by(role="waiter").all()
-        for waiter in existing_waiters:
-            if waiter.pin_hash == pin:
-                abort(400, "This PIN is already taken")
+    if role == "waiter" and _waiter_pin_taken(pin):
+        abort(400, "This PIN is already taken")
 
     waiter_profile = None
     if role == "waiter" and waiter_profile_id is not None:
@@ -157,10 +163,8 @@ def update_user(user_id):
 
         # Uniqueness check stays in plain-text domain intentionally.
         if new_pin and user.role == "waiter":
-            existing_waiters = User.query.filter(User.id != user.id, User.role == "waiter").all()
-            for waiter in existing_waiters:
-                if waiter.pin_hash == new_pin:
-                    abort(400, "This PIN is already taken")
+            if _waiter_pin_taken(new_pin, exclude_user_id=user.id):
+                abort(400, "This PIN is already taken")
             user.pin_hash = new_pin
 
         user.role = new_role
@@ -195,10 +199,8 @@ def update_user(user_id):
             abort(403, "Waiter cannot update password")
 
         if new_pin:
-            existing_waiters = User.query.filter(User.id != user.id, User.role == "waiter").all()
-            for waiter in existing_waiters:
-                if waiter.pin_hash == new_pin:
-                    abort(400, "This PIN is already taken")
+            if _waiter_pin_taken(new_pin, exclude_user_id=user.id):
+                abort(400, "This PIN is already taken")
             user.pin_hash = new_pin
 
         if "waiter_profile_id" in data:
